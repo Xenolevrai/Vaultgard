@@ -1,0 +1,12 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+evm_version = "shanghai"
+fuzz = { runs = 512 }
+invariant = { runs = 128, depth = 64, fail_on_revert = false }
+
+[rpc_endpoints]
+local = "http://127.0.0.1:8545"
+fuji = "https://api.avax-test.network/ext/bc/C/rpc"

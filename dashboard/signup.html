@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inscription — VaultGuard</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="brand-subtitle">Plateforme multi-organisations</div>
+      <h1>Créer un espace VaultGuard</h1>
+      <p>Sécurisez les flux financiers de vos agents</p>
+    </div>
+
+    <div id="error-box" class="alert-box alert-danger" style="display: none;"></div>
+
+    <form id="signup-form">
+      <div class="form-group">
+        <label class="form-label" for="org_name">Nom de votre organisation</label>
+        <input class="form-input" type="text" id="org_name" required placeholder="Ex. Acme FinTech">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">Adresse email professionnelle</label>
+        <input class="form-input" type="email" id="email" required autocomplete="username" placeholder="nom@entreprise.com">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Mot de passe</label>
+        <input class="form-input" type="password" id="password" required autocomplete="new-password" placeholder="12 caractères minimum">
+        <div class="form-help">Au moins 12 caractères, non prévisible.</div>
+      </div>
+
+      <div class="form-group" id="invite-group">
+        <label class="form-label" for="invite_token">Jeton d'invitation (facultatif)</label>
+        <input class="form-input mono" type="text" id="invite_token" placeholder="Si vous rejoignez une organisation existante">
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="btn-submit" style="width: 100%; margin-top: 8px;">
+        Créer mon compte
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <div>Déjà un compte ? <a href="/login">Se connecter</a></div>
+      <div style="margin-top: 8px;"><a href="/">Consulter la démonstration publique</a></div>
+    </div>
+  </div>
+
+  <script nonce="__NONCE__">
+    let csrfToken = '';
+
+    async function init() {
+      // Pré-remplir le jeton d'invitation depuis l'URL si présent
+      const params = new URLSearchParams(window.location.search);
+      const tokenParam = params.get('token') || params.get('invite');
+      if (tokenParam) {
+        document.getElementById('invite_token').value = tokenParam;
+      }
+
+      try {
+        const res = await fetch('/api/session');
+        if (res.ok) {
+          const data = await res.json();
+          csrfToken = data.csrf || '';
+        }
+      } catch (e) {
+        // Ignorer
+      }
+    }
+
+    const form = document.getElementById('signup-form');
+    const errBox = document.getElementById('error-box');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errBox.style.display = 'none';
+      errBox.textContent = '';
+      btnSubmit.disabled = true;
+
+      const org_name = document.getElementById('org_name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const invite_token = document.getElementById('invite_token').value.trim();
+
+      try {
+        const payload = { email, password, org_name };
+        if (invite_token) {
+          payload.invite_token = invite_token;
+        }
+
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          errBox.textContent = data.error || "Erreur lors de l'inscription";
+          errBox.style.display = 'block';
+          btnSubmit.disabled = false;
+          return;
+        }
+
+        window.location.href = '/app';
+      } catch (err) {
+        errBox.textContent = 'Erreur réseau, veuillez réessayer.';
+        errBox.style.display = 'block';
+        btnSubmit.disabled = false;
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

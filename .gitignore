@@ -1,0 +1,27 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+audit.jsonl
+outbox.jsonl
+
+# divers
+.DS_Store
+Thumbs.db
+
+# base de données (v3)
+data/
+*.db
+*.db-wal
+*.db-shm

@@ -1,0 +1,12 @@
+**/.env
+**/.env.*
+!.env.example
+.git
+contracts/lib
+contracts/out
+contracts/cache
+contracts/broadcast
+**/__pycache__
+**/audit.jsonl*
+docs
+*.bat

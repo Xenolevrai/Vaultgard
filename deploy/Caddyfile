@@ -1,0 +1,14 @@
+{$DOMAIN} {
+	encode gzip
+	request_body {
+		max_size 32KB
+	}
+	reverse_proxy vaultguard:8000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+	header -Server
+	log {
+		output stdout
+		format json
+	}
+}

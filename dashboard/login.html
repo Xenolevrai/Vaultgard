@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — VaultGuard</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="brand-subtitle">Sécurité des agents IA</div>
+      <h1>Connexion VaultGuard</h1>
+      <p>Accédez à l'espace de votre organisation</p>
+    </div>
+
+    <div id="error-box" class="alert-box alert-danger" style="display: none;"></div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="email">Adresse email</label>
+        <input class="form-input" type="email" id="email" required autocomplete="username" placeholder="nom@entreprise.com">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Mot de passe</label>
+        <input class="form-input" type="password" id="password" required autocomplete="current-password" placeholder="••••••••••••">
+      </div>
+
+      <div class="form-group" id="totp-group" style="display: none;">
+        <label class="form-label" for="totp">Code d'authentification 2FA</label>
+        <input class="form-input mono" type="text" id="totp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+        <div class="form-help">Saisissez le code à 6 chiffres de votre application d'authentification.</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="btn-submit" style="width: 100%; margin-top: 8px;">
+        Se connecter
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <div>Pas encore de compte ? <a href="/signup">Créer un espace</a></div>
+      <div style="margin-top: 8px;"><a href="/">Consulter la démonstration publique</a></div>
+    </div>
+  </div>
+
+  <script nonce="__NONCE__">
+    let csrfToken = '';
+
+    async function init() {
+      try {
+        const res = await fetch('/api/session');
+        if (res.ok) {
+          const data = await res.json();
+          csrfToken = data.csrf || '';
+        }
+      } catch (e) {
+        // Ignorer
+      }
+    }
+
+    const form = document.getElementById('login-form');
+    const errBox = document.getElementById('error-box');
+    const totpGroup = document.getElementById('totp-group');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errBox.style.display = 'none';
+      errBox.textContent = '';
+      btnSubmit.disabled = true;
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const totpCode = document.getElementById('totp').value.trim();
+
+      try {
+        const payload = { email, password };
+        if (totpCode) {
+          payload.totp_code = totpCode;
+        }
+
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          errBox.textContent = data.error || 'Erreur lors de la connexion';
+          errBox.style.display = 'block';
+          btnSubmit.disabled = false;
+          return;
+        }
+
+        if (data.totp_required) {
+          totpGroup.style.display = 'block';
+          document.getElementById('totp').focus();
+          btnSubmit.disabled = false;
+          return;
+        }
+
+        window.location.href = '/app';
+      } catch (err) {
+        errBox.textContent = 'Erreur réseau, veuillez réessayer.';
+        errBox.style.display = 'block';
+        btnSubmit.disabled = false;
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

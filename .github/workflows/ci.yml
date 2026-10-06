@@ -1,0 +1,26 @@
+# Intégration continue : chaque push/PR lance tous les tests + l'analyse de sécurité.
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Dépendances
+        run: |
+          cd contracts && forge install foundry-rs/forge-std --no-git && cd ..
+          python -m venv ~/.venvs/vaultguard && ~/.venvs/vaultguard/bin/pip install -q -r agent/requirements.txt
+          python -m venv ~/.venvs/vg-audit && ~/.venvs/vg-audit/bin/pip install -q slither-analyzer bandit pip-audit
+      - name: Tests complets (unitaires, fuzz, invariants, API, parité anvil, Slither, Bandit)
+        run: bash scripts/test-all.sh --full
+      - name: Dépendances vulnérables
+        run: ~/.venvs/vg-audit/bin/pip-audit -r agent/requirements.txt
+      - name: Aucun secret commité
+        run: |
+          ! git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '.env.example'
+          ! git grep -nE '0x[0-9a-fA-F]{64}' -- ':!scripts/local-chain.sh' ':!agent/test_*' ':!agent/scenarios.py' ':!contracts/lib' ':!docs'
