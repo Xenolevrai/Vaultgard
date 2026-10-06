@@ -15,7 +15,8 @@ trap 'rm -f "$ENV_FILE"' EXIT
 echo "== 1. Création des wallets";  bash scripts/create-wallets.sh >/dev/null && echo "   6 wallets/adresses créés"
 OWNER=$(cast wallet address "$(grep ^OWNER_PRIVATE_KEY= $ENV_FILE | cut -d= -f2)")
 echo "== 2. 'Faucet' local : 1 AVAX pour Owner"
-cast send "$OWNER" --value 1ether --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url $RPC >/dev/null
+# anvil_setBalance crédite directement le compte : aucune clé privée (même publique) dans le dépôt
+cast rpc anvil_setBalance "$OWNER" 0xde0b6b3a7640000 --rpc-url $RPC >/dev/null
 echo "== 3. Déploiement";            bash scripts/deploy-fuji.sh
 sed -i "s|^CHAIN=.*|CHAIN=web3|" "$ENV_FILE"
 echo "== 4. Diagnostic";             { bash scripts/doctor.sh || true; } | grep -E "contrat|coffre|agent a du gas|Bilan"
