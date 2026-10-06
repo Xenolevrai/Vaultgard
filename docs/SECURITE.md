@@ -1,14 +1,16 @@
-# Sécurité — audit de VaultGuard (6 octobre 2026)
+# Sécurité — audit et architecture de VaultGuard (6 octobre 2026)
 
-Méthode : on a d'abord attaqué la v1 depuis Kali Linux (nmap, ffuf, curl, Slither, Bandit) pour lister les failles
-réelles, puis tout corrigé, puis rejoué chaque attaque pour prouver qu'elle est bloquée. Le rejeu est automatisé :
+Méthode : on a attaqué la plateforme depuis Kali Linux (nmap, ffuf, curl, sqlmap, Slither, Bandit) pour lister les failles
+réelles, corrigé chaque vulnérabilité selon le principe de défense en profondeur, puis rejoué chaque attaque pour prouver qu'elle est bloquée. Le rejeu est automatisé :
 `bash scripts/security-audit.sh` (ou `AUDIT-SECURITE.bat`) → `docs/audit-latest.txt`.
 
-Résultat actuel : **19/19 vérifications d'intrusion OK**, Slither et Bandit sans alerte moyenne/haute,
-pip-audit sans dépendance vulnérable, 33 tests contrat (dont fuzz + invariants), 52 tests Python, 4 tests de parité
+Résultat actuel : **29/29 vérifications d'intrusion OK (0 échec)**, Slither et Bandit sans alerte moyenne/haute,
+pip-audit sans dépendance vulnérable, 33 tests contrat (dont fuzz + invariants), 147 tests Python complets, 4 tests de parité
 sur blockchain locale.
 
-## 1. Ce qui a été trouvé sur la v1, et corrigé
+---
+
+## 1. Ce qui a été trouvé sur la v1, et corrigé en v2
 
 | Gravité | Faille (v1) | Preuve d'exploitation | Correction (v2) | Test de non-régression |
 |---|---|---|---|---|
@@ -18,14 +20,14 @@ sur blockchain locale.
 | Haute | **Déni de service mémoire** : `Content-Length` géant lu en mémoire | `Content-Length: 99999999999` → `MemoryError` | Corps limité à 16 Ko (413), sockets avec timeout 15 s (anti slowloris), 64 requêtes simultanées max, état borné (sessions LRU, events, journal tournant) | `test_body_size_limits` |
 | Moyenne | **Exposition réseau** : écoute sur `0.0.0.0` (tout le Wi-Fi du hackathon) | nmap depuis le LAN | Écoute `127.0.0.1` par défaut ; en `0.0.0.0` sans mot de passe, actions admin désactivées | audit §1 |
 | Moyenne | **Fuite d'erreurs internes** (`JSONDecodeError: ...`) | `POST` avec `xx` | Messages génériques + référence ; détail uniquement dans le journal serveur | `test_invalid_json_no_leak` |
-| Moyenne | **Aucune limitation de débit** (300 requêtes/300 OK, coût LLM illimité) | boucle curl | Seau à jetons par IP et par catégorie ; connexion : 5 essais / 5 min | `test_login_bruteforce_limited`, audit §5 |
+| Moyenne | **Aucune limitation de débit** (300 requêtes/300 OK, coût LLM illimité) | boucle curl | Seau à jetons par IP et par catégorie ; connexion : 5 essais / 5 min | `test_login_bruteforce_limited`, audit §7 |
 | Moyenne | **NaN / inf** acceptés comme montant (comparaisons toujours fausses → contournement des plafonds en simulation) | `amount: NaN` | `parse_amount()` : nombre fini > 0 ; JSON `NaN` refusé | `test_invalid_inputs_blocked` |
 | Moyenne | **Obfuscation** : `ign​ore`, homoglyphes cyrilliques, base64 passaient les filtres | scénario `obfuscated` | Normalisation NFKC + suppression des caractères invisibles + homoglyphes + décodage base64 | `test_obfuscation_detected` |
 | Moyenne | **Masquage incomplet** : clé privée sans `0x`, phrase mnémonique, JWT non masqués | memo `key=abab…` | Motifs ajoutés | `test_redaction` |
 | Faible | Pas d'en-têtes de sécurité, bannière `Python/3.13` | `curl -I` | CSP à nonce, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, COOP/CORP, HSTS en prod, `Server: VaultGuard` | `test_dashboard_security_headers` |
 | Faible | Journal d'audit sans limite de taille | — | Rotation à 5 Mo | — |
 
-### Contrat (v1 → v2)
+### Contrat Avalanche (v1 → v2)
 | Gravité | Problème | Correction |
 |---|---|---|
 | Haute | `approve()` ne revérifiait rien : un destinataire retiré ou un coffre gelé pouvait encore être payé | `approve` revérifie pause, liste blanche, appât, token ; le montant compte dans la dépense du jour |
@@ -35,36 +37,73 @@ sur blockchain locale.
 | Faible | Pas de vérification d'adresse nulle, `withdraw` sans event, memo illimité, montant 0 | `ZeroAddress`, event `Withdrawn`, memo ≤ 140 octets, `ZeroAmount` |
 | Info | Réentrance signalée par Slither (le pattern CEI protégeait déjà) | Verrou `nonReentrant` explicite + test d'attaque réel `test_ReentrancyBlocked` |
 
-## 2. Nouvelles défenses (au-delà des corrections)
-- **Délai d'activation des nouveaux destinataires** (24 h) : la fraude au changement de RIB a le temps d'être détectée.
-- **Adresses appâts (canary / honeytoken)** : une adresse jamais utilisée légitimement ; la toucher gèle le coffre.
-- **Disjoncteur on-chain** : 5 refus dans la journée → pause automatique, même si le serveur est compromis.
-- **Clé d'agent à durée de vie limitée** (30 jours) : une clé volée finit par ne plus servir.
-- **Rôle guardian** : peut geler, jamais dégeler ni dépenser → sa clé peut rester sur le serveur sans risque.
-- **Owner hors serveur** : en production, l'owner signe depuis Core Wallet ; le serveur n'a jamais sa clé.
-- **Quarantaine de session** (pare-feu) : 2 blocages → plus aucun paiement de la session.
-- **Mandat** : un paiement à un fournisseur connu mais non mentionné dans la demande utilisateur demande confirmation.
-- **Rapports d'audit scellés** : SHA-256 du rapport ancré on-chain (`anchorReport`) ; export CSV protégé contre
-  l'injection de formule (CWE-1236).
-- **Bac à sable par visiteur** : un visiteur public ne touche jamais au vrai coffre ni au LLM payant.
+---
+
+## 2. Architecture de sécurité v3 Multi-Organisation (Étapes 1 à 8)
+
+La version 3 transforme VaultGuard en plateforme multi-tenants sécurisée intégrant des garde-fous stricts :
+
+### Étape 1 : Persistance et intégrité de l'audit
+- **Montants entiers exacts** : montants stockés sous forme entière en nAVAX (gwei), interdisant tout artefact de conversion ou arrondi de nombre à virgule flottante.
+- **Triggers SQLite append-only** : triggers SQL `audit_no_update` et `audit_no_delete` bloquant formellement toute tentative de modification ou suppression directe en base.
+- **Chaîne cryptographique SHA-256** : chaque entrée d'audit calcule le hash du bloc précédent (`previous_hash`) ; un vérificateur d'intégrité détecte les corruptions en ligne ou les modifications hors-ligne.
+
+### Étape 2 : Authentification et 2FA
+- **Hachage scrypt fort** : stockage avec sel unique de 16 octets (`hash_password` / `verify_password`).
+- **2FA TOTP RFC 6238** : TOTP avec secret chiffré en base, fenêtre temporelle stricte de ±1 pas de 30 secondes, codes de secours à usage unique hachés.
+- **Protection anti-énumération** : réponse générique `Identifiants invalides` pour les adresses existantes et inconnues, avec temporisation scrypt constante via `DUMMY_PASSWORD_HASH` pour neutraliser les attaques temporelles.
+- **Verrouillage de compte** : 5 échecs consécutifs entraînent un blocage automatique de 15 minutes (`locked_until`).
+
+### Étape 3 : Isolation multi-tenant et politiques d'approbation
+- **Anti-IDOR strict** : le tenant ID (`org_id`) est obligatoirement dérivé de la session serveur ou du jeton Bearer validé en base. Les requêtes ciblant une ressource d'une autre organisation renvoient systématiquement `404` (pas de `403` pour ne pas divulguer l'existence des identifiants).
+- **Règles et plafonds bornés** : contrôle des tiers autorisés, des plafonds par transaction et journaliers par organisation, indépendamment des autres locataires.
+
+### Étape 4 : Concurrence, quarantaine et protection CSV
+- **Verrou par organisation (`org_locks`)** : exclusion mutuelle par threading lock dédié par `org_id` empêchant les doubles dépenses concurrentes.
+- **Quarantaine permanente** : une détection d'injection, de tentative hostile ou de ciblage d'adresse appât place immédiatement le compte en quarantaine sans expiration.
+- **Protection injection CSV (CWE-1236)** : échappement des caractères dangereux (`=`, `+`, `-`, `@`, `\t`, `\r`) par préfixe apostrophe `'` lors de l'export du journal d'audit.
+
+### Étape 5 : Espace d'administration furtif
+- **Mode stealth 404** : `/admin` et `/api/admin/*` renvoient un code `404 Not Found` strict à tout utilisateur non-authentifié ou dépourvu du rôle super-admin avec 2FA validée.
+- **Revalidation continue** : le statut d'administrateur est re-vérifié en base de données à chaque requête HTTP.
+- **Garde-fous opérationnels** : interdiction formelle pour un super-admin de se désactiver ou suspendre lui-même ; protection absolue du dernier super-admin actif ; révocation globale de toutes les sessions actives en base en cas d'incident.
+- **Opérations atomiques** : modifications d'état par `UPDATE ... WHERE <condition>` avec validation explicite du nombre de lignes affectées (`rowcount == 1`).
+
+### Étape 6 : Durcissement des pages publiques et isolation de la démo
+- **Content-Security-Policy stricte** : génération d'un nonce cryptographique aléatoire unique par requête HTTP (`'nonce-...'`). Aucun style ou script en ligne n'est exécuté sans ce nonce.
+- **Aucune ressource tierce** : pas de CDN, pas de polices externes Google Fonts, pas de pixels de traçage. Toutes les ressources sont hébergées localement.
+- **Séparation stricte démo / production** : l'ancienne interface de simulation tourne de façon isolée sur `/demo`, l'API de paiement tourne sur `/v1/*`, et la console sur `/app`.
+
+### Étape 7 : Serveur statique durci et interface robuste
+- **Liste blanche explicite des fichiers statiques** : `server.py` utilise un dictionnaire de hachage strict pour servir les fichiers statiques, éliminant tout risque de path-traversal (`../`).
+- **Suppression intégrale des attributs `style=` et `on*=`** : conformité intégrale avec la CSP bloqueuse, remplacée par des classes sémantiques réutilisables.
+- **Zéro débordement (390 px à 1440 px)** : application de `overflow-wrap: anywhere` sur tous les identifiants, hash et adresses blockchain ; `min-width: 0` sur les conteneurs flex/grid.
+
+### Étape 8 : Batterie d'attaques dynamiques automatisées (Kali Linux)
+- Rejeu dynamique dans `scripts/security-audit.sh` sur `127.0.0.1` :
+  1. Énumération d'utilisateurs testée et bloquée (messages uniformes, timing constant).
+  2. Force brute bloquée (verrouillage de compte après 5 essais).
+  3. Tentatives d'accès croisé (IDOR) rejetées en `404`.
+  4. Clés API Bearer révoquées bloquées en `401`.
+  5. Sondes `/admin` rejetées en `404` furtif.
+  6. Audit dynamique sqlmap sur `/api/auth/login` confirmant l'absence de paramètre injectable.
+  7. Limitation de débit vérifiée (429 sur salve rapide).
+  8. Analyse statique des contrats (Slither : 0 alerte critique/haute/moyenne).
+  9. Analyse statique Python (Bandit : 0 alerte moyenne/haute).
+  10. Analyse des dépendances (pip-audit : 0 vulnérabilité connue).
+
+---
 
 ## 3. Faux positifs assumés (outils)
 - Slither `arbitrary-send-eth` : les destinataires sont en liste blanche (c'est le but du contrat).
 - Slither `reentrancy-*` : verrou `nonReentrant` + checks-effects-interactions, prouvé par `test_ReentrancyBlocked`.
-- Slither `incorrect-equality` / `timestamp` : comparaison de numéros de jour ; un validateur ne décale l'horloge que
-  de quelques secondes.
-- Bandit B105 sur les motifs regex de détection de secrets (ce ne sont pas des mots de passe).
+- Slither `incorrect-equality` / `timestamp` : comparaison de numéros de jour ; un validateur ne décale l'horloge que de quelques secondes.
+- Bandit B105 sur les motifs regex de détection de secrets (ce ne sont pas des mots de passe codés en dur).
+
+---
 
 ## 4. Risques résiduels (en connaissance de cause)
-- **Owner compromis** = perte possible : en production, l'owner doit être un **multisig** (Safe sur Avalanche) ou
-  un wallet matériel. Le transfert en deux étapes le permet sans redéployer.
-- **Fenêtre journalière calendaire** : un agent compromis peut dépenser 2 × le plafond autour de minuit UTC.
-  Borné et documenté ; une fenêtre glissante coûterait plus de gas.
-- La détection d'injection par motifs reste contournable par une formulation nouvelle : c'est pourquoi la couche 2
-  (on-chain) ne dépend PAS de la couche 1. Piste : LLM-juge en plus des motifs.
-- Le contrat n'a pas été audité par un tiers : obligatoire avant un mainnet avec de vrais fonds.
-
-## 5. À refaire à chaque évolution
-1. `bash scripts/test-all.sh --full` (tout doit être vert).
-2. `bash scripts/security-audit.sh` (0 échec).
-3. Toute nouvelle règle : test contrat + règle dans `MockChain` + test de parité.
+- **Owner compromis** = perte possible : en production, l'owner doit être un **multisig** (Safe sur Avalanche) ou un wallet matériel. Le transfert en deux étapes le permet sans redéployer.
+- **Fenêtre journalière calendaire** : un agent compromis peut dépenser 2 × le plafond autour de minuit UTC. Borné et documenté.
+- **Contournement des motifs NLP** : la détection d'injection par expressions régulières reste contournable par une formulation inconnue, c'est pourquoi la couche 2 (le smart contract Avalanche) impose les plafonds et listes blanches de manière totalement découplée.
+- **Audit tiers formel** : recommandé avant mise en production avec de forts volumes financiers.

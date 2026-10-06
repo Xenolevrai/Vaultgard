@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VaultGuard — Administration Plateforme</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Barre latérale unifiée -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-title">VAULTGUARD</div>
+        <div class="brand-subtitle">ADMINISTRATION PLATEFORME</div>
+      </div>
+
+      <ul class="nav-list">
+        <li class="nav-item">
+          <a href="#stats" class="nav-link active" data-section="stats">Statistiques</a>
+        </li>
+        <li class="nav-item">
+          <a href="#orgs" class="nav-link" data-section="orgs">Organisations</a>
+        </li>
+        <li class="nav-item">
+          <a href="#users" class="nav-link" data-section="users">Utilisateurs</a>
+        </li>
+        <li class="nav-item">
+          <a href="#security" class="nav-link" data-section="security">Événements de sécurité</a>
+        </li>
+        <li class="nav-item">
+          <a href="#audit" class="nav-link" data-section="audit">Journal d'audit</a>
+        </li>
+        <li class="nav-item">
+          <a href="#health" class="nav-link" data-section="health">Santé système</a>
+        </li>
+        <li class="nav-item nav-item-bottom">
+          <a href="/app" class="nav-link">Espace client (/app)</a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Contenu principal -->
+    <main class="main-content">
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <span class="brand-page-title">Administration globale</span>
+          <span class="badge badge-admin">SUPER-ADMIN</span>
+          <span class="badge badge-owner">2FA ACTIVE</span>
+        </div>
+
+        <div class="top-bar-right">
+          <span id="user-email-display" class="mono text-muted-sm"></span>
+          <button id="btn-logout" class="btn btn-secondary">Déconnexion</button>
+        </div>
+      </header>
+
+      <div class="page-body">
+        
+        <!-- SECTION 1 : Statistiques globales -->
+        <section id="sec-stats" class="app-section active">
+          <div class="section-header">
+            <h1 class="section-title">Statistiques globales de la plateforme</h1>
+            <p class="section-desc">Métriques agrégées de gouvernance (comptages stricts, sans données financières ni de factures).</p>
+          </div>
+
+          <div class="cards-grid">
+            <div class="card">
+              <div class="card-label">Utilisateurs inscrits</div>
+              <div class="card-value" id="stat-users-total">0</div>
+              <div class="card-sub" id="stat-users-sub">0 actifs · 0 avec 2FA</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Organisations clientes</div>
+              <div class="card-value" id="stat-orgs-total">0</div>
+              <div class="card-sub" id="stat-orgs-sub">0 actives · 0 suspendues</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Clés API agents IA</div>
+              <div class="card-value" id="stat-keys-total">0</div>
+              <div class="card-sub" id="stat-keys-sub">0 actives · 0 en quarantaine</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Paiements traités</div>
+              <div class="card-value" id="stat-payments-total">0</div>
+              <div class="card-sub" id="stat-payments-sub">0 autorisés · 0 bloqués</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Entrées au journal d'audit</div>
+              <div class="card-value" id="stat-audit-total">0</div>
+              <div class="card-sub">Chaîne cryptographique immuable</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2 : Organisations -->
+        <section id="sec-orgs" class="app-section is-hidden">
+          <div class="section-header">
+            <h1 class="section-title">Organisations de la plateforme</h1>
+            <p class="section-desc">Supervision des espaces clients. Une suspension bloque immédiatement l'accès API (/v1) et l'espace client (/app).</p>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Organisations clientes</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>Identifiant</th>
+                    <th>Réseau</th>
+                    <th>Adresse Coffre</th>
+                    <th>Membres</th>
+                    <th>Clés API</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="orgs-tbody">
+                  <tr><td class="table-empty-cell" colspan="8">Chargement des organisations...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3 : Utilisateurs -->
+        <section id="sec-users" class="app-section is-hidden">
+          <div class="section-header">
+            <h1 class="section-title">Utilisateurs de la plateforme</h1>
+            <p class="section-desc">Gestion des comptes, désactivation d'accès et révocation immédiate de toutes les sessions actives.</p>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Comptes utilisateurs</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Rôle & Organisations</th>
+                    <th>2FA</th>
+                    <th>Sessions</th>
+                    <th>Statut</th>
+                    <th>Date d'inscription</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody">
+                  <tr><td class="table-empty-cell" colspan="7">Chargement des utilisateurs...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4 : Événements de sécurité -->
+        <section id="sec-security" class="app-section is-hidden">
+          <div class="section-header">
+            <h1 class="section-title">Événements de sécurité</h1>
+            <p class="section-desc">Surveillance des alertes de détection : échecs de connexion, quarantaines automatiques et adresses appâts touchées.</p>
+          </div>
+
+          <div class="cards-grid mb-6">
+            <div class="card">
+              <div class="card-label">Échecs de connexion récents</div>
+              <div class="card-value text-danger" id="sec-failed-count">0</div>
+              <div class="card-sub">Tentatives de force brute journalisées</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Clés agents en quarantaine</div>
+              <div class="card-value text-warning" id="sec-quarantine-count">0</div>
+              <div class="card-sub">Quarantaines actives (appât ou disjoncteur)</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Déclenchements d'adresses appâts</div>
+              <div class="card-value text-danger" id="sec-canary-count">0</div>
+              <div class="card-sub">Pièges touchés par des agents corrompus</div>
+            </div>
+          </div>
+
+          <!-- 1. Échecs de connexion -->
+          <div class="table-container mb-6">
+            <div class="table-header-bar">
+              <div class="table-title">Derniers échecs d'authentification (login_events)</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date (UTC)</th>
+                    <th>Email ciblé</th>
+                    <th>Adresse IP</th>
+                    <th>Motif du rejet</th>
+                  </tr>
+                </thead>
+                <tbody id="sec-failed-tbody">
+                  <tr><td class="table-empty-cell" colspan="4">Aucun échec enregistré.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 2. Quarantaines -->
+          <div class="table-container mb-6">
+            <div class="table-header-bar">
+              <div class="table-title">Clés agents en quarantaine active</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Organisation</th>
+                    <th>Nom de la clé</th>
+                    <th>Préfixe</th>
+                    <th>Motif de quarantaine</th>
+                    <th>Expiration</th>
+                  </tr>
+                </thead>
+                <tbody id="sec-quarantine-tbody">
+                  <tr><td class="table-empty-cell" colspan="5">Aucune clé en quarantaine.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 3. Appâts touchés -->
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Alertes d'adresses appâts (honeytokens)</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date (UTC)</th>
+                    <th>Organisation</th>
+                    <th>Type d'événement</th>
+                    <th>Détails</th>
+                  </tr>
+                </thead>
+                <tbody id="sec-canary-tbody">
+                  <tr><td class="table-empty-cell" colspan="4">Aucun appât déclenché.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5 : Journal d'audit de la plateforme -->
+        <section id="sec-audit" class="app-section is-hidden">
+          <div class="section-header">
+            <h1 class="section-title">Journal d'audit de la plateforme</h1>
+            <p class="section-desc">Piste d'audit cryptographiquement chaînée (SHA-256) de toutes les actions système et administratives.</p>
+          </div>
+
+          <div class="audit-status-bar">
+            <button id="btn-verify-audit" class="btn btn-primary">Vérifier l'intégrité de la chaîne</button>
+            <span id="audit-verify-status" class="mono text-sm"></span>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Registres d'audit (ajout seul)</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date (UTC)</th>
+                    <th>Organisation</th>
+                    <th>Utilisateur</th>
+                    <th>Action</th>
+                    <th>Adresse IP</th>
+                    <th>Empreinte SHA-256</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody">
+                  <tr><td class="table-empty-cell" colspan="6">Chargement du journal d'audit...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6 : Santé de la plateforme -->
+        <section id="sec-health" class="app-section is-hidden">
+          <div class="section-header">
+            <h1 class="section-title">Santé de la plateforme</h1>
+            <p class="section-desc">Diagnostics en direct des composants vitaux : base SQLite locale, nœud RPC Avalanche et version applicative.</p>
+          </div>
+
+          <div class="cards-grid mb-6">
+            <div class="card">
+              <div class="card-label">Base de données SQLite</div>
+              <div class="card-value" id="health-db-status">OK</div>
+              <div class="card-sub mono" id="health-db-sub">Latence : — ms</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Nœud RPC Avalanche</div>
+              <div class="card-value" id="health-rpc-status">—</div>
+              <div class="card-sub mono break-all" id="health-rpc-sub">Vérification en cours...</div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">Version applicative</div>
+              <div class="card-value mono" id="health-version">3.0.0</div>
+              <div class="card-sub">VaultGuard Core v3 (Production)</div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

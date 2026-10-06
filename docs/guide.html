@@ -118,7 +118,7 @@ sache défendre le projet.</p>
   <tr><td>10 scénarios d'attaque, 3 modes, bac à sable « essayez de nous pirater »</td><td class="ok">fait</td></tr>
   <tr><td>Dashboard v2 : 5 onglets, explications grand public + détails techniques, mode présentation</td><td class="ok">fait, testé dans Chrome</td></tr>
   <tr><td>Serveur durci (sessions, anti-CSRF, limites, en-têtes de sécurité, mot de passe admin)</td><td class="ok">fait, 17 tests de sécurité verts</td></tr>
-  <tr><td>Audit de sécurité : la v1 attaquée depuis Kali, failles corrigées, attaques rejouées</td><td class="ok">19 sur 19, rapport <code>docs/SECURITE.md</code></td></tr>
+  <tr><td>Audit de sécurité : la v1 attaquée depuis Kali, failles corrigées, attaques rejouées</td><td class="ok">29 sur 29, rapport <code>docs/SECURITE.md</code></td></tr>
   <tr><td>Test de parité : la simulation se comporte exactement comme le vrai contrat</td><td class="ok">fait, sur blockchain locale</td></tr>
   <tr><td>Diagnostic automatique (<code>DIAGNOSTIC.bat</code>)</td><td class="ok">fait</td></tr>
   <tr><td>Mise en production : Docker, HTTPS automatique, intégration continue GitHub</td><td class="ok">prêt (section 30)</td></tr>
@@ -477,7 +477,7 @@ risque, et des raisons. Chaque raison a trois niveaux : une phrase pour tout le 
 <h3>Lancer</h3>
 <div class="step"><div class="num">1</div><div><p>Dans <code>Bureau\SecureHorizons-Prep\vaultguard</code>, double-clique sur <b>LANCER-DASHBOARD.bat</b>. La fenêtre noire affiche :</p>
 <pre class="out">VaultGuard -> http://localhost:8000  (backend=mock, écoute 127.0.0.1, admin=local)</pre>
-<p>Le navigateur s'ouvre sur <code>http://localhost:8000</code> (sinon, <span class="k">F5</span>). Pour arrêter : ferme la fenêtre noire.</p></div></div>
+<p>Le navigateur s'ouvre sur <code>http://localhost:8000/demo</code> (sinon, <span class="k">F5</span> ; accueil sur <code>http://localhost:8000</code>). Pour arrêter : ferme la fenêtre noire.</p></div></div>
 <p class="muted">« admin=local » : comme le serveur n'écoute que sur ta machine, la personne devant l'écran est l'administrateur.
 En ligne, il faut un mot de passe (section 30).</p>
 <p>Terminal Kali (équivalent) : <code>cd agent &amp;&amp; ~/.venvs/vaultguard/bin/python server.py</code>.</p>
@@ -752,7 +752,7 @@ et fait des petits commits fréquents.</p>
   <li>Cloner : <code>git clone https://github.com/TON-PSEUDO/vaultguard.git && cd vaultguard</code></li>
   <li>Installer : <code>bash scripts/setup.sh</code> (5 à 10 minutes la première fois).</li>
   <li>Tester : <code>bash scripts/test-all.sh</code> doit finir par « Tout est vert ».</li>
-  <li>Lancer : <code>cd agent && ~/.venvs/vaultguard/bin/python server.py</code> puis <code>http://localhost:8000</code>.</li>
+  <li>Lancer : <code>cd agent && ~/.venvs/vaultguard/bin/python server.py</code> puis <code>http://localhost:8000/demo</code> (ou <code>http://localhost:8000</code>).</li>
 </ol>
 <h3>Coéquipier sous macOS ou Linux</h3>
 <p>Mêmes étapes 3 à 6 dans le Terminal (sur Mac, installer d'abord git avec <code>xcode-select --install</code>).</p>
@@ -949,8 +949,8 @@ Compte 2 à 3 heures par jour. Il n'est pas nécessaire de tout maîtriser.</p>
   <tr><td>3</td><td>Une facture suffit</td><td>Capture de la facture piégée (commentaire caché). Injection = risque n°1 OWASP. Fraude au RIB.</td></tr>
   <tr><td>4</td><td>Démo</td><td>(Passer sur le dashboard.)</td></tr>
   <tr><td>5</td><td>Deux couches</td><td>Le schéma de la section 04 : pare-feu (contexte) + contrat Avalanche (garanties).</td></tr>
-  <tr><td>6</td><td>Les résultats</td><td>Capture de l'onglet Comparer (10 situations × 3 modes). Environ 90 tests, audit d'intrusion 19/19.</td></tr>
-  <tr><td>6 bis</td><td>Nous nous sommes attaqués</td><td>Le tableau « trouvé / corrigé » de la section 27 en 4 lignes. « 19 attaques rejouées à chaque modification. »</td></tr>
+  <tr><td>6</td><td>Les résultats</td><td>Capture de l'onglet Comparer (10 situations × 3 modes). 147 tests Python, 37 tests contrat/fuzzing/invariants, audit d'intrusion 29/29.</td></tr>
+  <tr><td>6 bis</td><td>Nous nous sommes attaqués</td><td>Le tableau « trouvé / corrigé » de la section 27 en 4 lignes. « 29 attaques rejouées à chaque modification. »</td></tr>
   <tr><td>7</td><td>Pour les entreprises</td><td>Contrôle 4 yeux, séparation des rôles (agent, guardian, owner), rapports scellés, perte maximale chiffrée. Adresse du contrat sur Fuji.</td></tr>
   <tr><td>8</td><td>Et ensuite</td><td>Stablecoins, L1 Avalanche dédiée, SDK pour tout agent. « Ne faites pas confiance au LLM. Bornez-le. »</td></tr>
 </table>
@@ -1191,7 +1191,7 @@ CSV/JSON scellé, validation depuis Core Wallet. Restent, par ordre de priorité
   <tr><td><code>bash scripts/test-all.sh --full</code></td><td>Tous les tests + parité sur blockchain locale + Slither + Bandit (avant chaque commit).</td></tr>
   <tr><td><code>bash scripts/security-audit.sh</code></td><td>Audit de sécurité (attaques rejouées) → <code>docs/audit-latest.txt</code>.</td></tr>
   <tr><td><code>bash scripts/doctor.sh</code></td><td>Diagnostic complet.</td></tr>
-  <tr><td><code>cd agent &amp;&amp; ~/.venvs/vaultguard/bin/python server.py</code></td><td>Dashboard sur http://localhost:8000.</td></tr>
+  <tr><td><code>cd agent &amp;&amp; ~/.venvs/vaultguard/bin/python server.py</code></td><td>Dashboard de démo sur http://localhost:8000/demo (accueil sur http://localhost:8000).</td></tr>
   <tr><td><code>cd agent &amp;&amp; python3 agent.py --mode full</code></td><td>Les 10 situations dans le terminal.</td></tr>
   <tr><td><code>cd agent &amp;&amp; python3 agent.py --scenario canary --mode contract</code></td><td>Une situation dans un mode précis.</td></tr>
   <tr><td><code>bash scripts/create-wallets.sh</code></td><td>Crée les wallets manquants, affiche les adresses.</td></tr>
@@ -1283,24 +1283,41 @@ attaquer la première version, noter chaque faille, corriger, puis rejouer autom
   <tr><td>CSP à nonce, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, HSTS</td><td>L'injection de script (XSS), le clickjacking, les fuites</td></tr>
   <tr><td>Insertion du texte par <code>textContent</code> uniquement</td><td>Le XSS via une facture piégée</td></tr>
   <tr><td>Bac à sable par visiteur, vrai coffre réservé à l'admin</td><td>Un visiteur qui gèle ou vide le vrai coffre</td></tr>
-  <tr><td>Export CSV neutralisé</td><td>L'injection de formule dans Excel</td></tr>
+  <tr><td>Export CSV neutralisé</td><td>L'injection de formule dans Excel (CWE-1236 : =, +, -, @, \t, \r)</td></tr>
+  <tr><td>Isolation multi-organisations (anti-IDOR)</td><td>L'accès non autorisé aux ressources d'une autre entreprise (404)</td></tr>
+  <tr><td>Double authentification 2FA TOTP (RFC 6238)</td><td>Le vol ou compromission de mot de passe</td></tr>
+  <tr><td>Temps de réponse scrypt constant &amp; verrouillage</td><td>L'énumération d'utilisateurs et la force brute</td></tr>
+  <tr><td>Espace /admin furtif (404 systématique)</td><td>La découverte et le ciblage de l'espace administration</td></tr>
+  <tr><td>Clés API révoquées avec rejet immédiat (401)</td><td>L'usage persistant de jetons compromis sur /v1</td></tr>
 </table>
 
 <h3>Rejouer l'audit toi-même</h3>
 <p>Double-clic sur <b>AUDIT-SECURITE.bat</b> (ou <code>bash scripts/security-audit.sh</code>). Fin attendue :</p>
 <pre class="out">== 4. Fichiers sensibles exposés ? (ffuf, liste ciblée)
-  chemins accessibles : healthz index.html
-  [OK]    seuls index.html et healthz sont servis
-== 5. Limitation de débit (300 requêtes rapides)
+  chemins accessibles : demo healthz index.html 
+  [OK]    seuls index.html, demo et healthz sont servis
+== 5. Attaques v3 multi-clients (127.0.0.1)
+  [OK]    énumération : message d'erreur identique pour email existant ou inconnu
+  [OK]    énumération : message uniforme
+  [OK]    énumération : temps de réponse scrypt constant
+  [OK]    force brute : compte verrouillé ou limitation 429
+  [OK]    accès croisé entre organisations : rejet 404
+  [OK]    clé API révoquée : rejet 401 sur /v1
+  [OK]    /admin anonyme : 404 (stealth)
+  [OK]    /admin utilisateur non-superadmin : 404 (stealth)
+  [OK]    /api/admin/stats non-superadmin : 404
+== 6. Injection SQL (sqlmap)
+  [OK]    sqlmap : aucun paramètre injectable sur /api/auth/login
+== 7. Limitation de débit (300 requêtes rapides)
   [OK]    des requêtes sont limitées (429)
-== 6. Analyse statique du contrat (Slither)
+== 8. Analyse statique du contrat (Slither)
   aucune alerte moyenne/haute
-== 7. Analyse statique Python (Bandit)
+== 9. Analyse statique Python (Bandit)
   aucune alerte moyenne/haute
-== 8. Dépendances vulnérables (pip-audit)
+== 10. Dépendances vulnérables (pip-audit)
   No known vulnerabilities found
 
-RÉSULTAT : 19 vérifications OK, 0 échec(s)</pre>
+RÉSULTAT : 29 vérifications OK, 0 échec(s)</pre>
 <div class="note warn"><b>Règle d'or</b>
 Ces outils ne s'utilisent que sur <b>ton</b> système (ici 127.0.0.1). Scanner ou attaquer le serveur de quelqu'un
 d'autre sans autorisation écrite est illégal. Au hackathon : uniquement votre projet.</div>
@@ -1323,9 +1340,11 @@ modification, c'est qu'on a cassé quelque chose : on le voit tout de suite, ava
   <tr><td>Invariants</td><td>4 règles, 8 192 appels</td><td>Un agent compromis appelle tout au hasard pendant des jours simulés : jamais de paiement hors liste, jamais plus que le plafond, jamais de changement des règles, jamais plus de 10 en attente.</td><td><code>AgentVault.invariant.t.sol</code></td></tr>
   <tr><td>Pare-feu et simulation</td><td>35</td><td>Chaque contrôle du pare-feu, chaque règle de la simulation, les 10 scénarios dans les 3 modes, le bac à sable.</td><td><code>agent/test_vaultguard.py</code></td></tr>
   <tr><td>Sécurité de l'API</td><td>17</td><td>Un vrai serveur est lancé et attaqué : CSRF, Host, Origin, tailles, validation, connexion, force brute, isolement des bacs à sable, en-têtes, CSV.</td><td><code>agent/test_server.py</code></td></tr>
+  <tr><td>Produit multi-tenant (v3)</td><td>82</td><td>Base SQLite, 2FA, espaces orgs, API v1 Bearer, admin 404, dégel, triggers audit, lockout, altération chaîne.</td><td><code>agent/test_product.py</code></td></tr>
+  <tr><td>Ergonomie &amp; CSP (v3)</td><td>13</td><td>Pas de style=/on*= inline, non-débordement, liste blanche statique sans traversal, pas d'URL externe.</td><td><code>agent/test_layout.py</code></td></tr>
   <tr><td>Parité et bout en bout</td><td>4</td><td>Sur une vraie blockchain locale : la simulation décide exactement comme le contrat ; paiement, attente, validation, refus, events, ancrage, appât.</td><td><code>agent/test_parity.py</code></td></tr>
   <tr><td>Analyse statique</td><td>—</td><td>Slither (contrat), Bandit (Python).</td><td>dans <code>test-all.sh --full</code></td></tr>
-  <tr><td>Audit d'intrusion</td><td>19</td><td>Section 27.</td><td><code>scripts/security-audit.sh</code></td></tr>
+  <tr><td>Audit d'intrusion</td><td>29</td><td>Section 27.</td><td><code>scripts/security-audit.sh</code></td></tr>
   <tr><td>Diagnostic</td><td>~20</td><td>Section 29.</td><td><code>scripts/doctor.sh</code></td></tr>
 </table>
 <h3>Lancer</h3>
@@ -1385,9 +1404,9 @@ téléphone. Résumé ici ; version technique dans <code>docs/MISE_EN_PRODUCTION
 <div class="step"><div class="num">2</div><div><p>Installe Docker et récupère le projet :</p>
 <pre>apt update &amp;&amp; apt install -y docker.io docker-compose-v2 git ufw
 git clone https://github.com/TON-COMPTE/vaultguard.git &amp;&amp; cd vaultguard</pre></div></div>
-<div class="step"><div class="num">3</div><div><p>Crée le mot de passe admin (12 caractères minimum, il ne s'affiche pas quand tu tapes) :</p>
-<pre>python3 agent/server.py --hash-password</pre>
-<p>Copie la ligne <code>ADMIN_PASSWORD_HASH=scrypt$…</code> affichée.</p></div></div>
+<div class="step"><div class="num">3</div><div><p>Crée le premier super-administrateur avec 2FA TOTP (email, mot de passe fort ≥ 12 caractères et enrôlement 2FA) :</p>
+<pre>DB_PATH=/var/lib/vaultguard/vaultguard.db python3 agent/server.py --create-admin</pre>
+<p>Note précieusement le secret TOTP et les codes de secours pour accéder à l'espace furtif <code>/admin</code>.</p></div></div>
 <div class="step"><div class="num">4</div><div><p>Crée la configuration : <code>cp .env.example deploy/.env.prod &amp;&amp; nano deploy/.env.prod</code>. Remplis :</p>
 <pre>CHAIN=web3
 VAULT_ADDRESS=0x…            (celui du déploiement Fuji)
@@ -1397,13 +1416,20 @@ GUARDIAN_PRIVATE_KEY=0x…     (idem)
 OWNER_PRIVATE_KEY=           (VIDE : tu signeras avec Core Wallet)
 SUPPLIER_ADDRESS=…  NEW_SUPPLIER_ADDRESS=…  CANARY_ADDRESS=…
 ALLOWED_HOSTS=vaultguard.tondomaine.fr
-ADMIN_PASSWORD_HASH=scrypt$…</pre>
+DB_PATH=/var/lib/vaultguard/vaultguard.db</pre>
 <p>Enregistre (<span class="k">Ctrl</span>+<span class="k">O</span>, <span class="k">Entrée</span>, <span class="k">Ctrl</span>+<span class="k">X</span>) puis <code>chmod 600 deploy/.env.prod</code>.</p></div></div>
 <div class="step"><div class="num">5</div><div><p>Ouvre seulement les ports utiles et démarre :</p>
 <pre>ufw allow 22,80,443/tcp &amp;&amp; ufw enable
 cd deploy &amp;&amp; DOMAIN=vaultguard.tondomaine.fr docker compose up -d --build</pre></div></div>
 <div class="step"><div class="num">6</div><div><p>Vérifie : <code>curl https://vaultguard.tondomaine.fr/healthz</code> doit répondre <code>{"ok": true}</code>. Ouvre l'URL dans le navigateur : le cadenas HTTPS est là (Caddy a obtenu le certificat tout seul).</p></div></div>
-<div class="step"><div class="num">7</div><div><p>Clique « Connexion admin », tape ton mot de passe. Onglet Coffre, « Vrai coffre ». Pour valider un paiement : Core Wallet s'ouvre et te demande de signer (vérifie que c'est bien le réseau Fuji et l'adresse du coffre).</p></div></div>
+<div class="step"><div class="num">7</div><div><p>Connecte-toi à <code>/app</code> avec ton compte ou accède à <code>/admin</code> avec le compte super-administrateur 2FA. Pour valider un paiement sur la blockchain : Core Wallet s'ouvre et te demande de signer.</p></div></div>
+
+<h3>Sauvegarde à chaud et rotation des clés</h3>
+<ul>
+  <li><b>Sauvegarde SQLite à chaud</b> : utilise impérativement la commande transactionnelle <code>sqlite3 /var/lib/vaultguard/vaultguard.db ".backup '/var/backups/vg_$(date +%Y%m%d_%H%M%S).db'"</code> (jamais de copie brute d'un fichier SQLite actif).</li>
+  <li><b>Rotation des clés API</b> : les clients créent une nouvelle clé dans <code>/app</code>, mettent à jour leurs agents, puis révoquent l'ancienne (effet immédiat, 401 sur <code>/v1</code>).</li>
+  <li><b>Rotation de la clé agent</b> : l'owner appelle <code>setAgent</code> on-chain, puis met à jour <code>AGENT_PRIVATE_KEY</code> sur le serveur avant redémarrage.</li>
+</ul>
 
 <h3>Ce que fait chaque pièce</h3>
 <table>

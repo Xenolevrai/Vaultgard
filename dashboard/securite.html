@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sécurité et architecture — VaultGuard</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="pub-body">
+  <header class="pub-header" id="header">
+    <div class="pub-header-inner">
+      <a href="/" class="pub-brand">
+        <span class="pub-brand-name">VaultGuard</span>
+        <span class="pub-brand-badge">Sécurité</span>
+      </a>
+      <button class="pub-toggle" id="menu-toggle" type="button" aria-label="Menu de navigation">Menu</button>
+      <nav class="pub-nav" id="pub-nav">
+        <a href="/">Accueil</a>
+        <a href="/demo">Démonstration</a>
+        <a href="/docs">Documentation API</a>
+        <a href="/securite" class="active">Sécurité</a>
+      </nav>
+      <div class="pub-actions">
+        <a href="/login" class="btn btn-secondary">Connexion</a>
+        <a href="/signup" class="btn btn-primary">Créer un compte</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="pub-main">
+    <div class="pub-container">
+      <section class="pub-hero">
+        <div class="pub-hero-badge">Architecture de confiance et défense en profondeur</div>
+        <h1>Sécurité et garanties techniques de VaultGuard</h1>
+        <p class="lead">
+          La sécurité de VaultGuard repose sur un principe fondateur : ne jamais faire confiance aux sorties
+          brutes d'un modèle de langage pour des opérations financières. Chaque paiement est vérifié
+          par une combinaison de contrôles sémantiques hors chaîne et de règles immuables sur Avalanche.
+        </p>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Modèle de menace</div>
+          <h2>Les vecteurs d'attaque neutralisés</h2>
+          <p class="sub">
+            VaultGuard a été conçu pour répondre spécifiquement aux vulnérabilités inhérentes aux agents autonomes.
+          </p>
+        </div>
+        <div class="pub-grid-2">
+          <div class="pub-card">
+            <h3>Prompt injection et context poisoning</h3>
+            <p>
+              Un attaquant injecte du texte malveillant dans un document lu par l'agent (facture PDF, email, devis)
+              pour détourner le paiement. Le pare-feu VaultGuard analyse l'intégralité du contexte documentaire,
+              neutralise les encodages dissimulés (Unicode confusable, Base64, leetspeak) et vérifie la cohérence
+              avec le mandat initialement donné par l'utilisateur.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Dépassement de budget et rafales de micropaiements</h3>
+            <p>
+              Un agent défaillant ou compromis pourrait émettre des dizaines de paiements sous les seuils usuels
+              pour vider le compte. Le contrat AgentVault applique un plafond journalier cumulé strict sur fenêtre
+              glissante, inviolable même en cas de requêtes parallèles intensives.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Usurpation de fournisseur instantanée</h3>
+            <p>
+              L'enregistrement d'une nouvelle adresse de fournisseur exige un délai de carence obligatoire (24 heures minimum)
+              avant de devenir éligible à un paiement. Un attaquant ne peut pas faire créer et payer un bénéficiaire
+              dans la même seconde.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Compromission de clé API d'agent</h3>
+            <p>
+              Toute tentative d'envoi de fonds vers une adresse appât (canary trap) entraîne la mise en quarantaine immédiate
+              de la clé et le gel préventif du coffre, stoppant net toute exfiltration de trésorerie.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Garanties on-chain</div>
+          <h2>Invariants mathématiques du contrat AgentVault</h2>
+          <p class="sub">
+            Déployé sur Avalanche, le contrat intelligent applique des règles immuables impossibles à contourner par manipulation de prompt.
+          </p>
+        </div>
+        <div class="pub-grid-2">
+          <div class="pub-card">
+            <h3>Règles financières déterministes</h3>
+            <ul>
+              <li><strong>Plafond par transaction (maxPerTx)</strong> : Rejet systématique de tout virement excédant la limite.</li>
+              <li><strong>Plafond journalier glissant (dailyLimit)</strong> : Contrôle en temps réel du volume cumulé sur 24 heures.</li>
+              <li><strong>Seuil de validation humaine (threshold)</strong> : Tout paiement dépassant le seuil nécessite la signature de l'approbateur.</li>
+              <li><strong>Période de carence (recipientDelay)</strong> : Délai incompressible pour activer un nouveau destinataire.</li>
+            </ul>
+          </div>
+          <div class="pub-card">
+            <h3>Gouvernance et résilience</h3>
+            <ul>
+              <li><strong>Transfert de propriété en 2 étapes</strong> : transferOwnership puis acceptOwnership pour empêcher les transferts accidentels.</li>
+              <li><strong>Disjoncteur automatique</strong> : Déclenchement d'un arrêt d'urgence en cas de tentatives suspectes répétées.</li>
+              <li><strong>Protection anti-réentrance</strong> : Utilisation systématique du patron checks-effects-interactions et de verrous ReentrancyGuard.</li>
+              <li><strong>Ancrage d'audit (anchorReport)</strong> : Empreintes cryptographiques des journaux scellées sur Avalanche.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Durcissement Web &amp; API</div>
+          <h2>Sécurité applicative et gestion des données</h2>
+          <p class="sub">
+            Le serveur et les interfaces de VaultGuard appliquent les meilleures pratiques de sécurité défensive.
+          </p>
+        </div>
+        <div class="pub-grid-3">
+          <div class="pub-card">
+            <h3>Isolation multitenant stricte</h3>
+            <p>
+              Chaque ressource est cloisonnée par organisation. Toute tentative d'accès croisé (IDOR) renvoie
+              systématiquement un code 404 (et jamais 403) afin de ne pas révéler l'existence de données tierces.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>En-têtes HTTP de sécurité</h3>
+            <p>
+              Politique Content-Security-Policy stricte avec nonce cryptographique unique par requête,
+              frame-ancestors 'none', nosniff, Referrer-Policy no-referrer et interdiction des iframes.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Protection contre les abus</h3>
+            <p>
+              Vérification CSRF, contrôle strict des en-têtes Host et Origin (anti-DNS rebinding),
+              limitation de débit adaptative par IP et par clé API, et neutralisation des formules CSV (CWE-1236).
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Hachage cryptographique</h3>
+            <p>
+              Mots de passe protégés avec la fonction scrypt (N=16384, r=8, p=1). Clés API et jetons de session
+              stockés sous forme d'empreinte SHA-256 salée.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Journal d'audit chaîné</h3>
+            <p>
+              Chaque action sensible produit une ligne d'audit liée à la précédente par son hash SHA-256.
+              La table SQL est protégée en ajout seul par des déclencheurs de base de données.
+            </p>
+          </div>
+          <div class="pub-card">
+            <h3>Double authentification (2FA)</h3>
+            <p>
+              Standard TOTP (RFC 6238) implémenté en bibliothèque standard Python. Obligatoire pour les super-administrateurs
+              et requise pour toute action critique (dégel de coffre).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Vérifications continues</div>
+          <h2>Résultats d'audit et analyses automatisées</h2>
+          <p class="sub">
+            Chaque mise à jour du code est validée par notre chaîne d'assurance qualité avant déploiement.
+          </p>
+        </div>
+        <div class="pub-card">
+          <div class="pub-proof-strip">
+            <div class="pub-proof-item">
+              <span class="pub-proof-num">33 / 33</span>
+              <span class="pub-proof-label">Tests unitaires et fuzzing Foundry</span>
+            </div>
+            <div class="pub-proof-item">
+              <span class="pub-proof-num">19 / 19</span>
+              <span class="pub-proof-label">Contrôles de l'audit automatisé réussis</span>
+            </div>
+            <div class="pub-proof-item">
+              <span class="pub-proof-num">0</span>
+              <span class="pub-proof-label">Alerte Slither moyenne ou haute</span>
+            </div>
+            <div class="pub-proof-item">
+              <span class="pub-proof-num">0</span>
+              <span class="pub-proof-label">Alerte Bandit moyenne ou haute</span>
+            </div>
+          </div>
+          <p class="mono mt-2">
+            Rapport d'audit complet disponible dans le fichier docs/audit-latest.txt et reproductible via scripts/security-audit.sh.
+          </p>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-card pub-cta-card">
+          <h2>Vous avez identifié une vulnérabilité potentielle ?</h2>
+          <p>
+            Nous encourageons la divulgation responsable. Contactez l'équipe de sécurité à security@vaultguard.local
+            en joignant une preuve de concept et les détails techniques de reproduction.
+          </p>
+          <div class="pub-cta-row">
+            <a href="/docs" class="btn btn-secondary">Consulter la documentation API</a>
+            <a href="/demo" class="btn btn-primary">Explorer la démonstration</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="pub-footer">
+    <div class="pub-footer-inner">
+      <div>
+        <strong>VaultGuard</strong> — Protection et gouvernance on-chain pour agents IA autonomes
+      </div>
+      <div class="pub-footer-links">
+        <a href="/">Accueil</a>
+        <a href="/demo">Démonstration</a>
+        <a href="/docs">Documentation</a>
+        <a href="/securite">Sécurité</a>
+        <a href="/mentions-legales">Mentions légales</a>
+        <a href="/confidentialite">Confidentialité</a>
+      </div>
+    </div>
+  </footer>
+
+  <script nonce="__NONCE__">
+    const toggle = document.getElementById('menu-toggle');
+    const nav = document.getElementById('pub-nav');
+    const header = document.getElementById('header');
+    if (toggle && nav) {
+      toggle.addEventListener('click', () => {
+        nav.classList.toggle('is-open');
+        header.classList.toggle('is-open');
+      });
+    }
+  </script>
+</body>
+</html>

@@ -211,6 +211,18 @@ CREATE TABLE IF NOT EXISTS totp_used_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_totp_used_user ON totp_used_codes(user_id);
 
+-- 12. Coffre simulé par organisation (état persistant, isolé)
+CREATE TABLE IF NOT EXISTS org_vault_states (
+    org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    balance_gwei INTEGER NOT NULL DEFAULT 10000000000 CHECK (balance_gwei >= 0),
+    spent_today_gwei INTEGER NOT NULL DEFAULT 0 CHECK (spent_today_gwei >= 0),
+    spent_day INTEGER NOT NULL DEFAULT -1,
+    blocked_today INTEGER NOT NULL DEFAULT 0,
+    blocked_day INTEGER NOT NULL DEFAULT -1,
+    is_paused INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+);
+
 -- Un maillon ne peut avoir qu'un seul successeur : la chaîne ne peut pas bifurquer.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_prev_unique ON audit(prev_hash);
 

@@ -1,7 +1,6 @@
-VaultGuard — audit de sécurité automatisé — 2026-10-06T16:05:16+02:00
+VaultGuard — audit de sécurité automatisé — 2026-10-06T20:58:59+02:00
 
-== 1. Surface réseau (nmap)
-  8765/tcp open  ultraseek-http?
+   930== 1. Surface réseau (nmap)
   Écoute : 127.0.0.1:8765 (doit être 127.0.0.1, pas 0.0.0.0)
 == 2. Rejeu des failles de la v1
   [OK]    CSRF : POST depuis un site tiers (Origin evil) (attendu 403)
@@ -24,16 +23,28 @@ VaultGuard — audit de sécurité automatisé — 2026-10-06T16:05:16+02:00
   [OK]    en-tête Permissions-Policy présent (attendu 1)
   [OK]    bannière serveur sans version Python (attendu 0)
 == 4. Fichiers sensibles exposés ? (ffuf, liste ciblée)
-  chemins accessibles : healthz index.html 
-  [OK]    seuls index.html et healthz sont servis (attendu healthz index.html )
-== 5. Limitation de débit (300 requêtes rapides)
-  codes :     248 200      52 429 
+  chemins accessibles : demo healthz index.html 
+  [OK]    seuls index.html, demo et healthz sont servis (attendu demo healthz index.html )
+== 5. Attaques v3 multi-clients (127.0.0.1)
+  [OK]    énumération : message d'erreur identique pour email existant ou inconnu (attendu Identifiants invalides)
+  [OK]    énumération : message uniforme (attendu Identifiants invalides)
+  [OK]    énumération : temps de réponse scrypt constant (attendu oui)
+  [OK]    force brute : compte verrouillé ou limitation 429 (attendu protégé)
+  [OK]    accès croisé entre organisations : rejet 404 (attendu 404)
+  [OK]    clé API révoquée : rejet 401 sur /v1 (attendu 401)
+  [OK]    /admin anonyme : 404 (stealth) (attendu 404)
+  [OK]    /admin utilisateur non-superadmin : 404 (stealth) (attendu 404)
+  [OK]    /api/admin/stats non-superadmin : 404 (attendu 404)
+== 6. Injection SQL (sqlmap)
+  [OK]    sqlmap : aucun paramètre injectable sur /api/auth/login (attendu sûr)
+== 7. Limitation de débit (300 requêtes rapides)
+  codes :     259 200      41 429 
   [OK]    des requêtes sont limitées (429) (attendu 1)
-== 6. Analyse statique du contrat (Slither)
+== 8. Analyse statique du contrat (Slither)
   aucune alerte moyenne/haute
-== 7. Analyse statique Python (Bandit)
+== 9. Analyse statique Python (Bandit)
   aucune alerte moyenne/haute
-== 8. Dépendances vulnérables (pip-audit)
+== 10. Dépendances vulnérables (pip-audit)
   No known vulnerabilities found
 
-RÉSULTAT : 19 vérifications OK, 0 échec(s)
+RÉSULTAT : 29 vérifications OK, 0 échec(s)

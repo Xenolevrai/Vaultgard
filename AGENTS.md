@@ -57,14 +57,20 @@ Utilisateur (fiable) ─▶ Agent LLM ─▶ lit factures/emails (NON fiables, e
 | `agent/chain.py` | `MockChain` (réplique exacte du contrat, horloge injectable) et `Web3Chain` (vrai contrat, events par tranches). |
 | `agent/scenarios.py` | 10 scénarios + `naive_plan()` (agent naïf du bac à sable). |
 | `agent/agent.py` | `PaymentAgent`, `run()`, `run_custom()`, `summarize()` (perte, qui a bloqué). CLI. `--llm` = Claude réel. |
-| `agent/server.py` | API durcie (sessions, CSRF, Host/Origin, limites, en-têtes, bac à sable par visiteur, admin par mot de passe). |
+| `agent/server.py` | API durcie (sessions, CSRF, Host/Origin, limites, en-têtes, bac à sable par visiteur, liste blanche statique). |
+| `agent/db.py` | Persistance SQLite multi-tenant, montants gwei entiers, triggers append-only, intégrité cryptographique SHA-256. |
+| `agent/auth.py` | Gestion des comptes, sessions, hachage scrypt, TOTP 2FA (RFC 6238), verrouillage de compte, anti-énumération. |
+| `agent/orgs.py` | Espaces organisations, fournisseurs, politiques d'approbation bornées, états de coffre isolés. |
+| `agent/api_v1.py` | API REST `/v1` pour agents IA (Bearer token temps constant, quarantaine sans expiration, pare-feu multi-tenant). |
+| `agent/admin.py` | Espace super-admin furtif `/admin` (404 stealth, révocations globales de sessions, suspension d'organisation). |
+| `sdk/` | Client Python autonome sans dépendance tierce (`VaultGuardClient`) et exemple d'agent (`examples/agent_example.py`). |
+| `dashboard/` | Interfaces web : accueil (`index.html`), console (`app.html`), administration (`admin.html`), démo (`demo.html`), doc API (`docs.html`), sécurité (`securite.html`), mentions légales, 404. |
 | `agent/abi/AgentVault.json` | ABI exportée (`scripts/export-abi.sh`) : la prod n'a pas besoin de Foundry. |
-| `agent/test_vaultguard.py`, `test_server.py`, `test_parity.py` | Unitaires + fonctionnels / sécurité API / parité simulation↔contrat sur anvil. |
-| `dashboard/index.html` | 5 onglets : Démonstration, Comparer, Bac à sable, Coffre, Comprendre. CSP à nonce, signature Core Wallet. |
+| `agent/test_vaultguard.py`, `test_server.py`, `test_parity.py`, `test_product.py`, `test_layout.py` | Tests unitaires, fonctionnels, parité on-chain, produit multi-tenant et conformité ergonomie/CSP. |
 | `scripts/` | `setup`, `test-all [--full]`, `security-audit`, `doctor`, `create-wallets`, `deploy-fuji`, `local-chain`, `balances`, `export-abi`, `rehearse-deploy`, `build-guide.ps1`. |
 | `Dockerfile`, `deploy/` | Production : image non-root + docker-compose avec Caddy (HTTPS auto). |
 | `.github/workflows/ci.yml` | CI : tests complets + pip-audit + détection de secrets commités. |
-| `docs/` | `PITCH.md`, `PLAN.md`, `SECURITE.md` (audit avant/après), `MISE_EN_PRODUCTION.md`, `guide.html` (→ PDF). |
+| `docs/` | `PITCH.md`, `PLAN.md`, `SECURITE.md` (audit 29/29), `MISE_EN_PRODUCTION.md`, `guide.html` (→ PDF). |
 
 **3 modes de démo** : `naive` (aucune protection → perte), `contract` (couche 2 seule), `full` (VaultGuard).
 
@@ -85,6 +91,7 @@ bash scripts/local-chain.sh                 # anvil + déploiement -> agent/.env
 bash scripts/create-wallets.sh              # wallets de test dans agent/.env (jamais affichés)
 bash scripts/deploy-fuji.sh                 # déploiement Avalanche Fuji
 python3 agent/server.py --hash-password     # mot de passe admin pour la production
+python3 agent/server.py --create-admin     # créer un super-admin interactif avec TOTP 2FA
 ```
 Foundry est dans `~/.foundry/bin`. Outils d'audit dans `~/.venvs/vg-audit` (installés par `security-audit.sh`).
 Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHorizons-Prep/vaultguard -- bash scripts/test-all.sh`.
@@ -106,13 +113,13 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
 - [x] Contrat AgentVault v2 (délai, appât, disjoncteur, guardian, expiration agent, ownership 2 étapes, ancrage d'audit) : 33 tests Foundry (unitaires, attaques, fuzz, invariants) — verts
 - [x] Pare-feu v2 (normalisation anti-obfuscation, mandat, appât, quarantaine, raisons expliquées) + 10 scénarios + bac à sable
 - [x] API durcie + 52 tests Python (dont 17 de sécurité API) + 4 tests de parité/e2e sur anvil — verts
-- [x] Audit de sécurité : v1 attaquée depuis Kali, failles corrigées, `security-audit.sh` 19/19, Slither/Bandit/pip-audit propres (docs/SECURITE.md)
+- [x] Audit de sécurité : v1 attaquée depuis Kali, failles corrigées, `security-audit.sh` 29/29, Slither/Bandit/pip-audit propres (docs/SECURITE.md)
 - [x] Dashboard v2 (5 onglets, grand public + détails techniques, mode présentation, signature Core Wallet) — testé dans Chrome
 - [x] Production : Dockerfile non-root, docker-compose + Caddy HTTPS, CI GitHub, `doctor.sh`, docs/MISE_EN_PRODUCTION.md (image Docker non construite localement : démon Docker arrêté dans Kali)
 - [x] Wallets de test dans `agent/.env` : Owner 0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5, Agent 0xB0EAffb186B576dF58Edf3f4953033AE2Dc20f6d, Guardian 0x2EC47230c69278a2D6715a95454F2f4dc1cBa325, Supplier 0xd92B1525628baA7AB228796FD49304Ef1435a234, Nouveau 0x8AE704D42082EfbdAbc338D740c9984669049f18, Appât 0xF5Fd6fDA3eC0391E9763D8cD3f9663d0056F65E4
-- [ ] **v3 produit multi-clients** (`docs/SPEC-V3-PRODUIT.md`, workflow `/build-v3`) :
-  - [x] Étape 1 persistance SQLite · [x] 2 comptes/2FA · [x] 3 espaces clients · [ ] 4 API agents `/v1` ·
-    [ ] 5 admin plateforme · [ ] 6 site public · [ ] 7 design · [ ] 8 tests + audit
+- [x] **v3 produit multi-clients** (`docs/SPEC-V3-PRODUIT.md`, workflow `/build-v3`) :
+  - [x] Étape 1 persistance SQLite · [x] 2 comptes/2FA · [x] 3 espaces clients · [x] 4 API agents `/v1` ·
+    [x] 5 admin plateforme · [x] 6 site public · [x] 7 design · [x] 8 tests + audit
   - Règles de `db.py` (revue de l'étape 1) : montants en **gwei entiers** (`amount_gwei`, `max_tx_gwei`… ;
     1 AVAX = 10^9 gwei ; ×10^9 = wei on-chain), jamais de flottants — un entier SQLite en wei plafonnerait à 9,2 AVAX ; table `audit` **sans clé étrangère et en ajout seul** (triggers) ; empreinte d'audit via
     `db.compute_audit_hash` (JSON, inclut `api_key_id` et `ip`) ; `hash_password` vit dans `db.py` (server l'importe) ;
@@ -126,9 +133,82 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     montants ≤ 10^15 gwei) et cohérente (seuil ≤ plafond tx ≤ plafond jour) ; adresses stockées en **minuscules** ;
     changement d'état par `UPDATE … WHERE <état attendu>` + `rowcount` ; un client ne voit que ses chiffres
     (`verify_audit_chain_for_org`) ; l'interface saisit des AVAX et convertit en gwei sans flottant.
-    `agent/test_layout.py` est cassé (importe `get_db`, inexistant) et non lancé : à réécrire ou supprimer à l'étape 7.
+  - Règles de l'API `/v1` (revue de l'étape 4) : authentification Bearer en temps constant via SHA-256 avec 401
+    unifié (inexistante, inactive, révoquée ou en quarantaine) ; montant AVAX sous forme de chaîne parsé en gwei entier
+    sans flottant (9 décimales max, rejet de négatif, notation scientifique et débordement) ; réutilisation stricte de
+    `firewall.py` avec carnet d'adresses actif, détection appât et historique persistant ; coffre simulé persistant
+    isolé par organisation (`org_vault_states`) ; mise en quarantaine automatique sur disjoncteur ou appât ;
+    client SDK en stdlib `urllib` (`VaultGuardClient`) et exemple d'agent (`examples/agent_example.py`).
+    Corrigé à la revue : l'adresse appât n'est **jamais** renvoyée par `/v1` (un agent compromis l'éviterait) ;
+    verrou par organisation autour de « lire coffre → décider → écrire » (sinon 20 paiements parallèles passaient
+    0,80 AVAX sous un plafond de 0,30) avec re-vérification de la clé sous verrou ; quarantaine **sans expiration**
+    (levée = humain : révoquer + nouvelle clé) ; chiffres ASCII seulement (`\d` accepte « ١٢ ») ; SDK refuse
+    `http://` hors localhost.
+  - Règles d'`admin.py` et `/admin` (revue de l'étape 5) : prérequis étape 4 réglé (état du coffre visible dans
+    `/app`, dégel réservé au rôle `owner` avec 2FA via `UPDATE … WHERE is_paused = 1` + `rowcount` + audit `vault.unpause`) ;
+    accès réservé aux sessions super-admin avec 2FA active (`is_superadmin=1`, `totp_enabled=1`, `is_active=1`
+    revalidé en base à chaque requête) ; renvoi strict de **404** (pas 403 ni 401) pour masquer l'existence de `/admin`
+    et `/api/admin/*` ; statistiques globales en comptages purs (zéro contenu de paiement/montant/memo) ; suspension d'organisation
+    coupant immédiatement `/v1` (403) et `/app` (lecture seule) ; aucune modification de données d'org depuis `/admin` sauf suspension ;
+    super-admin non auto-désactivable, protection du dernier super-admin actif ; révocation immédiate de toutes les sessions
+    sur désactivation ou « déconnecter partout » ; vérification cryptographique de l'audit de la plateforme ; diagnostics
+    de santé avec RPC Avalanche borné (timeout ≤ 1,5 s) ; traçabilité de chaque action avec IP.
+    Corrigé à la revue : « pas le dernier super-admin » est une condition **dans l'UPDATE** (un COUNT puis un UPDATE
+    laissait deux admins se désactiver mutuellement en parallèle → plus aucun admin) ; dégel du coffre sous
+    `api_v1._org_lock` (sinon un paiement en cours réécrit l'ancien état) ; l'URL RPC affichée est réduite à
+    schéma://hôte (une clé de fournisseur est souvent dans le chemin). Règle générale : toute vérification
+    « avant écriture » doit être dans la même requête SQL ou sous le même verrou que l'écriture.
+  - Règles des pages publiques et de la démo (revue de l'étape 6) : pages publiques d'accueil (`/`), documentation API
+    (`/docs`), sécurité (`/securite`), mentions légales (`/mentions-legales`) et confidentialité (`/confidentialite`) servies
+    par `server.py` en HTML statique avec CSP stricte à nonce ; aucun style ni script en ligne sans nonce, zéro
+    ressource externe (ni CDN, ni Google Fonts, ni traqueur) ; en-têtes identiques au reste du site (`X-Frame-Options: DENY`,
+    `nosniff`, `no-referrer`, `Permissions-Policy`) ; démo interactive déplacée sur `/demo` sans altérer les sessions ni le CSRF ;
+    mise à jour de tous les scripts (`scripts/security-audit.sh`, `scripts/demo.sh`), de la documentation et des tests vers `/demo` ;
+    URL inconnues renvoyant une page 404 HTML propre avec CSP et sans fuite interne ; `/docs` documente `/v1` sans
+    jamais révéler ni mentionner l'adresse appât (honeytoken) ; l'adresse appât n'apparaît dans aucun HTML public.
+    Corrigé à la revue : **92 attributs `style="..."`** (login, signup, app, admin, depuis l'étape 2) étaient bloqués
+    en silence par la CSP (ex. le champ 2FA et les blocs `display: none` restaient visibles) → convertis en classes
+    `.u-N` en fin d'`app.css` ; test qui interdit `style=` et `on*=` dans tout `dashboard/*.html`. Règle : jamais
+    d'attribut `style` ni `onclick` ; vérifier la console (violations CSP) dans Chrome, pas seulement le débordement.
+    Les exemples de `/docs` recopient désormais les vraies réponses de `api_v1.py` (`limits`, `active_suppliers`,
+    `reasons` en objets) ; liens « démo » de `/login`, `/signup`, `/app` → `/demo`.
+  - Règles du design et de l'accessibilité (revue de l'étape 7) : harmonisation stricte de toutes les pages selon la
+    charte §5.7 (fond clair `#f6f5f2`, encre `--ink`, zéro emoji, zéro ressource externe) ; élimination totale des
+    anciennes classes utilitaires `.u-1` à `.u-43` au profit de classes sémantiques nommées (`.is-hidden`, `.btn-block`,
+    `.table-responsive`...) ; fichiers statiques servis exclusivement via la liste blanche explicite `STATIC_ASSETS`
+    dans `server.py` (aucun chemin dérivé de l'URL pour bloquer tout path traversal) ; `overflow-wrap: anywhere` et
+    `word-break: break-word` obligatoires sur toutes les adresses, hash, clés et blocs de code ; `min-width: 0` sur les
+    colonnes et conteneurs flex/grid ; `:focus-visible` avec outline 2px contrasté ; tableaux défilants dans `.table-responsive` ;
+    `agent/test_layout.py` réécrit et intégré dans `scripts/test-all.sh` (13 tests unitaires vérifiant liste blanche statique,
+    absence de `style=`/`on*=`, absence d'emojis, absence d'URL distantes et présence des règles de non-débordement) ;
+    vérification automatisée dans Chrome headless à 1440 px et 390 px sur toutes les pages et onglets (46 vérifications au vert,
+    0 débordement horizontal, 0 erreur console, 0 violation CSP).
+    Corrigé à la revue : `.is-hidden { display: none !important }` battait `el.style.display = 'block'` → le champ 2FA
+    de `/login` ne s'affichait jamais (connexion 2FA impossible), ni les erreurs, ni la fenêtre de dégel. Désormais
+    `html .is-hidden { display: none; }` en fin d'`app.css`, sans `!important` (test dans `test_layout.py`). Règle : une
+    classe qui cache un élément que le JS affiche ne porte jamais `!important` ; tester l'**interaction** (afficher
+    chaque `.is-hidden` via le JS), pas seulement le rendu statique.
+  - Règles des tests finaux et audit de sécurité (revue de l'étape 8) : suite de tests complétée dans `agent/test_product.py`
+    (verrouillage après 5 échecs consécutifs, détection d'altération de l'audit par triggers SQL et falsification hors-ligne,
+    assainissement strict de l'export CSV anti-formule CWE-1236 pour `=, +, -, @, \t, \r`, révocation de clé API bloquant `/v1` en 401) ;
+    `scripts/security-audit.sh` exécutant les attaques réelles sur 127.0.0.1 (anti-énumération par temps constant, force brute,
+    isolation multi-locataire anti-IDOR en 404, clé révoquée 401, `/admin` stealth 404, sqlmap sans paramètre injectable,
+    salve de limitation de débit en fin de scénario, Slither, Bandit, pip-audit) pour un total de **29/29 vérifications OK (0 échec)** ;
+    documentation opérationnelle complète (`docs/SECURITE.md`, `docs/MISE_EN_PRODUCTION.md`, `AGENTS.md`, `docs/guide.html`)
+    et compilation du guide PDF `../GUIDE-VAULTGUARD.pdf`.
+    Corrigé à la revue : l'attaque de saturation de débit (300 requêtes en rafale) consommait l'intégralité du seau à jetons
+    sur `127.0.0.1`, provoquant des faux échecs `429` sur les tests multi-tenants subséquents → la salve de limitation a été
+    placée à la fin des tests de serveur ; `nmap` optimisé avec `--version-light --host-timeout 5s` pour éviter les attentes
+    de sondes de service superflues.
+    Revue Claude : le contrôle sqlmap était **toujours vert** (ses 3 branches comptaient OK, même coupé par le
+    `timeout 30` ou s'il trouvait une injection) → ECHEC si injection trouvée, OK seulement si sqlmap conclut « not
+    injectable », sinon `[NON CONCLUANT]` non compté (timeout 300 s). Le serveur d'audit restait vivant sur le port 8765
+    après le script (le PID de `setsid nohup` n'est pas toujours celui de Python) → `free_port` (`fuser -k`) au début,
+    à la fin et en `trap EXIT`. Règle : un contrôle d'audit doit pouvoir échouer ; tout serveur lancé en arrière-plan
+    est arrêté par port, pas seulement par PID. Commandes longues (sqlmap, nmap) : toujours un `timeout`.
+- [x] Premier commit `f268601` (v2 + v3 étapes 1-3) ; étapes 4-8 en attente de commit
 - [ ] Faucet Fuji sur Owner puis `bash scripts/deploy-fuji.sh` + `doctor.sh` + vérification sur Snowtrace
-- [ ] Premier commit + dépôt GitHub (CI verte)
+- [ ] Dépôt GitHub privé + push (CI verte)
 - [ ] Slides + vidéo de secours
 - [ ] Mode `--llm` testé avec une vraie clé API
 - [ ] Backlog jour J : voir `docs/PLAN.md`

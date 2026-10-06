@@ -14,7 +14,7 @@
       <p>Accédez à l'espace de votre organisation</p>
     </div>
 
-    <div id="error-box" class="alert-box alert-danger" style="display: none;"></div>
+    <div id="error-box" class="alert-box alert-danger is-hidden"></div>
 
     <form id="login-form">
       <div class="form-group">
@@ -27,20 +27,20 @@
         <input class="form-input" type="password" id="password" required autocomplete="current-password" placeholder="••••••••••••">
       </div>
 
-      <div class="form-group" id="totp-group" style="display: none;">
+      <div class="form-group is-hidden" id="totp-group">
         <label class="form-label" for="totp">Code d'authentification 2FA</label>
         <input class="form-input mono" type="text" id="totp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code">
         <div class="form-help">Saisissez le code à 6 chiffres de votre application d'authentification.</div>
       </div>
 
-      <button type="submit" class="btn btn-primary" id="btn-submit" style="width: 100%; margin-top: 8px;">
+      <button type="submit" class="btn btn-primary btn-block" id="btn-submit">
         Se connecter
       </button>
     </form>
 
     <div class="auth-footer">
       <div>Pas encore de compte ? <a href="/signup">Créer un espace</a></div>
-      <div style="margin-top: 8px;"><a href="/">Consulter la démonstration publique</a></div>
+      <div class="mt-2"><a href="/demo">Consulter la démonstration publique</a></div>
     </div>
   </div>
 

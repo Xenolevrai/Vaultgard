@@ -167,7 +167,11 @@ def get_overview(org_id: str, db_path: str | None = None) -> dict[str, Any]:
         db_path=db_path,
     )
 
-    # Alertes récentes (quarantaines ou disjoncteurs)
+    # État du coffre (org_vault_states)
+    vrow = db.query_one("SELECT is_paused, balance_gwei FROM org_vault_states WHERE org_id = ?;", (org_id,), db_path=db_path)
+    vault_is_paused = bool(vrow["is_paused"]) if vrow else False
+
+    # Alertes récentes (quarantaines ou disjoncteurs ou gel)
     quarantined = db.query_all(
         "SELECT id, name, key_prefix, quarantine_reason, quarantined_until "
         "FROM api_keys WHERE org_id = ? AND quarantined_until > ?;",
@@ -178,6 +182,8 @@ def get_overview(org_id: str, db_path: str | None = None) -> dict[str, Any]:
     alerts = []
     if org.get("is_suspended"):
         alerts.append({"type": "suspended", "message": "Organisation suspendue par l'administrateur de la plateforme."})
+    if vault_is_paused:
+        alerts.append({"type": "vault_paused", "message": "Coffre gelé : un appât ou le disjoncteur a été touché. Dégel réservé au propriétaire avec 2FA."})
     for q in quarantined:
         alerts.append({
             "type": "quarantine",
@@ -193,7 +199,12 @@ def get_overview(org_id: str, db_path: str | None = None) -> dict[str, Any]:
             "vault_address": org.get("vault_address"),
             "canary_address": org.get("canary_address"),
             "is_suspended": bool(org.get("is_suspended")),
-            "status": "suspended" if org.get("is_suspended") else "active",
+            "vault_paused": vault_is_paused,
+            "status": "suspended" if org.get("is_suspended") else ("paused" if vault_is_paused else "active"),
+        },
+        "vault": {
+            "is_paused": vault_is_paused,
+            "balance_gwei": vrow["balance_gwei"] if vrow else 10_000_000_000,
         },
         "stats": {
             "today_count": today_stats["total_count"] if today_stats else 0,
@@ -205,6 +216,56 @@ def get_overview(org_id: str, db_path: str | None = None) -> dict[str, Any]:
         },
         "alerts": alerts,
     }
+
+
+def unpause_vault(org_id: str, user_id: str, totp_code: str,
+                  ip: str | None = None, db_path: str | None = None) -> dict[str, Any]:
+    """Dégèle le coffre de l'organisation après déclenchement d'un appât ou du disjoncteur.
+
+    Garde-fous :
+      - Réservé strictement au rôle owner.
+      - Refusé si l'organisation est suspendue (lecture seule).
+      - Ré-authentification 2FA TOTP obligatoire.
+      - Mise à jour atomique UPDATE … WHERE is_paused = 1 + vérification rowcount.
+      - Action tracée dans le journal d'audit avec IP.
+    """
+    require_role(user_id, org_id, "owner", db_path=db_path)
+    check_org_writable(org_id, db_path=db_path)
+
+    user_row = db.query_one("SELECT * FROM users WHERE id = ?;", (user_id,), db_path=db_path)
+    if not user_row:
+        raise OrgError("Utilisateur introuvable", 404)
+    user = dict(user_row)
+    if not user.get("totp_enabled") or not user.get("totp_secret"):
+        raise OrgError("La double authentification (2FA) est obligatoire pour dégeler le coffre", 400)
+
+    clean_code = str(totp_code).strip()
+    if not auth.verify_totp(user["totp_secret"], clean_code, user_id=user["id"], db_path=db_path):
+        raise OrgError("Code 2FA invalide ou déjà utilisé", 401)
+
+    try:
+        import api_v1
+    except ImportError:
+        from agent import api_v1
+    now_int = int(time.time())
+    with api_v1._org_lock(org_id):
+        cur = db.execute(
+            "UPDATE org_vault_states SET is_paused = 0, updated_at = ? WHERE org_id = ? AND is_paused = 1;",
+            (now_int, org_id),
+            db_path=db_path,
+        )
+    if cur.rowcount == 0:
+        raise OrgError("Le coffre n'est pas gelé ou état inchangé", 400)
+
+    auth.log_audit(
+        "vault.unpause",
+        org_id=org_id,
+        user_id=user_id,
+        details={"action": "unpause_vault", "previous_state": "paused"},
+        ip=ip,
+        db_path=db_path,
+    )
+    return {"ok": True, "message": "Coffre dégelé avec succès", "is_paused": False}
 
 
 # ------------------------------------------------------------------ 2. Paiements

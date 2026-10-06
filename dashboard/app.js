@@ -236,8 +236,23 @@
       document.getElementById('stat-protected-wei').textContent = formatWei(data.stats.protected_gwei);
 
       const statusEl = document.getElementById('stat-vault-status');
-      statusEl.textContent = data.org.is_suspended ? 'Suspendu' : 'Actif';
-      statusEl.style.color = data.org.is_suspended ? 'var(--status-red)' : 'var(--status-green)';
+      const isPaused = Boolean((data.vault && data.vault.is_paused) || (data.org && data.org.vault_paused));
+      const isSuspended = Boolean(data.org && data.org.is_suspended);
+      if (isPaused) {
+        statusEl.textContent = 'Gelé';
+        statusEl.style.color = 'var(--status-red)';
+      } else if (isSuspended) {
+        statusEl.textContent = 'Suspendu';
+        statusEl.style.color = 'var(--status-amber)';
+      } else {
+        statusEl.textContent = 'Actif';
+        statusEl.style.color = 'var(--status-green)';
+      }
+
+      const btnUnpause = document.getElementById('btn-unpause-vault');
+      if (btnUnpause) {
+        btnUnpause.style.display = (isPaused && hasRole('owner')) ? 'block' : 'none';
+      }
 
       const addrEl = document.getElementById('stat-vault-addr');
       addrEl.textContent = data.org.vault_address || (data.org.network === 'mock' ? 'Simulation active' : 'Non configuré');
@@ -1131,6 +1146,63 @@
     }
     window.location.href = '/login';
   };
+
+  // Dégel du coffre (owner + 2FA)
+  const modalUnpause = document.getElementById('modal-unpause-vault');
+  const btnUnpause = document.getElementById('btn-unpause-vault');
+  const btnUnpauseClose = document.getElementById('modal-unpause-close');
+  const btnUnpauseCancel = document.getElementById('modal-unpause-cancel');
+  const btnUnpauseConfirm = document.getElementById('modal-unpause-confirm');
+  const unpauseTotpInput = document.getElementById('unpause-totp-input');
+  const unpauseErrorMsg = document.getElementById('unpause-error-msg');
+
+  if (btnUnpause) {
+    btnUnpause.onclick = () => {
+      if (unpauseTotpInput) unpauseTotpInput.value = '';
+      if (unpauseErrorMsg) {
+        unpauseErrorMsg.style.display = 'none';
+        unpauseErrorMsg.textContent = '';
+      }
+      if (modalUnpause) modalUnpause.style.display = 'flex';
+      if (unpauseTotpInput) unpauseTotpInput.focus();
+    };
+  }
+
+  const closeUnpauseModal = () => {
+    if (modalUnpause) modalUnpause.style.display = 'none';
+    if (unpauseTotpInput) unpauseTotpInput.value = '';
+    if (unpauseErrorMsg) unpauseErrorMsg.style.display = 'none';
+  };
+
+  if (btnUnpauseClose) btnUnpauseClose.onclick = closeUnpauseModal;
+  if (btnUnpauseCancel) btnUnpauseCancel.onclick = closeUnpauseModal;
+
+  if (btnUnpauseConfirm) {
+    btnUnpauseConfirm.onclick = async () => {
+      const code = (unpauseTotpInput ? unpauseTotpInput.value : '').trim();
+      if (!code || code.length !== 6) {
+        if (unpauseErrorMsg) {
+          unpauseErrorMsg.textContent = 'Veuillez saisir un code 2FA valide à 6 chiffres.';
+          unpauseErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      try {
+        await api('/api/app/vault/unpause', {
+          method: 'POST',
+          body: JSON.stringify({ code: code })
+        });
+        closeUnpauseModal();
+        alert('Coffre dégelé avec succès. Les opérations sont réactivées.');
+        loadOverview();
+      } catch (err) {
+        if (unpauseErrorMsg) {
+          unpauseErrorMsg.textContent = err.message;
+          unpauseErrorMsg.style.display = 'block';
+        }
+      }
+    };
+  }
 
   // ------------------------------------------------------------------ Utilitaires
   // Montants stockés en gwei entiers (1 AVAX = 10^9 gwei) : exacts en JavaScript jusqu'à ~9 millions d'AVAX.

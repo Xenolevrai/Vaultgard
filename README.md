@@ -16,7 +16,7 @@ indépendantes :
 > « Ne faites pas confiance au LLM. Bornez-le. »
 
 ## Démarrer
-Windows : double-clic sur `LANCER-DASHBOARD.bat` → http://localhost:8000.
+Windows : double-clic sur `LANCER-DASHBOARD.bat` → démo sur http://localhost:8000/demo (accueil sur http://localhost:8000).
 
 Kali / Linux :
 ```bash

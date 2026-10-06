@@ -9,7 +9,7 @@
 | 2:15–2:45 | Orateur 1 | **Pourquoi c'est solide** : 2 couches indépendantes. Le pare-feu comprend le contexte ; le contrat Avalanche garantit une perte maximale **bornée et vérifiable**, même si l'IA ET le serveur sont piratés. Et on s'est attaqués nous-mêmes : 19 attaques rejouées automatiquement, toutes bloquées. |
 | 2:45–3:00 | Orateur 1 | **Vision** : la brique de contrôle interne de toute entreprise qui donne un budget à un agent. « Ne faites pas confiance au LLM. Bornez-le. » |
 
-## Script de démo (http://localhost:8000, bouton « Mode présentation » pour le projecteur)
+## Script de démo (http://localhost:8000/demo, bouton « Mode présentation » pour le projecteur)
 1. Onglet **Comparer** → « Tout comparer » : le tableau rouge/vert dit tout en 10 secondes.
 2. Onglet **Démonstration**, mode « Aucune protection » → « Instruction cachée » : −0.09 AVAX. Montrer le commentaire caché.
 3. Même situation en « VaultGuard complet » : arrêté, et le fournisseur est quand même payé. Ouvrir « Détails techniques ».

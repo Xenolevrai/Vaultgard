@@ -49,6 +49,16 @@ SESSION_TTL = 2 * 3600
 MAX_SESSIONS = 500
 CSV_DANGEROUS = ("=", "+", "-", "@", "\t", "\r")
 
+# Liste blanche explicite des fichiers statiques servis (aucun chemin dérivé de l'URL pour parer le path traversal)
+STATIC_ASSETS = {
+    "/app.css": ("app.css", "text/css; charset=utf-8", False),
+    "/dashboard/app.css": ("app.css", "text/css; charset=utf-8", False),
+    "/app.js": ("app.js", "application/javascript; charset=utf-8", False),
+    "/dashboard/app.js": ("app.js", "application/javascript; charset=utf-8", False),
+    "/admin.js": ("admin.js", "application/javascript; charset=utf-8", True),
+    "/dashboard/admin.js": ("admin.js", "application/javascript; charset=utf-8", True),
+}
+
 log = logging.getLogger("vaultguard")
 
 
@@ -375,13 +385,66 @@ class Handler(BaseHTTPRequestHandler):
         membership = require_role(user["id"], org["id"], min_role)
         return user, org, membership
 
+    def _admin_context(self) -> tuple[dict, str]:
+        """Contrôle d'accès strict pour l'espace administration de la plateforme (/admin, /api/admin/*).
+
+        Exigences :
+          - Accès UNIQUEMENT si la session porte s["admin"] (super-admin avec 2FA active).
+          - Répond 404 (pas 403 ni 401) si non autorisé, pour ne pas révéler l'existence de l'espace.
+          - Revalide le rôle en base à chaque requête (compte actif, is_superadmin=1, totp_enabled=1).
+        """
+        sid, s, _ = self._session(create=False)
+        if not sid or not s or not s.get("admin"):
+            raise ApiError(404, "Introuvable")
+        from auth import get_user_from_token
+        auth_info = get_user_from_token(sid)
+        if not auth_info:
+            raise ApiError(404, "Introuvable")
+        user = auth_info[0]
+        if not (user.get("is_superadmin") and user.get("totp_enabled") and user.get("is_active")):
+            s["admin"] = False
+            raise ApiError(404, "Introuvable")
+        return user, s["csrf"]
+
     def _get(self):
         self._rate("get")
         path = self.path.split("?", 1)[0]
+        if path.startswith("/v1/"):
+            try:
+                import api_v1
+            except ImportError:
+                from agent import api_v1
+            code, res = api_v1.dispatch_v1("GET", path, headers=self.headers, body=None, ip=self._ip())
+            return self._json(res, code=code)
         if path in ("/", "/index.html"):
             nonce = secrets.token_urlsafe(16)
             sid, s, extra = self._session(create=True)
             html = (DASHBOARD_DIR / "index.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in ("/demo", "/demo.html"):
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=True)
+            html = (DASHBOARD_DIR / "demo.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in ("/docs", "/docs.html"):
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=True)
+            html = (DASHBOARD_DIR / "docs.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in ("/securite", "/securite.html"):
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=True)
+            html = (DASHBOARD_DIR / "securite.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in ("/mentions-legales", "/mentions-legales.html"):
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=True)
+            html = (DASHBOARD_DIR / "mentions-legales.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in ("/confidentialite", "/confidentialite.html"):
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=True)
+            html = (DASHBOARD_DIR / "confidentialite.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
             return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
         if path in ("/login", "/login.html"):
             nonce = secrets.token_urlsafe(16)
@@ -398,12 +461,18 @@ class Handler(BaseHTTPRequestHandler):
             sid, s, extra = self._session(create=True)
             html = (DASHBOARD_DIR / "app.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
             return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
-        if path in ("/app.css", "/dashboard/app.css"):
-            css = (DASHBOARD_DIR / "app.css").read_bytes()
-            return self._send(200, css, "text/css; charset=utf-8")
-        if path in ("/app.js", "/dashboard/app.js"):
-            js = (DASHBOARD_DIR / "app.js").read_bytes()
-            return self._send(200, js, "application/javascript; charset=utf-8")
+        if path in ("/admin", "/admin.html"):
+            user, csrf = self._admin_context()
+            nonce = secrets.token_urlsafe(16)
+            sid, s, extra = self._session(create=False)
+            html = (DASHBOARD_DIR / "admin.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
+        if path in STATIC_ASSETS:
+            filename, content_type, require_admin = STATIC_ASSETS[path]
+            if require_admin:
+                self._admin_context()
+            data = (DASHBOARD_DIR / filename).read_bytes()
+            return self._send(200, data, content_type)
         if path == "/healthz":
             return self._json({"ok": True})
         if path == "/api/session":
@@ -495,6 +564,25 @@ class Handler(BaseHTTPRequestHandler):
                 user, org, _ = self._app_context("viewer")
                 return self._json(orgs.get_settings(org["id"]))
             raise ApiError(404, "Introuvable")
+        if path.startswith("/api/admin/"):
+            user, csrf = self._admin_context()
+            try:
+                import admin
+            except ImportError:
+                from agent import admin
+            if path == "/api/admin/stats":
+                return self._json(admin.get_global_stats())
+            if path == "/api/admin/orgs":
+                return self._json(admin.list_orgs())
+            if path == "/api/admin/users":
+                return self._json(admin.list_users())
+            if path == "/api/admin/security-events":
+                return self._json(admin.get_security_events())
+            if path == "/api/admin/audit":
+                return self._json(admin.get_platform_audit())
+            if path == "/api/admin/health":
+                return self._json(admin.get_health())
+            raise ApiError(404, "Introuvable")
         _, s, _ = self._session()
         if path == "/api/state":
             target = self._target_from_query(s)
@@ -513,7 +601,11 @@ class Handler(BaseHTTPRequestHandler):
                            [csv_cell(e.get(k)) for k in ("event", "ts", "to", "amount", "reason", "memo", "tx")])
             return self._send(200, buf.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8",
                               {"Content-Disposition": 'attachment; filename="vaultguard-audit.csv"'})
-        raise ApiError(404, "Introuvable")
+        if path.startswith("/api/") or path.startswith("/v1/"):
+            raise ApiError(404, "Introuvable")
+        nonce = secrets.token_urlsafe(16)
+        html_404 = (DASHBOARD_DIR / "404.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+        return self._send(404, html_404.encode(), "text/html; charset=utf-8", nonce=nonce)
 
     def _target_from_query(self, s: dict | None) -> str:
         q = self.path.split("?", 1)[1] if "?" in self.path else ""
@@ -532,8 +624,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post(self):
         self._rate("post")
-        self._check_origin()
         path = self.path.split("?", 1)[0]
+        if path.startswith("/v1/"):
+            b = self._body()
+            try:
+                import api_v1
+            except ImportError:
+                from agent import api_v1
+            code, res = api_v1.dispatch_v1("POST", path, headers=self.headers, body=b, ip=self._ip())
+            return self._json(res, code=code)
+        self._check_origin()
         sid, s, _ = self._session()
 
         # ---- Routes d'authentification v3
@@ -705,6 +805,46 @@ class Handler(BaseHTTPRequestHandler):
             ns["admin"] = True
             return self._json({"ok": True, "csrf": ns["csrf"]}, extra=self._set_cookie(new_sid))
 
+        if path.startswith("/api/admin/"):
+            user, csrf = self._admin_context()
+            self._require_csrf(s)
+            b = self._body()
+            try:
+                import admin
+            except ImportError:
+                from agent import admin
+            try:
+                if path == "/api/admin/orgs/suspend":
+                    org_id = b.get("org_id")
+                    if not isinstance(org_id, str) or not org_id:
+                        raise ApiError(400, "org_id requis")
+                    return self._json(admin.suspend_org(org_id, user["id"], ip=self._ip()))
+                if path == "/api/admin/orgs/reactivate":
+                    org_id = b.get("org_id")
+                    if not isinstance(org_id, str) or not org_id:
+                        raise ApiError(400, "org_id requis")
+                    return self._json(admin.reactivate_org(org_id, user["id"], ip=self._ip()))
+                if path == "/api/admin/users/deactivate":
+                    uid = b.get("user_id")
+                    if not isinstance(uid, str) or not uid:
+                        raise ApiError(400, "user_id requis")
+                    return self._json(admin.deactivate_user(uid, user["id"], ip=self._ip()))
+                if path == "/api/admin/users/activate":
+                    uid = b.get("user_id")
+                    if not isinstance(uid, str) or not uid:
+                        raise ApiError(400, "user_id requis")
+                    return self._json(admin.activate_user(uid, user["id"], ip=self._ip()))
+                if path == "/api/admin/users/disconnect-all":
+                    uid = b.get("user_id")
+                    if not isinstance(uid, str) or not uid:
+                        raise ApiError(400, "user_id requis")
+                    return self._json(admin.disconnect_all_sessions(uid, user["id"], ip=self._ip()))
+                if path == "/api/admin/audit/verify":
+                    return self._json(admin.verify_platform_audit(user["id"], ip=self._ip()))
+                raise ApiError(404, "Introuvable")
+            except admin.AdminError as e:
+                raise ApiError(e.code, e.message)
+
         self._require_csrf(s)
         b = self._body()
 
@@ -823,6 +963,12 @@ class Handler(BaseHTTPRequestHandler):
                     canary_address=b.get("canary_address"),
                     ip=self._ip()
                 ))
+            if path == "/api/app/vault/unpause":
+                user, org, _ = self._app_context("owner")
+                code = b.get("code") or b.get("totp_code")
+                if not isinstance(code, str) or not code.strip():
+                    raise ApiError(400, "Code TOTP requis")
+                return self._json(orgs.unpause_vault(org["id"], user["id"], code.strip(), ip=self._ip()))
             raise ApiError(404, "Introuvable")
 
         target = b.get("target", "sandbox")

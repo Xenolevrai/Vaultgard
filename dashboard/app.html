@@ -43,8 +43,8 @@
       </ul>
 
       <div class="sidebar-footer">
-        <a href="/" target="_blank" style="color: var(--ink-muted); text-decoration: none;">
-          Accéder à la démo interactive ↗
+        <a class="link-muted" href="/demo" target="_blank" rel="noopener">
+          Accéder à la démo interactive
         </a>
       </div>
     </aside>
@@ -55,20 +55,20 @@
       <header class="top-bar">
         <div class="top-bar-left">
           <div class="org-selector">
-            <label for="org-select" class="form-label" style="margin: 0; font-size: 11px;">Organisation :</label>
+            <label for="org-select" class="form-label form-label-inline">Organisation :</label>
             <select id="org-select" class="select-input"></select>
           </div>
           <span id="user-role-badge" class="badge badge-viewer">Viewer</span>
         </div>
 
         <div class="top-bar-right">
-          <span id="user-email-display" class="mono" style="font-size: 12px; color: var(--ink-muted);"></span>
+          <span id="user-email-display" class="mono text-muted-sm"></span>
           <button id="btn-logout" class="btn btn-secondary">Déconnexion</button>
         </div>
       </header>
 
       <!-- Message d'alerte global (suspension, quarantaine) -->
-      <div id="global-alert-container" style="padding: 16px 24px 0 24px; display: none;"></div>
+      <div class="global-alert-bar" id="global-alert-container"></div>
 
       <!-- Corps de page avec les différentes sections -->
       <div class="page-body">
@@ -89,13 +89,13 @@
 
             <div class="card">
               <div class="card-label">Bloqués par le pare-feu</div>
-              <div class="card-value" id="stat-blocked-count" style="color: var(--status-red);">0</div>
+              <div class="card-value text-danger" id="stat-blocked-count">0</div>
               <div class="card-sub">Tentatives frauduleuses arrêtées</div>
             </div>
 
             <div class="card">
               <div class="card-label">En attente de validation</div>
-              <div class="card-value" id="stat-pending-count" style="color: var(--status-amber);">0</div>
+              <div class="card-value text-warning" id="stat-pending-count">0</div>
               <div class="card-sub">Validation humaine requise</div>
             </div>
 
@@ -109,6 +109,7 @@
               <div class="card-label">État du coffre</div>
               <div class="card-value" id="stat-vault-status">Actif</div>
               <div class="card-sub mono break-all" id="stat-vault-addr">Mock chain</div>
+              <button id="btn-unpause-vault" class="btn btn-secondary btn-unpause">Dégeler le coffre</button>
             </div>
           </div>
 
@@ -129,7 +130,7 @@
                   </tr>
                 </thead>
                 <tbody id="overview-payments-tbody">
-                  <tr><td colspan="5" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="5">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -146,7 +147,7 @@
           <div class="table-container">
             <div class="table-header-bar">
               <div class="table-title">Transactions</div>
-              <div style="display: flex; gap: 8px;">
+              <div class="filters-row">
                 <select id="filter-payment-status" class="select-input">
                   <option value="">Tous les statuts</option>
                   <option value="pending_review">En attente de revue</option>
@@ -171,7 +172,7 @@
                   </tr>
                 </thead>
                 <tbody id="payments-tbody">
-                  <tr><td colspan="7" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="7">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -186,10 +187,10 @@
           </div>
 
           <!-- Formulaire création de clé (admin+) -->
-          <div id="new-key-box" class="card" style="margin-bottom: 24px; display: none;">
+          <div id="new-key-box" class="card card-collapsible">
             <div class="card-label">Créer une clé API pour un agent</div>
             <form id="create-key-form" class="form-row">
-              <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+              <div class="form-group field-flex-1">
                 <label class="form-label" for="key-name">Nom de l'agent / service</label>
                 <input class="form-input" type="text" id="key-name" required placeholder="Ex. Agent Facturation Comptable">
               </div>
@@ -198,9 +199,9 @@
           </div>
 
           <!-- Alerte affichage unique de la clé générée -->
-          <div id="new-key-result" class="alert-box alert-warning" style="display: none;">
-            <div style="font-weight: 700; margin-bottom: 4px;">Nouvelle clé générée (affichée une seule fois) :</div>
-            <div class="mono break-all" id="new-key-value" style="font-size: 14px; user-select: all; padding: 6px; background: #ffffff; border-radius: 4px; margin: 6px 0;"></div>
+          <div id="new-key-result" class="alert-box alert-warning is-hidden">
+            <div class="alert-title">Nouvelle clé générée (affichée une seule fois) :</div>
+            <div class="mono break-all secret-copy-box" id="new-key-value"></div>
             <div class="form-help">Copiez cette clé immédiatement dans la configuration de votre agent. Elle ne pourra plus être réaffichée.</div>
           </div>
 
@@ -221,7 +222,7 @@
                   </tr>
                 </thead>
                 <tbody id="api-keys-tbody">
-                  <tr><td colspan="6" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="6">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -236,14 +237,14 @@
           </div>
 
           <!-- Formulaire ajout fournisseur (admin+) -->
-          <div id="new-supplier-box" class="card" style="margin-bottom: 24px; display: none;">
+          <div id="new-supplier-box" class="card card-collapsible">
             <div class="card-label">Ajouter une adresse en liste blanche</div>
             <form id="add-supplier-form" class="form-row">
-              <div class="form-group" style="margin: 0; flex: 1; min-width: 180px;">
+              <div class="form-group supplier-name-field">
                 <label class="form-label" for="sup-name">Nom du fournisseur</label>
                 <input class="form-input" type="text" id="sup-name" required placeholder="Ex. Serveurs Datacenter SAS">
               </div>
-              <div class="form-group" style="margin: 0; flex: 2; min-width: 260px;">
+              <div class="form-group supplier-addr-field">
                 <label class="form-label" for="sup-addr">Adresse Avalanche (0x...)</label>
                 <input class="form-input mono" type="text" id="sup-addr" required placeholder="0x..." pattern="^0x[a-fA-F0-9]{40}$">
               </div>
@@ -267,7 +268,7 @@
                   </tr>
                 </thead>
                 <tbody id="suppliers-tbody">
-                  <tr><td colspan="5" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="5">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -281,7 +282,7 @@
             <p class="section-desc">Montants en AVAX (9 décimales au plus). Ils sont convertis en entiers exacts : aucun arrondi n'est possible.</p>
           </div>
 
-          <div class="card" style="max-width: 640px;">
+          <div class="card card-constrained">
             <form id="policy-form">
               <div class="form-group">
                 <label class="form-label" for="pol-max-tx">Plafond par transaction (AVAX)</label>
@@ -313,9 +314,9 @@
                 <div class="form-help">Nombre de paiements bloqués par jour déclenchant le gel d'urgence</div>
               </div>
 
-              <div id="policy-msg" class="alert-box" style="display: none;"></div>
+              <div id="policy-msg" class="alert-box is-hidden"></div>
 
-              <button type="submit" class="btn btn-primary" id="btn-save-policy" style="display: none;">
+              <button type="submit" class="btn btn-primary is-hidden" id="btn-save-policy">
                 Enregistrer la politique
               </button>
             </form>
@@ -329,13 +330,13 @@
             <p class="section-desc">Piste d'audit inviolable en ajout seul. Chaque entrée dépend cryptographiquement de la précédente.</p>
           </div>
 
-          <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+          <div class="actions-bar">
             <button id="btn-verify-audit" class="btn btn-secondary">Vérifier l'intégrité de la chaîne</button>
             <a id="btn-export-csv" href="/api/app/audit.csv" class="btn btn-secondary" download>Exporter CSV (CWE-1236)</a>
-            <button id="btn-anchor-audit" class="btn btn-primary" style="display: none;">Sceller sur Avalanche</button>
+            <button id="btn-anchor-audit" class="btn btn-primary is-hidden">Sceller sur Avalanche</button>
           </div>
 
-          <div id="audit-verify-result" class="alert-box" style="display: none;"></div>
+          <div id="audit-verify-result" class="alert-box is-hidden"></div>
 
           <div class="table-container">
             <div class="table-header-bar">
@@ -354,7 +355,7 @@
                   </tr>
                 </thead>
                 <tbody id="audit-tbody">
-                  <tr><td colspan="6" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="6">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -369,20 +370,20 @@
           </div>
 
           <!-- Formulaire d'invitation (admin+) -->
-          <div id="invite-box" class="card" style="margin-bottom: 24px; display: none;">
+          <div id="invite-box" class="card card-collapsible">
             <div class="card-label">Inviter un nouveau membre</div>
             <form id="invite-form" class="form-row">
-              <div class="form-group" style="margin: 0; flex: 2; min-width: 220px;">
+              <div class="form-group invite-email-field">
                 <label class="form-label" for="inv-email">Adresse email</label>
                 <input class="form-input" type="email" id="inv-email" required placeholder="collaborateur@entreprise.com">
               </div>
-              <div class="form-group" style="margin: 0; flex: 1; min-width: 140px;">
+              <div class="form-group invite-role-field">
                 <label class="form-label" for="inv-role">Rôle attribué</label>
-                <select id="inv-role" class="select-input" style="width: 100%;">
+                <select id="inv-role" class="select-input w-full">
                   <option value="viewer">Viewer (lecture)</option>
                   <option value="approver">Approver (arbitrage)</option>
                   <option value="admin">Admin (gestion)</option>
-                  <option value="owner" id="opt-inv-owner" style="display: none;">Owner (propriétaire)</option>
+                  <option class="is-hidden" value="owner" id="opt-inv-owner">Owner (propriétaire)</option>
                 </select>
               </div>
               <button type="submit" class="btn btn-primary" id="btn-send-invite">Créer l'invitation</button>
@@ -390,14 +391,14 @@
           </div>
 
           <!-- Résultat du lien d'invitation -->
-          <div id="invite-result-box" class="alert-box alert-success" style="display: none;">
-            <div style="font-weight: 700; margin-bottom: 4px;">Lien d'invitation créé (valide 7 jours) :</div>
-            <div class="mono break-all" id="invite-link-val" style="padding: 6px; background: #ffffff; border-radius: 4px; user-select: all; margin: 6px 0;"></div>
+          <div id="invite-result-box" class="alert-box alert-success is-hidden">
+            <div class="alert-title">Lien d'invitation créé (valide 7 jours) :</div>
+            <div class="mono break-all secret-copy-box" id="invite-link-val"></div>
             <div class="form-help">Transmettez ce lien au collaborateur pour qu'il rejoigne l'organisation.</div>
           </div>
 
           <!-- Membres -->
-          <div class="table-container" style="margin-bottom: 24px;">
+          <div class="table-container mb-6">
             <div class="table-header-bar">
               <div class="table-title">Membres actuels</div>
             </div>
@@ -412,14 +413,14 @@
                   </tr>
                 </thead>
                 <tbody id="team-members-tbody">
-                  <tr><td colspan="4" style="text-align: center; color: var(--ink-muted);">Chargement...</td></tr>
+                  <tr><td class="table-empty-cell" colspan="4">Chargement...</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
 
           <!-- Invitations en attente -->
-          <div class="table-container" id="pending-invites-container" style="display: none;">
+          <div class="table-container is-hidden" id="pending-invites-container">
             <div class="table-header-bar">
               <div class="table-title">Invitations en attente</div>
             </div>
@@ -434,7 +435,7 @@
                   </tr>
                 </thead>
                 <tbody id="team-invites-tbody">
-                  <tr><td colspan="4" style="text-align: center; color: var(--ink-muted);">Aucune invitation</td></tr>
+                  <tr><td class="table-empty-cell" colspan="4">Aucune invitation</td></tr>
                 </tbody>
               </table>
             </div>
@@ -452,7 +453,7 @@
             <!-- Paramètres organisation (admin+) -->
             <div class="card">
               <div class="card-label">Configuration de l'organisation</div>
-              <form id="org-settings-form" style="margin-top: 12px;">
+              <form class="mt-3" id="org-settings-form">
                 <div class="form-group">
                   <label class="form-label" for="set-org-name">Nom de l'organisation</label>
                   <input class="form-input" type="text" id="set-org-name" required>
@@ -460,7 +461,7 @@
 
                 <div class="form-group">
                   <label class="form-label" for="set-network">Réseau</label>
-                  <select id="set-network" class="select-input" style="width: 100%;">
+                  <select id="set-network" class="select-input w-full">
                     <option value="mock">Simulation locale (Mock)</option>
                     <option value="fuji">Avalanche Fuji Testnet</option>
                     <option value="avalanche">Avalanche C-Chain Mainnet</option>
@@ -477,9 +478,9 @@
                   <input class="form-input mono" type="text" id="set-canary-addr" placeholder="0x...">
                 </div>
 
-                <div id="org-settings-msg" class="alert-box" style="display: none;"></div>
+                <div id="org-settings-msg" class="alert-box is-hidden"></div>
 
-                <button type="submit" class="btn btn-primary" id="btn-save-org-settings" style="display: none;">
+                <button type="submit" class="btn btn-primary is-hidden" id="btn-save-org-settings">
                   Mettre à jour l'organisation
                 </button>
               </form>
@@ -490,14 +491,14 @@
               <div class="card-label">Sécurité de votre compte</div>
 
               <!-- 2FA -->
-              <div style="margin: 16px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                <div style="font-weight: 600; margin-bottom: 4px;">Double authentification (TOTP 2FA)</div>
-                <div id="2fa-status-text" style="font-size: 13px; color: var(--ink-muted); margin-bottom: 8px;">Vérification...</div>
-                <button id="btn-setup-2fa" class="btn btn-secondary" style="display: none;">Activer la 2FA</button>
+              <div class="settings-section">
+                <div class="settings-subheading">Double authentification (TOTP 2FA)</div>
+                <div class="settings-desc-text" id="2fa-status-text">Vérification...</div>
+                <button id="btn-setup-2fa" class="btn btn-secondary is-hidden">Activer la 2FA</button>
 
-                <div id="2fa-setup-box" style="display: none; margin-top: 12px; background: var(--bg-subtle); padding: 12px; border-radius: 4px;">
-                  <div style="font-size: 12px; margin-bottom: 6px;">Clé secrète (Base32) :</div>
-                  <div id="2fa-secret-val" class="mono break-all" style="font-size: 13px; font-weight: 700; margin-bottom: 8px;"></div>
+                <div class="totp-setup-panel" id="2fa-setup-box">
+                  <div class="totp-secret-label">Clé secrète (Base32) :</div>
+                  <div id="2fa-secret-val" class="mono break-all totp-secret-val"></div>
                   <div class="form-group">
                     <label class="form-label" for="2fa-confirm-code">Code de vérification (6 chiffres)</label>
                     <input class="form-input mono" type="text" id="2fa-confirm-code" maxlength="6" placeholder="000000">
@@ -507,8 +508,8 @@
               </div>
 
               <!-- Mot de passe -->
-              <div style="margin: 16px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                <div style="font-weight: 600; margin-bottom: 6px;">Changement de mot de passe</div>
+              <div class="settings-section">
+                <div class="settings-subheading">Changement de mot de passe</div>
                 <form id="change-pwd-form">
                   <div class="form-group">
                     <label class="form-label" for="pwd-old">Ancien mot de passe</label>
@@ -518,15 +519,15 @@
                     <label class="form-label" for="pwd-new">Nouveau mot de passe</label>
                     <input class="form-input" type="password" id="pwd-new" required minlength="12">
                   </div>
-                  <div id="pwd-msg" class="alert-box" style="display: none;"></div>
+                  <div id="pwd-msg" class="alert-box is-hidden"></div>
                   <button type="submit" class="btn btn-secondary">Modifier le mot de passe</button>
                 </form>
               </div>
 
               <!-- Sessions -->
               <div>
-                <div style="font-weight: 600; margin-bottom: 6px;">Sessions actives</div>
-                <p style="font-size: 12px; color: var(--ink-muted); margin-bottom: 10px;">
+                <div class="settings-subheading">Sessions actives</div>
+                <p class="settings-help-text">
                   Déconnecte immédiatement tous les appareils et révoque les jetons de session.
                 </p>
                 <button id="btn-logout-all" class="btn btn-danger">Déconnecter toutes mes sessions</button>
@@ -544,7 +545,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title" id="pm-title">Détail de la transaction</div>
-        <button id="pm-close" class="btn btn-secondary" style="padding: 2px 8px;">✕</button>
+        <button id="pm-close" class="btn btn-secondary btn-close-sm">Fermer</button>
       </div>
       <div class="modal-body">
         <div class="detail-row">
@@ -565,11 +566,11 @@
         </div>
         <div class="detail-row">
           <div class="detail-key">Demande originale de l'utilisateur</div>
-          <div class="detail-val" id="pm-user-req" style="background: var(--bg-subtle); padding: 8px; border-radius: 4px;"></div>
+          <div class="detail-val detail-val-box" id="pm-user-req"></div>
         </div>
         <div class="detail-row">
           <div class="detail-key">Documents analysés par l'agent</div>
-          <div class="detail-val" id="pm-docs" style="font-size: 12px;"></div>
+          <div class="detail-val text-xs" id="pm-docs"></div>
         </div>
         <div class="detail-row">
           <div class="detail-key">Verdict du pare-feu VaultGuard</div>
@@ -579,7 +580,7 @@
           <div class="detail-key">Décision & Contrat</div>
           <div class="detail-val mono" id="pm-decision"></div>
         </div>
-        <div class="detail-row" id="pm-tx-row" style="display: none;">
+        <div class="detail-row is-hidden" id="pm-tx-row">
           <div class="detail-key">Empreinte de transaction (Snowtrace)</div>
           <div class="detail-val mono break-all" id="pm-tx"></div>
         </div>
@@ -587,6 +588,31 @@
       <div class="modal-footer" id="pm-actions-footer">
         <button id="pm-btn-reject" class="btn btn-danger">Rejeter</button>
         <button id="pm-btn-approve" class="btn btn-success">Valider & Exécuter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dégel du coffre (2FA obligatoire) -->
+  <div id="modal-unpause-vault" class="modal is-hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Dégeler le coffre de l'organisation</h2>
+        <button id="modal-unpause-close" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-lead">
+          Le coffre a été gelé suite au déclenchement d'une adresse appât ou du disjoncteur de sécurité.
+          Seul le propriétaire de l'organisation peut réactiver les paiements avec validation 2FA.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="unpause-totp-input">Code d'authentification 2FA (6 chiffres)</label>
+          <input type="text" id="unpause-totp-input" class="form-input mono" placeholder="123456" maxlength="6" autocomplete="off" />
+        </div>
+        <div id="unpause-error-msg" class="alert-box alert-danger modal-error-box"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-unpause-cancel" class="btn btn-secondary">Annuler</button>
+        <button id="modal-unpause-confirm" class="btn btn-primary">Confirmer le dégel</button>
       </div>
     </div>
   </div>

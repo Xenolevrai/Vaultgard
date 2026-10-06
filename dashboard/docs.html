@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation API v1 — VaultGuard</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="pub-body">
+  <header class="pub-header" id="header">
+    <div class="pub-header-inner">
+      <a href="/" class="pub-brand">
+        <span class="pub-brand-name">VaultGuard</span>
+        <span class="pub-brand-badge">API v1</span>
+      </a>
+      <button class="pub-toggle" id="menu-toggle" type="button" aria-label="Menu de navigation">Menu</button>
+      <nav class="pub-nav" id="pub-nav">
+        <a href="/">Accueil</a>
+        <a href="/demo">Démonstration</a>
+        <a href="/docs" class="active">Documentation API</a>
+        <a href="/securite">Sécurité</a>
+      </nav>
+      <div class="pub-actions">
+        <a href="/login" class="btn btn-secondary">Connexion</a>
+        <a href="/signup" class="btn btn-primary">Créer un compte</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="pub-main">
+    <div class="pub-container">
+      <section class="pub-hero">
+        <div class="pub-hero-badge">Documentation technique pour développeurs et intégrateurs</div>
+        <h1>Documentation de l'API REST v1</h1>
+        <p class="lead">
+          Connectez vos agents autonomes en quelques lignes de code. L'API VaultGuard évalue chaque intention de paiement,
+          exécute les contrôles du pare-feu et prépare les transactions on-chain.
+        </p>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Authentification</div>
+          <h2>Sécurisation des requêtes par clé Bearer</h2>
+          <p class="sub">
+            Toutes les requêtes vers l'API /v1 s'authentifient via l'en-tête standard HTTP Authorization.
+          </p>
+        </div>
+        <div class="pub-card">
+          <p>
+            Chaque agent dispose d'une clé API unique créée depuis votre espace client (/app). Les clés sont préfixées
+            par <code>vg_live_</code> ou <code>vg_test_</code> et sont hashées en SHA-256 en base de données.
+          </p>
+          <div class="pub-code-box">Authorization: Bearer vg_test_1234567890abcdef</div>
+          <p>
+            En cas de suspicion d'intrusion ou de blocages répétés, une clé est automatiquement placée en quarantaine
+            sans révéler d'information interne à un agent éventuellement compromis.
+          </p>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Endpoints</div>
+          <h2>Référence des points d'accès</h2>
+        </div>
+
+        <div class="pub-card mb-4">
+          <div class="endpoint-row">
+            <span class="pub-method pub-method-post">POST</span>
+            <strong class="mono">/v1/payments</strong>
+          </div>
+          <p>
+            Soumet une intention de paiement pour analyse par le pare-feu et exécution ou mise en attente.
+          </p>
+          <h3>Paramètres JSON</h3>
+          <div class="pub-table-wrap">
+            <table class="pub-table">
+              <thead>
+                <tr>
+                  <th>Champ</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">to</td>
+                  <td>Chaîne (requis)</td>
+                  <td>Adresse EVM du destinataire (format 0x sur 42 caractères).</td>
+                </tr>
+                <tr>
+                  <td class="mono">amount</td>
+                  <td>Chaîne (requis)</td>
+                  <td>Montant en AVAX sous forme de texte (ex. "0.05"). Les flottants sont strictement refusés pour éviter les pertes de précision.</td>
+                </tr>
+                <tr>
+                  <td class="mono">memo</td>
+                  <td>Chaîne (optionnel)</td>
+                  <td>Description ou référence de facture (140 caractères maximum).</td>
+                </tr>
+                <tr>
+                  <td class="mono">user_request</td>
+                  <td>Chaîne (optionnel)</td>
+                  <td>Instruction originale donnée par l'humain à l'agent (utilisée pour valider le mandat).</td>
+                </tr>
+                <tr>
+                  <td class="mono">documents</td>
+                  <td>Tableau (optionnel)</td>
+                  <td>Liste de documents analysés par l'agent : [{"source": "facture.pdf", "content": "..."}].</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Exemple de réponse (200 OK)</h3>
+          <div class="pub-code-box">{
+  "id": "pay_a1b2c3d4e5f6",
+  "decision": "allowed",
+  "reasons": [
+    {
+      "code": "ok",
+      "action": "ALLOW",
+      "title": "Paiement conforme",
+      "detail": "aucune règle déclenchée"
+    }
+  ],
+  "chain": {
+    "status": "Executed"
+  },
+  "memo": "Facture INV-2026-114"
+}</div>
+          <p>
+            Valeurs du champ <code>decision</code> :
+          </p>
+          <ul>
+            <li><code>allowed</code> : Paiement conforme et autorisé.</li>
+            <li><code>pending_review</code> : Montant supérieur au seuil ou contexte ambigu ; en attente de validation humaine.</li>
+            <li><code>blocked</code> : Violation de politique ou tentative d'injection détectée.</li>
+          </ul>
+        </div>
+
+        <div class="pub-card mb-4">
+          <div class="endpoint-row">
+            <span class="pub-method pub-method-get">GET</span>
+            <strong class="mono">/v1/payments/{id}</strong>
+          </div>
+          <p>
+            Récupère le statut actualisé d'un paiement précédemment soumis. Utilisé par un agent pour vérifier si
+            un paiement en attente a été approuvé ou rejeté par un administrateur.
+          </p>
+          <h3>Exemple de réponse (200 OK)</h3>
+          <div class="pub-code-box">{
+  "id": "pay_a1b2c3d4e5f6",
+  "recipient": "0x8ba1f109551bd432803012645ac136ddd64dba72",
+  "amount_gwei": 50000000,
+  "amount_avax": "0.05",
+  "memo": "Facture INV-2026-114",
+  "decision": "allowed",
+  "reasons": [ ... ],
+  "chain_status": "executed",
+  "created_at": 1791298315,
+  "updated_at": 1791298315
+}</div>
+        </div>
+
+        <div class="pub-card">
+          <div class="endpoint-row">
+            <span class="pub-method pub-method-get">GET</span>
+            <strong class="mono">/v1/policy</strong>
+          </div>
+          <p>
+            Retourne les paramètres de politique financière en vigueur pour l'organisation de l'agent.
+          </p>
+          <h3>Exemple de réponse (200 OK)</h3>
+          <div class="pub-code-box">{
+  "network": "mock",
+  "vault_address": "",
+  "limits": {
+    "max_tx": "0.1",
+    "max_daily": "0.3",
+    "human_threshold": "0.05",
+    "activation_delay": 86400,
+    "circuit_breaker_limit": 5
+  },
+  "active_suppliers": [
+    {
+      "name": "ACME Cloud Services",
+      "address": "0x8ba1f109551bd432803012645ac136ddd64dba72"
+    }
+  ]
+}</div>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Statuts</div>
+          <h2>Codes de retour HTTP</h2>
+          <p class="sub">
+            L'API utilise des codes HTTP standards pour refléter l'état de traitement sans divulguer de détails sensibles.
+          </p>
+        </div>
+        <div class="pub-table-wrap">
+          <table class="pub-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Signification</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">200 OK</td>
+                <td>Succès</td>
+                <td>La requête est traitée avec succès. La décision de sécurité est contenue dans le corps JSON.</td>
+              </tr>
+              <tr>
+                <td class="mono">400 Bad Request</td>
+                <td>Paramètres invalides</td>
+                <td>Format d'adresse incorrect, montant non conforme (notation scientifique, négatif), memo supérieur à 140 caractères.</td>
+              </tr>
+              <tr>
+                <td class="mono">401 Unauthorized</td>
+                <td>Authentification requise</td>
+                <td>Clé API absente, mal formée, inexistante, révoquée ou en quarantaine (message d'erreur unifié).</td>
+              </tr>
+              <tr>
+                <td class="mono">403 Forbidden</td>
+                <td>Organisation suspendue</td>
+                <td>L'organisation rattachée à la clé a été suspendue par l'administrateur de la plateforme.</td>
+              </tr>
+              <tr>
+                <td class="mono">404 Not Found</td>
+                <td>Ressource introuvable</td>
+                <td>L'identifiant de paiement demandé n'existe pas ou n'appartient pas à l'organisation de la clé (isolation anti-IDOR).</td>
+              </tr>
+              <tr>
+                <td class="mono">429 Too Many Requests</td>
+                <td>Débit dépassé</td>
+                <td>Le quota de requêtes par minute alloué à la clé d'agent ou à l'adresse IP a été dépassé.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="pub-section">
+        <div class="pub-section-header">
+          <div class="pub-section-tag">Intégration</div>
+          <h2>Exemples de code pour vos agents</h2>
+        </div>
+        <div class="pub-grid-2">
+          <div class="pub-card">
+            <h3>Exemple en Python (avec le SDK VaultGuard)</h3>
+            <p>
+              Utilisez notre client officiel autonome basé sur la bibliothèque standard Python :
+            </p>
+            <div class="pub-code-box">from sdk.vaultguard_client import VaultGuardClient
+
+client = VaultGuardClient(
+    api_key="vg_test_secret_key_here",
+    base_url="/v1"
+)
+
+# Soumission du paiement
+res = client.pay(
+    to="0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+    amount="0.05",
+    memo="Abonnement serveur #492",
+    user_request="Payer l'abonnement ACME"
+)
+
+if res["decision"] == "allowed":
+    print("Paiement validé par le pare-feu")
+elif res["decision"] == "pending_review":
+    print("En attente de confirmation humaine")
+else:
+    print("Paiement bloqué :", res["reasons"])</div>
+          </div>
+          <div class="pub-card">
+            <h3>Exemple avec curl (CLI)</h3>
+            <p>
+              Pour tester un paiement directement en ligne de commande :
+            </p>
+            <div class="pub-code-box">curl -X POST /v1/payments \
+  -H "Authorization: Bearer vg_test_secret_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+    "amount": "0.05",
+    "memo": "Facture maintenance ACME",
+    "user_request": "Payer la maintenance ACME"
+  }'</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="pub-footer">
+    <div class="pub-footer-inner">
+      <div>
+        <strong>VaultGuard</strong> — Protection et gouvernance on-chain pour agents IA autonomes
+      </div>
+      <div class="pub-footer-links">
+        <a href="/">Accueil</a>
+        <a href="/demo">Démonstration</a>
+        <a href="/docs">Documentation</a>
+        <a href="/securite">Sécurité</a>
+        <a href="/mentions-legales">Mentions légales</a>
+        <a href="/confidentialite">Confidentialité</a>
+      </div>
+    </div>
+  </footer>
+
+  <script nonce="__NONCE__">
+    const toggle = document.getElementById('menu-toggle');
+    const nav = document.getElementById('pub-nav');
+    const header = document.getElementById('header');
+    if (toggle && nav) {
+      toggle.addEventListener('click', () => {
+        nav.classList.toggle('is-open');
+        header.classList.toggle('is-open');
+      });
+    }
+  </script>
+</body>
+</html>
