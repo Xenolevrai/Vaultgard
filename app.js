@@ -1259,11 +1259,21 @@
     });
 
     const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
+    const innerCollapseBtn = document.getElementById('btn-sidebar-collapse-inner');
+    function handleToggleSidebar() {
+      const sb = document.getElementById('app-sidebar');
+      if (!sb) return;
+      const isCollapsed = sb.classList.toggle('collapsed');
+      if (toggleSidebarBtn) {
+        toggleSidebarBtn.classList.toggle('is-collapsed', isCollapsed);
+        toggleSidebarBtn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      }
+    }
     if (toggleSidebarBtn) {
-      toggleSidebarBtn.addEventListener('click', () => {
-        const sb = document.getElementById('app-sidebar');
-        if (sb) sb.classList.toggle('collapsed');
-      });
+      toggleSidebarBtn.addEventListener('click', handleToggleSidebar);
+    }
+    if (innerCollapseBtn) {
+      innerCollapseBtn.addEventListener('click', handleToggleSidebar);
     }
 
     const focusSearchBtn = document.getElementById('btn-focus-search');

@@ -8,19 +8,16 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- Top Chrome Bar (matches reference window bar) -->
+    <!-- Top Chrome Bar -->
     <header class="top-bar">
       <div class="top-bar-left">
-        <span class="window-dots" aria-hidden="true">
-          <i class="dot dot-red"></i>
-          <i class="dot dot-yellow"></i>
-          <i class="dot dot-green"></i>
-        </span>
-        <button class="icon-btn" id="btn-toggle-sidebar" type="button" aria-label="Toggle sidebar">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+        <button class="sidebar-toggle-btn" id="btn-toggle-sidebar" type="button" aria-label="Hide or show sidebar" aria-expanded="true" title="Masquer / Afficher la sidebar">
+          <svg class="sidebar-icon-open" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+          <svg class="sidebar-icon-closed" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+          <span class="sidebar-toggle-label" id="sidebar-toggle-label">Sidebar</span>
         </button>
-        <button class="icon-btn" id="btn-focus-search" type="button" aria-label="Focus search">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <button class="icon-btn" id="btn-focus-search" type="button" aria-label="Search invoices" title="Rechercher">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </button>
       </div>
 
@@ -59,7 +56,14 @@
           </select>
         </div>
 
-        <button class="btn" id="btn-theme-toggle" type="button" aria-label="Toggle dark or light mode">Theme</button>
+        <button class="theme-switch" id="btn-theme-toggle" type="button" aria-label="Toggle day or night theme" title="Thème Jour / Nuit">
+          <span class="theme-opt theme-opt-light" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          </span>
+          <span class="theme-opt theme-opt-dark" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </span>
+        </button>
         <button class="btn btn-primary" id="btn-open-ingest" type="button">+ New invoice</button>
       </div>
     </header>
@@ -67,10 +71,10 @@
     <div class="workspace-body">
       <!-- Left Monotone Sidebar (Reference Design) -->
       <aside class="sidebar" id="app-sidebar" aria-label="Main navigation">
-        <div class="sidebar-back">
+        <button class="sidebar-back" id="btn-sidebar-collapse-inner" type="button" title="Masquer la sidebar">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
           <span>Vaultgard Workspace</span>
-        </div>
+        </button>
 
         <nav class="nav-tabs" role="tablist" aria-label="Dashboard sections">
           <div class="sidebar-group-label">Audit &amp; Queue</div>
