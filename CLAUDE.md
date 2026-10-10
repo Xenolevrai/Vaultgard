@@ -14,9 +14,14 @@
 - **Hackathon en cours (10-11 oct).** Contrat déployé sur Fuji et vérifié le 10 oct. En début de session : lire
   `docs/HACKATHON.md` (règles officielles, livrables à rendre dim. 12h00, grille Track 1), puis AGENTS.md §8 et §6.
   Reste : vidéo, deck, fiche de défense, playbook, slide conformité, métriques (pas de tâche de fond entre sessions).
+- **10 oct soir** : demandes de l'équipe traitées (zéro conservation, lecteur multi-formats, prix, boîte dédiée) —
+  AGENTS.md §6, `docs/CONFIANCE-ARGENT-LEGAL.md` (blockchain, argent réel, légalité, marché) et `docs/ESSAYER.md`
+  (parcours d'essai d'Ozgun). Règle à tenir : aucun texte de facture ni de consigne en base, seulement des empreintes.
+  L'équipe veut rester centrée Track 1 / Avalanche ; les factures restent en euros (AVAX = jeton de démo, EURC en réel).
 - Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre
   en compte. Tester l'agent de factures sur une instance isolée (`DB_PATH` temporaire, autre `PORT`) : chaque refus
-  compte pour le disjoncteur de la base de démo (gel à 5 refus/jour).
+  compte pour le disjoncteur de la base de démo (clé en quarantaine à 5 refus en 1 h). Recréer la base de démo
+  seulement si Ozgun le demande (`RECREER-DEMO.bat`, site arrêté : les identifiants changent).
 - Démo locale : base de démo via `scripts/seed-demo-local.py`, serveur via `LANCER-DASHBOARD.bat` (port 8000).
   Ne jamais lire à voix haute / afficher `agent/data/COMPTES-DEMO.txt` ni `agent/.env` : renvoyer Ozgun au fichier.
 - Vérifications de sécurité : passer par `scripts/security-audit.sh` et `scripts/test-all.sh --full` (contrôles

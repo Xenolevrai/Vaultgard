@@ -75,7 +75,9 @@ Utilisateur (fiable) ─▶ Agent LLM ─▶ lit factures/emails (NON fiables, e
 **3 modes de démo** : `naive` (aucune protection → perte), `contract` (couche 2 seule), `full` (VaultGuard).
 
 ## 4. Commandes
-Windows (double-clic) : `LANCER-DASHBOARD.bat`, `LANCER-TESTS.bat` (complet), `AUDIT-SECURITE.bat`, `DIAGNOSTIC.bat`.
+Windows (double-clic) : `LANCER-DASHBOARD.bat`, `LANCER-TESTS.bat` (complet), `AUDIT-SECURITE.bat`, `DIAGNOSTIC.bat`,
+`TRAITER-FACTURES.bat` (8 factures de démo), `REJOUER-MAILS.bat` (2 mails enregistrés), `LIRE-MAILS.bat` (vraie boîte),
+`RECREER-DEMO.bat` (base de démo neuve, site arrêté). Mode d'emploi pour tout essayer : `docs/ESSAYER.md`.
 Guide PDF d'Ozgun : `docs/guide.html` → `powershell -File scripts/build-guide.ps1` → `../GUIDE-VAULTGUARD.pdf`.
 
 Dans Kali, depuis `vaultguard/` :
@@ -261,8 +263,14 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     base fraîche le parcours bloquait la facture 02 et mettait la clé en quarantaine à la 3e. L'historique est daté
     de la veille et le loueur activé après. Vérifié : 01 payé, 02 attente, 03-05 bloqués, 06 attente, 07-08 payés.
   - 172 tests Python (`test_invoices.py` ajouté à `test-all.sh`), `--full` vert, audit 29/29.
-  - Non vérifié dans Chrome : le bouton « Vérifier une facture » de `/app`. La base de démo d'Ozgun n'a pas été
-    recréée (relancer `seed-demo-local.py` puis le site pour voir les factures 06-08 et l'épicerie).
+  - Base de démo d'Ozgun recréée le 10 oct au soir (3 fournisseurs actifs, historique de 5 paiements daté de la
+    veille), site relancé. `docs/ESSAYER.md` = parcours d'essai pas à pas ; `REJOUER-MAILS.bat` et `RECREER-DEMO.bat`
+    ajoutés. Le disjoncteur compte les refus **sur 1 h par clé** : un passage de `TRAITER-FACTURES` = 3 refus, le
+    mail piégé = 1 ; un 2e passage gèle la clé (HTTP 401) → `RECREER-DEMO.bat`.
+  - Non vérifié dans un navigateur : le bouton « Vérifier une facture » de `/app` (Ozgun doit l'essayer).
+  - Explications données à Ozgun, à réutiliser pour le pitch : Avalanche = le réseau, AVAX = sa monnaie (démo),
+    EURC = des euros en jetons (règlement réel) ; le fournisseur reçoit des EURC sur un portefeuille, pas un virement :
+    c'est la friction assumée. L'agent de démo est le nôtre ; chez un client c'est son agent, branché par le SDK.
 - [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
   1 page, playbook de réponse, accès du jury au dépôt, métriques de détection chiffrées. (README « limites connues » : fait.)
