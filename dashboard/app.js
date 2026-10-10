@@ -1535,6 +1535,80 @@
       todo.appendChild(item);
     });
 
+    // Virements en euros
+    const summary = document.getElementById('transfer-summary');
+    const canPay = hasRole('approver') && editable;
+    const btnBatch = document.getElementById('btn-create-batch');
+    btnBatch.style.display = canPay && box.payable.count ? '' : 'none';
+    summary.textContent = box.payable.count
+      ? box.payable.count + (box.payable.count > 1 ? ' factures bonnes à payer attendent' : ' facture bonne à payer attend')
+        + ' un virement : ' + formatEuros(box.payable.total_cents) + ' au total.'
+      : 'Aucune facture bonne à payer n\'attend de virement.';
+    if (box.payable.count && !box.bank) summary.textContent += ' Renseignez d\'abord le compte bancaire de votre entreprise, plus bas.';
+    if (box.payable.skipped) {
+      summary.textContent += ' ' + box.payable.skipped + (box.payable.skipped > 1 ? ' factures acceptées ne peuvent' : ' facture acceptée ne peut')
+        + ' pas être payée automatiquement : son fournisseur n\'est pas dans votre liste.';
+    }
+    const batches = document.getElementById('transfer-batches');
+    batches.textContent = '';
+    box.batches.forEach(b => {
+      const row = el('div', 'inbox-list-item');
+      const text = el('div', 'todo-text');
+      text.appendChild(el('div', '', 'Fichier du ' + formatTimestamp(b.created_at) + ' — ' + b.tx_count
+        + (b.tx_count > 1 ? ' virements' : ' virement') + ', ' + formatEuros(b.total_cents)));
+      const proof = el('div', 'todo-why break-all');
+      if (b.seal_status === 'anchored') {
+        proof.appendChild(document.createTextNode('Preuve scellée sur Avalanche : '));
+        if (b.seal_url) {
+          const link = el('a', '', b.seal_tx);
+          link.href = b.seal_url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          proof.appendChild(link);
+        } else {
+          proof.appendChild(document.createTextNode(b.seal_tx));
+        }
+      } else if (b.seal_status === 'simulated') {
+        proof.textContent = 'Preuve inscrite sur le coffre de démonstration (hors ligne, pas de transaction publique).';
+      } else {
+        proof.textContent = 'Preuve pas encore scellée sur Avalanche.';
+      }
+      text.appendChild(proof);
+      text.appendChild(el('div', 'todo-why break-all', 'Empreinte du fichier : ' + b.file_sha256));
+      row.appendChild(text);
+      if (canPay) {
+        const actions = el('div', 'todo-actions');
+        if (b.seal_status !== 'anchored' && b.seal_status !== 'simulated') {
+          const sealBtn = el('button', 'btn btn-secondary', 'Sceller sur Avalanche');
+          sealBtn.onclick = async () => {
+            sealBtn.disabled = true;
+            try {
+              const res = await api('/api/app/transfers/seal', { method: 'POST', body: JSON.stringify({ id: b.id }) });
+              if (res && res.seal_error) alert(res.seal_error);
+            } catch (e) {
+              alert(e.message);
+            }
+            loadInbox();
+          };
+          actions.appendChild(sealBtn);
+        }
+        const dl = el('a', 'btn btn-secondary', 'Télécharger le fichier');
+        dl.href = '/api/app/transfers/' + encodeURIComponent(b.id) + '.xml';
+        actions.appendChild(dl);
+        row.appendChild(actions);
+      }
+      batches.appendChild(row);
+    });
+
+    const holder = document.getElementById('bank-holder');
+    const bankIban = document.getElementById('bank-iban');
+    if (document.activeElement !== holder && document.activeElement !== bankIban && !state.bankDirty) {
+      holder.value = box.bank ? box.bank.holder : ((state.org && state.org.name) || '');
+      bankIban.value = box.bank ? box.bank.iban.replace(/(.{4})/g, '$1 ').trim() : '';
+    }
+    holder.disabled = bankIban.disabled = !(hasRole('admin') && editable);
+    document.getElementById('btn-save-bank').style.display = hasRole('admin') && editable ? '' : 'none';
+
     // Factures contrôlées
     const tbody = document.getElementById('inbox-checks-tbody');
     tbody.textContent = '';
@@ -1551,7 +1625,7 @@
       const v = VERDICTS[c.verdict] || ['badge-viewer', c.verdict];
       tdVerdict.appendChild(el('span', 'badge ' + v[0], v[1]));
       tr.appendChild(tdVerdict);
-      tr.appendChild(el('td', '', checkWhy(c)));
+      tr.appendChild(el('td', '', checkWhy(c) + (c.batch_id ? ' Virement préparé.' : '')));
 
       const detail = el('tr');
       const cell = el('td', 'check-detail-cell');
@@ -1565,6 +1639,8 @@
       const proof = el('div', 'check-proof');
       const lines = [];
       if (c.iban_tail) lines.push('Compte bancaire lu sur la facture : finissant par ' + c.iban_tail);
+      if (c.fmt) lines.push(/ubl|cii|factur/i.test(c.fmt) ? 'Facture électronique (format structuré ' + c.fmt.replace('mail+', '').toUpperCase() + ').' : 'Facture non électronique (texte ou PDF simple) : lue, mais pas au format prévu par la réforme de la facture électronique.');
+      if (c.batch_id) lines.push('Virement préparé dans le fichier ' + c.batch_id + '.');
       if (c.file_sha256) lines.push('Empreinte de la facture (seule trace conservée) : ' + c.file_sha256);
       (c.proof || []).forEach(t => {
         const what = { 'invoice.check': 'Contrôle inscrit', 'invoice.approve': 'Accord inscrit', 'invoice.reject': 'Refus inscrit' }[t.action] || t.action;
@@ -1639,6 +1715,34 @@
   }
 
   document.getElementById('btn-refresh-inbox').onclick = loadInbox;
+
+  document.getElementById('btn-create-batch').onclick = async () => {
+    const btn = document.getElementById('btn-create-batch');
+    btn.disabled = true;
+    try {
+      const batch = await api('/api/app/transfers', { method: 'POST', body: '{}' });
+      if (batch && batch.seal_error) alert('Fichier prêt. ' + batch.seal_error);
+    } catch (e) {
+      alert(e.message);
+    }
+    btn.disabled = false;
+    loadInbox();
+  };
+
+  ['bank-holder', 'bank-iban'].forEach(id => {
+    document.getElementById(id).oninput = () => { state.bankDirty = true; };
+  });
+  document.getElementById('inbox-bank-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('inbox-bank-msg');
+    msg.textContent = '';
+    state.bankDirty = false;
+    const ok = await inboxPost('/api/app/inbox/bank', {
+      holder: document.getElementById('bank-holder').value.trim(),
+      iban: document.getElementById('bank-iban').value.trim()
+    });
+    msg.textContent = ok ? 'Enregistré.' : '';
+  };
 
   document.getElementById('btn-copy-inbox').onclick = async () => {
     const status = document.getElementById('inbox-copy-status');

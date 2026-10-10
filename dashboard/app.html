@@ -183,6 +183,19 @@
 
           <div class="table-container">
             <div class="table-header-bar">
+              <div class="table-title">Payer en euros, par virement</div>
+              <button id="btn-create-batch" class="btn btn-primary">Préparer le fichier de virements</button>
+            </div>
+            <div class="inbox-pad" id="transfer-summary">Chargement...</div>
+            <div class="form-help inbox-pad">Vous importez ce fichier dans le site de votre banque et vous validez une
+              seule fois : chaque fournisseur reçoit un virement en euros sur son compte habituel. VaultGuard ne touche
+              jamais votre argent. L'empreinte de chaque fichier est scellée sur Avalanche : c'est la preuve de ce qui a
+              été préparé, et quand.</div>
+            <div class="inbox-list" id="transfer-batches"></div>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
               <div class="table-title">Factures contrôlées</div>
               <button id="btn-refresh-inbox" class="btn btn-secondary">Actualiser</button>
             </div>
@@ -247,6 +260,23 @@
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div class="card inbox-card">
+            <div class="card-label">Le compte bancaire de votre entreprise (celui qui paie)</div>
+            <form id="inbox-bank-form" class="form-row">
+              <div class="form-group supplier-name-field">
+                <label class="form-label" for="bank-holder">Titulaire du compte</label>
+                <input class="form-input" type="text" id="bank-holder" required maxlength="70">
+              </div>
+              <div class="form-group supplier-addr-field">
+                <label class="form-label" for="bank-iban">IBAN</label>
+                <input class="form-input mono" type="text" id="bank-iban" required maxlength="50" placeholder="FR76 …">
+              </div>
+              <button type="submit" class="btn btn-primary" id="btn-save-bank">Enregistrer</button>
+              <span class="text-muted-sm" id="inbox-bank-msg" role="status"></span>
+            </form>
+            <div class="form-help">Il figure dans le fichier de virements comme compte à débiter. VaultGuard n'y a aucun accès.</div>
           </div>
 
           <div class="card inbox-card">

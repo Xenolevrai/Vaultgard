@@ -320,6 +320,24 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     autorisées, fournisseurs et IBAN, seuil), carte sur l'accueil, mise à jour seule toutes les 5 s. Vérifié dans
     Chrome sur une instance jetable (9 mails, décisions, formulaires, doublon). Les numéros du menu ont changé
     (Paiements = 3, …, Équipe = 8).
+  - **Virement en euros (`agent/transfers.py`)** — réponse à « des euros à la fin, sans partenaire » : les factures
+    `ok` sont regroupées dans un fichier SEPA pain.001.001.03 que l'entreprise importe dans sa banque et valide une
+    fois. IBAN du bénéficiaire = celui du carnet `payees` relu à la création (jamais la facture) ; une facture ne
+    va que dans un lot (`transfer_items.check_id` clé primaire) ; fichier non stocké, régénéré à l'identique et
+    refusé (409) si son empreinte ne correspond plus ; compte débité dans `org_bank_accounts`. L'empreinte est
+    journalisée (`transfer.batch`) puis **scellée sur Avalanche** par `anchorReport` du contrat de la plateforme
+    (`live_chain()` : vraie transaction si `CHAIN=web3`, sinon coffre simulé, statut `simulated`) ; un échec réseau
+    laisse le lot « à sceller ». Routes `/api/app/transfers*`, `/api/app/inbox/bank`. Jamais importé dans une vraie
+    banque ; scellement réel sur Fuji non essayé depuis ce bouton (`anchorReport` marche coffre gelé).
+    Suite possible : envoi automatique par EBICS ; EURC seulement avec un prestataire agréé.
+  - **Facture électronique / mentions légales (`agent/registry.py`)** : SIREN (Luhn) et TVA française cohérente
+    exigés sur une facture à IBAN français (`company_id_missing` / `company_id_invalid`, verdict `review`) ;
+    `REGISTRY_CHECK=1` interroge l'API publique recherche-entreprises.api.gouv.fr (existence, activité, nom ; seul
+    le SIREN sort ; panne = ignoré ; désactivé par défaut car la démo utilise des SIREN fictifs en 0000…).
+    Le détail d'une facture indique si elle est au format structuré (UBL/CII). VaultGuard n'est pas une plateforme
+    agréée : suite = se brancher sur celle du client.
+  - 202 tests Python (`test_inbox.py` : 28), `test-all.sh --full` vert. Jeu d'essai porté à 45 mails (33/33, 12/12) ;
+    la ligne suivante date du premier passage.
   - 194 tests Python (`test_inbox.py` : 20), `test-all.sh --full` vert. Jeu d'essai de 42 mails : 30 fraudes/anomalies arrêtées sur 30,
     12 factures honnêtes passées sur 12. Reste à faire par Ozgun : brancher une vraie boîte Gmail de test
     (`docs/BOITE-FACTURES.md`), jamais essayé avec de vrais identifiants.

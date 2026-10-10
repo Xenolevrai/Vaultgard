@@ -5,6 +5,7 @@ N'efface rien et ne change aucun identifiant : ajoute l'adresse de dépôt, deux
 fournisseurs avec leur IBAN de test et trois factures déjà réglées la veille (pour que « montant inhabituel »
 ait un point de comparaison). Peut être relancé sans risque.
 """
+import hashlib
 import sys
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ import boite_demo as demo  # noqa: E402
 import db  # noqa: E402
 import inbox  # noqa: E402
 import mail_agent  # noqa: E402
+import transfers  # noqa: E402
 from orgs import OrgError  # noqa: E402
 
 
@@ -40,6 +42,18 @@ def seed(org_id: str, user_id: str) -> str:
             mail_agent.process_message(demo.mail(f"hist{i}", demo.SENDERS[0], "TR: facture", text), settings)
         db.execute("UPDATE invoice_checks SET created_at = created_at - 86400, updated_at = updated_at - 86400 WHERE org_id = ?;",
                    (org_id,))
+    if not transfers.get_bank(org_id):
+        transfers.set_bank(org_id, user_id, "Transports Martin", demo.COMPANY_IBAN)
+    if box["alias"] == demo.ALIAS and not transfers.list_batches(org_id):
+        try:        # les factures de la veille ont deja ete reglees : elles forment un premier fichier, date d'hier
+            batch = transfers.create_batch(org_id, user_id, before=int(time.time()) - 12 * 3600)
+        except OrgError:
+            batch = None
+        if batch:
+            batch["created_at"] -= 86400
+            digest = hashlib.sha256(transfers.build_xml(batch, batch["items"]).encode("utf-8")).hexdigest()
+            db.execute("UPDATE transfer_batches SET created_at = ?, file_sha256 = ?, seal_status = 'simulated', sealed_at = ? "
+                       "WHERE id = ?;", (batch["created_at"], digest, batch["created_at"], batch["id"]))
     return inbox.address_for(box["alias"])
 
 

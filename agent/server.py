@@ -569,6 +569,12 @@ class Handler(BaseHTTPRequestHandler):
                 import inbox
                 user, org, _ = self._app_context("viewer")
                 return self._json(inbox.get_inbox(org["id"]))
+            if path.startswith("/api/app/transfers/") and path.endswith(".xml"):
+                import transfers
+                user, org, _ = self._app_context("approver")
+                name, xml = transfers.batch_file(org["id"], path[len("/api/app/transfers/"):-4])
+                return self._send(200, xml.encode("utf-8"), "application/xml; charset=utf-8",
+                                  {"Content-Disposition": f'attachment; filename="{name}"'})
             raise ApiError(404, "Introuvable")
         if path.startswith("/api/admin/"):
             user, csrf = self._admin_context()
@@ -969,8 +975,26 @@ class Handler(BaseHTTPRequestHandler):
                     canary_address=b.get("canary_address"),
                     ip=self._ip()
                 ))
-            if path.startswith(("/api/app/inbox/", "/api/app/payees")):
+            if path.startswith(("/api/app/inbox/", "/api/app/payees", "/api/app/transfers")):
                 import inbox
+                import transfers
+
+                def seal(org_id: str, user_id: str, batch_id: str) -> dict:
+                    """Inscrit l'empreinte du fichier sur le contrat de la plateforme (Avalanche si CHAIN=web3,
+                    coffre simulé sinon). Un échec réseau ne perd rien : le lot reste « à sceller »."""
+                    batch = transfers.get_batch(org_id, batch_id)
+                    if batch["seal_status"] == "anchored":
+                        return batch
+                    try:
+                        chain = live_chain()
+                        r = chain.anchor_report(batch["file_sha256"], f"vaultguard-virements-{batch_id}")
+                    except (ChainError, OSError, ValueError) as e:
+                        log.warning("scellement du lot %s impossible (%s)", batch_id, type(e).__name__)
+                        batch["seal_error"] = "Scellement impossible pour l'instant (réseau ?). Réessayez plus tard."
+                        return batch
+                    explorer = getattr(chain, "explorer", "") or ""
+                    url = f"{explorer.rstrip('/')}/tx/{r.tx_hash}" if explorer and r.tx_hash else ""
+                    return transfers.record_seal(org_id, user_id, batch_id, r.tx_hash or "", url, ip=self._ip())
 
                 def text(key: str) -> str:
                     value = b.get(key)
@@ -994,6 +1018,16 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/app/inbox/threshold":
                     user, org, _ = self._app_context("admin")
                     return self._json(inbox.set_threshold(org["id"], user["id"], b.get("cents"), ip=self._ip()))
+                if path == "/api/app/inbox/bank":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(transfers.set_bank(org["id"], user["id"], text("holder"), text("iban"), ip=self._ip()))
+                if path == "/api/app/transfers":
+                    user, org, _ = self._app_context("approver")
+                    batch = transfers.create_batch(org["id"], user["id"], ip=self._ip())
+                    return self._json(seal(org["id"], user["id"], batch["id"]), code=201)
+                if path == "/api/app/transfers/seal":
+                    user, org, _ = self._app_context("approver")
+                    return self._json(seal(org["id"], user["id"], text("id")))
                 if path in ("/api/app/inbox/checks/approve", "/api/app/inbox/checks/reject"):
                     user, org, _ = self._app_context("approver")
                     return self._json(inbox.review_check(org["id"], user["id"], text("id"),

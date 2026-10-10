@@ -2,8 +2,10 @@
 
     cd agent && python3 -m unittest -q test_inbox
 """
+import hashlib
 import http.client
 import json
+import xml.etree.ElementTree as ET
 import os
 import shutil
 import sqlite3
@@ -27,6 +29,8 @@ import db
 import inbox
 import mail_agent
 import orgs
+import registry
+import transfers
 
 SETTINGS = mail_agent.Settings(authserv_id=demo.AUTHSERV)
 PASSWORD = "PassphraseSecure123!"
@@ -322,6 +326,128 @@ class TestMailbox(Base):
         self.assertRegex(alias, r"^gamma-fils-[a-z0-9]{6}$")
 
 
+class TestLegalMentions(Base):
+    def test_siren_and_vat_numbers(self):
+        siren = demo.SIRENS["garage dupont"]
+        self.assertTrue(registry.siren_valid(siren))
+        self.assertTrue(registry.siren_valid("732829320"))                    # exemple officiel de l'INSEE
+        self.assertFalse(registry.siren_valid("732829321"))
+        self.assertEqual(registry.find_ids(f"SIREN {siren[:3]} {siren[3:6]} {siren[6:]} - TVA {demo.vat(siren)}"), ([siren], False))
+        self.assertEqual(registry.find_ids(f"N° TVA : FR 00 {siren}")[1], registry.vat_key(siren) != "00")
+        self.assertEqual(registry.find_ids("SIRET 732 829 320 00074"), (["732829320"], False))
+        self.assertEqual(registry.find_ids("SIRET 732 829 320 00075"), ([], True))
+        self.assertEqual(registry.find_ids(f"IBAN : {demo.spaced(demo.GARAGE)} tel 01 23 45 67 89"), ([], False))
+        self.assertEqual(registry.find_ids(demo.ubl("Garage Dupont", "X", "Pneu", 1, "5.00", demo.GARAGE).decode()), ([siren], False))
+
+    def judge(self, legal):
+        text = demo.invoice_text("Garage Dupont SARL", "GD-" + str(abs(hash(legal)))[:6], [("Vidange", 1, "100,00")], demo.GARAGE, legal=legal)
+        return self.send(demo.mail("lg" + str(abs(hash(legal)))[:6], demo.SENDERS[0], "f", text))
+
+    def test_missing_or_false_numbers_need_a_human(self):
+        self.assertEqual(self.codes(self.judge("")), ["company_id_missing"])
+        self.assertEqual(self.codes(self.judge("SIRET 123 456 789 00011")), ["company_id_invalid"])
+        self.assertEqual(self.judge(None)["verdict"], "ok")
+
+    def test_public_registry_when_enabled(self):
+        answers = {}
+        original, os.environ["REGISTRY_CHECK"] = registry.lookup, "1"
+        registry.lookup = lambda siren, timeout=4.0: answers.get("all")
+        try:
+            answers["all"] = {"found": True, "active": True, "names": ["GARAGE DUPONT"]}
+            self.assertEqual(self.judge(None)["verdict"], "ok")
+            answers["all"] = {"found": False, "active": False, "names": []}
+            self.assertEqual(self.codes(self.judge("SIREN " + demo.make_siren(51))), ["company_unknown"])
+            answers["all"] = {"found": True, "active": False, "names": ["GARAGE DUPONT"]}
+            self.assertEqual(self.codes(self.judge("SIREN " + demo.make_siren(52))), ["company_closed"])
+            answers["all"] = {"found": True, "active": True, "names": ["SOCIETE ECRAN HOLDING"]}
+            self.assertEqual(self.codes(self.judge("SIREN " + demo.make_siren(53))), ["company_name_mismatch"])
+            answers["all"] = None                                   # annuaire en panne : ni blocage ni validation
+            self.assertEqual(self.judge("SIREN " + demo.make_siren(54))["verdict"], "ok")
+        finally:
+            registry.lookup = original
+            os.environ.pop("REGISTRY_CHECK")
+
+
+class TestTransfers(Base):
+    def setUp(self):
+        super().setUp()
+        transfers.set_bank(self.org_id, self.uid, "Transports Martin SAS", demo.spaced(demo.LOUEUR), db_path=self.db_path)
+        for name in ("01-facture-normale.eml", "02-montant-eleve.eml", "03-changement-de-rib.eml",
+                     "05-fournisseur-inconnu.eml", "09-facture-electronique.eml"):
+            self.send(demo.build()[name])
+
+    def test_only_payable_invoices_and_the_registered_iban(self):
+        self.assertEqual(transfers.payable(self.org_id, db_path=self.db_path)["count"], 2)       # 01 et 09
+        checks = {c["invoice_number"]: c for c in inbox.list_checks(self.org_id, db_path=self.db_path)}
+        inbox.review_check(self.org_id, self.uid, checks["LCE-7781"]["id"], approve=True, db_path=self.db_path)
+        inbox.review_check(self.org_id, self.uid, checks["NE-0456"]["id"], approve=True, db_path=self.db_path)   # fournisseur inconnu
+        todo = transfers.payable(self.org_id, db_path=self.db_path)
+        self.assertEqual((todo["count"], todo["total_cents"], todo["skipped"]), (3, 48000 + 240000 + 12600, 1))
+        batch = transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        name, xml = transfers.batch_file(self.org_id, batch["id"], db_path=self.db_path)
+        root = ET.fromstring(xml)
+        ns = {"p": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"}
+        self.assertRegex(name, r"^virements-\d{8}-[0-9a-f]{6}\.xml$")
+        self.assertEqual(root.find(".//p:GrpHdr/p:NbOfTxs", ns).text, "3")
+        self.assertEqual(root.find(".//p:GrpHdr/p:CtrlSum", ns).text, "3006.00")
+        self.assertEqual(root.find(".//p:DbtrAcct/p:Id/p:IBAN", ns).text, demo.LOUEUR)
+        paid = {t.find("p:Cdtr/p:Nm", ns).text: (t.find("p:CdtrAcct/p:Id/p:IBAN", ns).text, t.find("p:Amt/p:InstdAmt", ns).text,
+                                                  t.find("p:RmtInf/p:Ustrd", ns).text)
+                for t in root.findall(".//p:CdtTrfTxInf", ns)}
+        self.assertEqual(paid, {"Garage Dupont": (demo.GARAGE, "480.00", "Facture GD-2026-2001"),
+                                "Loueur Camions Express": (demo.LOUEUR, "2400.00", "Facture LCE-7781"),
+                                "Epicerie Pro": (demo.EPICERIE, "126.00", "Facture EP-3310")})
+        self.assertNotIn(demo.ATTACKER_FR, xml)
+        self.assertNotIn(demo.INCONNU, xml)
+        self.assertTrue(xml.isascii())
+        self.assertEqual(hashlib.sha256(xml.encode()).hexdigest(), batch["file_sha256"])
+
+    def test_an_invoice_is_never_paid_twice(self):
+        first = transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        self.assertEqual(first["tx_count"], 2)
+        with self.assertRaises(orgs.OrgError):
+            transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        with self.assertRaises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO transfer_items (check_id, batch_id, org_id, position, payee_name, iban, amount_cents, reference) "
+                       "VALUES (?, 'vir_x', ?, 0, 'x', 'x', 1, 'x');", (first["items"][0]["check_id"], self.org_id), db_path=self.db_path)
+        self.assertEqual(self.send(demo.build()["08-doublon.eml"])["verdict"], "refused")
+        self.assertEqual(transfers.payable(self.org_id, db_path=self.db_path)["count"], 0)
+        listed = {c["id"]: c["batch_id"] for c in inbox.list_checks(self.org_id, db_path=self.db_path)}
+        self.assertEqual(listed[first["items"][0]["check_id"]], first["id"])
+
+    def test_tampering_and_isolation(self):
+        batch = transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        with self.assertRaises(orgs.OrgError) as ctx:
+            transfers.batch_file("org_autre", batch["id"], db_path=self.db_path)
+        self.assertEqual(ctx.exception.code, 404)
+        db.execute("UPDATE transfer_items SET iban = ? WHERE batch_id = ? AND position = 0;", (demo.ATTACKER, batch["id"]), db_path=self.db_path)
+        with self.assertRaises(orgs.OrgError) as ctx:        # un IBAN changé en base après coup ne sort pas
+            transfers.batch_file(self.org_id, batch["id"], db_path=self.db_path)
+        self.assertEqual(ctx.exception.code, 409)
+
+    def test_supplier_iban_changed_after_the_check_uses_the_current_directory(self):
+        db.execute("DELETE FROM payees WHERE org_id = ? AND iban = ?;", (self.org_id, demo.GARAGE), db_path=self.db_path)
+        todo = transfers.payable(self.org_id, db_path=self.db_path)
+        self.assertEqual((todo["count"], todo["skipped"]), (1, 1))     # fournisseur retiré : plus de virement automatique
+
+    def test_bank_account_and_seal(self):
+        db.execute("DELETE FROM org_bank_accounts;", db_path=self.db_path)
+        with self.assertRaises(orgs.OrgError):
+            transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        with self.assertRaises(orgs.OrgError):
+            transfers.set_bank(self.org_id, self.uid, "Transports Martin", "FR76 0000", db_path=self.db_path)
+        transfers.set_bank(self.org_id, self.uid, "Transports Martin & Fils <SAS>", demo.LOUEUR, db_path=self.db_path)
+        batch = transfers.create_batch(self.org_id, self.uid, db_path=self.db_path)
+        self.assertIn("<Nm>Transports Martin Fils SAS</Nm>", transfers.batch_file(self.org_id, batch["id"], db_path=self.db_path)[1])
+        sealed = transfers.record_seal(self.org_id, self.uid, batch["id"], "0xabc", "https://explorer.example/tx/0xabc", db_path=self.db_path)
+        self.assertEqual((sealed["seal_status"], sealed["seal_tx"]), ("anchored", "0xabc"))
+        again = transfers.record_seal(self.org_id, self.uid, batch["id"], "", "", db_path=self.db_path)
+        self.assertEqual(again["seal_status"], "anchored")           # une preuve publique ne se remplace pas
+        actions = [r["action"] for r in db.query_all("SELECT action FROM audit WHERE action LIKE 'transfer.%' ORDER BY id;", db_path=self.db_path)]
+        self.assertEqual(actions, ["transfer.batch", "transfer.seal"])
+        self.assertTrue(orgs.verify_audit_chain(db_path=self.db_path)["valid"])
+
+
 class TestDetectionCorpus(Base):
     def test_no_attack_is_paid_and_no_honest_invoice_is_stopped(self):
         missed, false_alarms = [], []
@@ -434,6 +560,26 @@ class TestInboxHTTP(unittest.TestCase):
         status, done, _ = self.req("POST", "/api/app/inbox/checks/approve", decide, cookie=owner, csrf=owner_csrf)
         self.assertEqual((status, done["verdict"], done["amount_cents"]), (200, "ok", 108000))
         self.assertEqual(self.req("POST", "/api/app/inbox/checks/reject", decide, cookie=owner, csrf=owner_csrf)[0], 409)
+
+        # Virement : compte de l'entreprise, fichier SEPA, preuve scellée (coffre simulé pendant les tests).
+        self.assertEqual(self.req("POST", "/api/app/transfers", {}, cookie=owner, csrf=owner_csrf)[0], 400)      # pas de compte
+        bank = {"holder": "Alpha Transports", "iban": demo.spaced(demo.LOUEUR)}
+        self.assertEqual(self.req("POST", "/api/app/inbox/bank", bank, cookie=viewer, csrf=viewer_csrf)[0], 403)
+        self.assertEqual(self.req("POST", "/api/app/inbox/bank", bank, cookie=owner, csrf=owner_csrf)[0], 200)
+        self.assertEqual(self.req("POST", "/api/app/transfers", {}, cookie=viewer, csrf=viewer_csrf)[0], 403)
+        self.assertEqual(self.req("POST", "/api/app/transfers", {}, cookie=other, csrf=other_csrf)[0], 400)      # rien à payer chez Beta
+        status, batch, _ = self.req("POST", "/api/app/transfers", {}, cookie=owner, csrf=owner_csrf)
+        self.assertEqual((status, batch["tx_count"], batch["total_cents"], batch["seal_status"]), (201, 1, 108000, "simulated"))
+        file_path = f"/api/app/transfers/{batch['id']}.xml"
+        self.assertEqual(self.req("GET", file_path, cookie=other)[0], 404)
+        self.assertEqual(self.req("GET", file_path, cookie=viewer)[0], 403)
+        status, xml, _ = self.req("GET", file_path, cookie=owner)
+        self.assertEqual(status, 200)
+        self.assertIn(demo.GARAGE.encode(), xml)
+        self.assertEqual(hashlib.sha256(xml).hexdigest(), batch["file_sha256"])
+        self.assertEqual(self.req("POST", "/api/app/transfers/seal", {"id": batch["id"]}, cookie=other, csrf=other_csrf)[0], 404)
+        box = self.req("GET", "/api/app/inbox", cookie=owner)[1]
+        self.assertEqual((box["payable"]["count"], len(box["batches"]), box["bank"]["iban"]), (0, 1, demo.LOUEUR))
 
         # Les identifiants d'une autre entreprise ne donnent rien (404, pas 403).
         for path, body in (("/api/app/inbox/senders/remove", {"id": added["id"]}), ("/api/app/payees/remove", {"id": payee["id"]})):

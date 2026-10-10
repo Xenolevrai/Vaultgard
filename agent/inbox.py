@@ -30,9 +30,10 @@ try:
     import auth
     import db
     import firewall
+    import registry
     from orgs import OrgError, check_org_writable
 except ImportError:
-    from agent import auth, db, firewall
+    from agent import auth, db, firewall, registry
     from agent.orgs import OrgError, check_org_writable
 
 DEFAULT_ADDRESS = "factures+{alias}@demo.vaultguard.local"
@@ -78,6 +79,15 @@ CATALOG = {
                       "Fraude au faux fournisseur"),
     "payee_recent": ("review", "Ce fournisseur vient d'être ajouté à votre liste : un contrôle humain est demandé.",
                      "Délai d'activation"),
+    "company_id_missing": ("review", "La facture ne porte pas le numéro d'entreprise du vendeur (SIREN ou TVA), mention obligatoire.",
+                           "Mentions légales"),
+    "company_id_invalid": ("review", "Un numéro d'entreprise indiqué sur la facture (SIREN ou TVA) est faux.", "Mentions légales"),
+    "company_unknown": ("review", "Le numéro d'entreprise de la facture n'existe pas dans l'annuaire public des entreprises.",
+                        "Annuaire des entreprises"),
+    "company_closed": ("review", "D'après l'annuaire public, une entreprise citée sur la facture a cessé son activité.",
+                       "Annuaire des entreprises"),
+    "company_name_mismatch": ("review", "Le numéro d'entreprise de la facture appartient à une société d'un autre nom.",
+                              "Fraude au faux fournisseur"),
     "no_amount": ("review", "Le montant à payer n'a pas pu être lu.", "Contrôle de cohérence"),
     "currency": ("review", "La facture n'est pas en euros.", "Contrôle de cohérence"),
     "above_threshold": ("review", "Montant au-dessus de votre seuil : votre accord est demandé.", "Human-in-the-loop"),
@@ -246,7 +256,15 @@ def get_inbox(org_id: str, db_path: str | None = None) -> dict[str, Any]:
         except ValueError:
             continue
         ignored[reason] = ignored.get(reason, 0) + 1
+    try:
+        import transfers
+    except ImportError:
+        from agent import transfers
+    to_pay = transfers.payable(org_id, db_path=db_path)
     return {
+        "bank": transfers.get_bank(org_id, db_path=db_path),
+        "payable": {k: to_pay[k] for k in ("count", "total_cents", "skipped")},
+        "batches": transfers.list_batches(org_id, db_path=db_path),
         "address": address_for(box["alias"]),
         "review_threshold_cents": box["review_threshold_cents"],
         "senders": [dict(s) for s in senders],
@@ -368,6 +386,8 @@ def list_checks(org_id: str, limit: int = 100, db_path: str | None = None) -> li
             continue
         trail.setdefault(check_id, []).append(
             {"action": a["action"], "entry_hash": a["entry_hash"], "created_at": a["created_at"]})
+    batched = {r["check_id"]: r["batch_id"] for r in db.query_all(
+        "SELECT check_id, batch_id FROM transfer_items WHERE org_id = ?;", (org_id,), db_path=db_path)}
     out = []
     for row in rows:
         d = dict(row)
@@ -375,6 +395,7 @@ def list_checks(org_id: str, limit: int = 100, db_path: str | None = None) -> li
             d["reasons"] = json.loads(d.pop("reasons_json") or "[]")
         except ValueError:
             d["reasons"] = []
+        d["batch_id"] = batched.get(d["id"], "")
         d["proof"] = trail.get(d["id"], [])
         out.append(d)
     return out
@@ -486,6 +507,24 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
                 flag("iban_invalid")
             if len(ibans) > 1 and not any(r["code"] in ("iban_changed", "several_accounts") for r in reasons):
                 flag("several_accounts")
+
+            # 2 bis. Mentions légales du vendeur (facture française) : SIREN / numéro de TVA, puis annuaire public
+            if any(i[:2] in ("FR", "MC") for i in ibans):
+                sirens, wrong = registry.find_ids(firewall.normalize(raw) + "\n" + firewall.normalize(visible))
+                if wrong:
+                    flag("company_id_invalid")
+                elif not sirens:
+                    flag("company_id_missing")
+                elif registry.enabled():
+                    answers = [a for a in (registry.lookup(s) for s in sirens[:3]) if a is not None]
+                    known_names = " ".join(_plain(n) for a in answers for n in a["names"])
+                    if answers and not any(a["found"] for a in answers):
+                        flag("company_unknown")
+                    elif any(a["found"] and not a["active"] for a in answers):
+                        flag("company_closed")
+                    elif answers and payee and not any(
+                            len(word) >= 4 and word in known_names for word in _plain(payee["name"]).split()):
+                        flag("company_name_mismatch", f"Fournisseur attendu : {payee['name']}.")
 
             # 3. Montant
             currency = str(invoice.currency or "").upper()[:5]

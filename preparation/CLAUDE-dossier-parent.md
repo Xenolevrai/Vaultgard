@@ -32,10 +32,11 @@ copie du dossier parent dans `vaultguard/preparation/`. Ligne de l'équipe : res
 
 **10 oct, fin de journée — nouvelle direction de l'équipe : la boîte de dépôt des factures.** Chaque entreprise
 reçoit une adresse mail fournie par nous, y transfère ses factures ; seuls les expéditeurs qu'elle a autorisés (et
-prouvés par SPF/DKIM/DMARC) sont lus ; VaultGuard répond « bonne à payer / à vérifier / refusée ». Aucun paiement et
-pas d'Avalanche dans ce parcours pour l'instant ; le fournisseur doit toucher des **euros** sur son IBAN (virement,
-ou EURC sur Avalanche reconverti par un prestataire agréé : étape suivante, non construite ; Avalanche = registre de
-preuves). Construit et testé : `vaultguard/agent/inbox.py`, `vaultguard/agent/mail_agent.py`, menu « 2. Factures
+prouvés par SPF/DKIM/DMARC) sont lus ; VaultGuard répond « bonne à payer / à vérifier / refusée ». Le fournisseur
+doit toucher des **euros** sur son IBAN : VaultGuard prépare un **fichier de virements SEPA** que l'entreprise valide
+dans sa banque (aucun partenaire ni agrément, VaultGuard ne touche pas l'argent) et scelle son empreinte sur
+Avalanche (= registre de preuves ; EURC écarté faute de prestataire agréé). Contrôle des mentions légales (SIREN,
+TVA) et, en option, annuaire public des entreprises, en lien avec la facture électronique obligatoire. Construit et testé : `vaultguard/agent/inbox.py`, `mail_agent.py`, `transfers.py`, `registry.py`, menu « 2. Factures
 reçues » de `/app`, `vaultguard/ENVOYER-FACTURES-DEMO.bat`. **Lire `vaultguard/docs/BOITE-FACTURES.md`** (essai en
 3 minutes, image du vigile devant la boîte aux lettres) et `vaultguard/docs/METRIQUES.md` (chiffres de détection).
 Le projet précédent (coffre Avalanche, API `/v1`) est conservé. Restent à faire par Ozgun : brancher une boîte Gmail

@@ -36,18 +36,48 @@ EPICERIE = make_iban("FR", "10278060410002054870149")
 INCONNU = make_iban("FR", "17569000704593867824K55")
 ATTACKER = make_iban("LT", "3250018764529381")
 ATTACKER_FR = make_iban("FR", "30006000011234567809189")     # deux chiffres inversés par rapport au garage
+COMPANY_IBAN = make_iban("FR", "30003034950005012345678")    # compte (fictif) de Transports Martin
 PAYEES = [("Garage Dupont", GARAGE), ("Loueur Camions Express", LOUEUR), ("Épicerie Pro", EPICERIE)]
 
 
+def make_siren(n: int) -> str:
+    """SIREN fictif (commence par 0000) avec une clé de Luhn correcte."""
+    base = f"{n:08d}"
+    for digit in "0123456789":
+        total = 0
+        for i, c in enumerate(reversed(base + digit)):
+            v = int(c) * (2 if i % 2 else 1)
+            total += v - 9 if v > 9 else v
+        if total % 10 == 0:
+            return base + digit
+    raise ValueError(n)
+
+
+def vat(siren: str) -> str:
+    return f"FR{(12 + 3 * (int(siren) % 97)) % 97:02d}{siren}"
+
+
+SIRENS = {"garage dupont": make_siren(4101), "loueur camions express": make_siren(4202), "epicerie pro": make_siren(4303)}
+
+
+def siren_of(supplier: str) -> str:
+    key = supplier.lower().replace("é", "e").replace(" sarl", "")
+    return SIRENS.get(key) or make_siren(4900 + sum(map(ord, key)) % 90)
+
+
 def invoice_text(supplier: str, number: str, lines: list[tuple[str, int, str]], iban: str, note: str = "",
-                 total: str | None = None) -> str:
+                 total: str | None = None, legal: str | None = None) -> str:
     """Facture en texte. lines = [(désignation, quantité, prix unitaire HT « 150,00 »)] ; TVA 20 %."""
     ht = sum(q * int(p.replace(",", "")) for _, q, p in lines)          # en centimes
     tva = ht // 5
     money = lambda c: f"{c // 100},{c % 100:02d}"                        # noqa: E731
     rows = "\n".join(f"{label:<40}  {q} x {p}" for label, q, p in lines)
+    siren = siren_of(supplier)
+    if legal is None:
+        legal = f"SIREN {siren[:3]} {siren[3:6]} {siren[6:]} — TVA intracommunautaire {vat(siren)}"
     return (f"{supplier.upper()} — 12 rue des Ateliers, 95000 Cergy\n"
-            f"Facture n° {number} — 10/10/2026\nClient : Transports Martin\n\n"
+            + (legal + "\n" if legal else "")
+            + f"Facture n° {number} — 10/10/2026\nClient : Transports Martin\n\n"
             + (note + "\n\n" if note else "")
             + f"Désignation                               Quantité x prix HT\n{rows}\n\n"
             f"Total HT : {money(ht)} €\nTVA 20 % : {money(tva)} €\n"
@@ -65,7 +95,7 @@ def ubl(supplier: str, number: str, label: str, quantity: int, unit: str, iban: 
   <cbc:ID>{number}</cbc:ID>
   <cbc:IssueDate>2026-10-10</cbc:IssueDate>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
-  <cac:AccountingSupplierParty><cac:Party><cac:PartyName><cbc:Name>{supplier}</cbc:Name></cac:PartyName></cac:Party></cac:AccountingSupplierParty>
+  <cac:AccountingSupplierParty><cac:Party><cac:PartyName><cbc:Name>{supplier}</cbc:Name></cac:PartyName><cac:PartyTaxScheme><cbc:CompanyID>{vat(siren_of(supplier))}</cbc:CompanyID></cac:PartyTaxScheme><cac:PartyLegalEntity><cbc:CompanyID schemeID="0002">{siren_of(supplier)}</cbc:CompanyID></cac:PartyLegalEntity></cac:Party></cac:AccountingSupplierParty>
   <cac:PaymentMeans><cac:PayeeFinancialAccount><cbc:ID>{iban}</cbc:ID></cac:PayeeFinancialAccount></cac:PaymentMeans>
   <cac:TaxTotal><cbc:TaxAmount currencyID="EUR">{ht * 0.2:.2f}</cbc:TaxAmount></cac:TaxTotal>
   <cac:LegalMonetaryTotal><cbc:PayableAmount currencyID="EUR">{ht * 1.2:.2f}</cbc:PayableAmount></cac:LegalMonetaryTotal>
@@ -264,6 +294,13 @@ def corpus() -> list[tuple[str, str, str, bytes]]:
         body=invoice_text("Garage Dupont SARL", "GD-A6", [jobs[0]], GARAGE).replace("€", "USD"))
     add("Anomalie", "pièce jointe illisible", "stop", sender=compta, subject="TR: facture", body="Voir pièce jointe.\n",
         attachment=("facture.bin", bytes(range(256)) * 4, "octet-stream"))
+    add("Anomalie", "aucun numéro d'entreprise (SIREN, TVA) sur la facture", "stop", sender=compta, subject="TR: facture",
+        body=invoice_text("Garage Dupont SARL", "GD-A7", [jobs[1]], GARAGE, legal=""))
+    add("Anomalie", "numéro de TVA incohérent avec le SIREN", "stop", sender=compta, subject="TR: facture",
+        body=invoice_text("Garage Dupont SARL", "GD-A8", [jobs[1]], GARAGE,
+                          legal=f"SIREN {SIRENS['garage dupont']} — TVA FR00{SIRENS['garage dupont']}"))
+    add("Anomalie", "SIREN inventé (clé de contrôle fausse)", "stop", sender=compta, subject="TR: facture",
+        body=invoice_text("Épicerie Pro", "EP-A9", [jobs[1]], EPICERIE, legal="SIRET 123 456 789 00011"))
     dup = invoice_text("Garage Dupont SARL", "GD-L00", [jobs[0]], GARAGE)
     add("Anomalie", "facture déjà reçue (même numéro)", "stop", sender=boss, subject="TR: rappel facture",
         body=forward(dup, "compta@garage-dupont.example"))

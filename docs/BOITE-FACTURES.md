@@ -1,8 +1,9 @@
 # La boîte de dépôt des factures
 
 Nouvelle direction décidée par l'équipe le 10 octobre : on se concentre sur **recevoir une facture par mail et dire
-si elle peut être payée**. Pas de paiement, pas de blockchain dans ce parcours pour l'instant. Le reste du projet
-(coffre Avalanche, API pour les assistants des clients) est conservé tel quel.
+si elle peut être payée**, puis **préparer le virement en euros** que l'entreprise valide dans sa banque. Avalanche
+garde la preuve de ce qui a été préparé. VaultGuard ne touche jamais l'argent. Le reste du projet (coffre Avalanche,
+API pour les assistants des clients) est conservé tel quel.
 
 ## En une phrase
 
@@ -40,6 +41,8 @@ Une boîte aux lettres avec un vigile devant.
 | 09 | facture électronique (fichier XML) de l'épicerie, 126 € | bon à payer |
 
 3. Bloc **« À faire »** : clique « Bonne à payer » ou « Refuser » sur les deux factures en attente.
+   Bloc **« Payer en euros, par virement »** : clique « Préparer le fichier de virements », puis
+   « Télécharger le fichier » (c'est ce que l'entreprise importe dans sa banque).
    Bouton **« Détail »** d'une ligne : les raisons, la fin du compte bancaire lu, l'empreinte de la facture et
    l'inscription au journal infalsifiable.
 4. Les mails 06 et 07 n'apparaissent pas dans la liste : ils n'ont jamais été ouverts. Seul un compteur en haut
@@ -74,7 +77,7 @@ Si ta base de démonstration date d'avant cette fonction, une seule fois, site a
 8. Fournisseur ajouté depuis moins de 24 h → à vérifier (délai de sécurité : un pirate qui ajouterait son propre
    compte ne peut pas l'utiliser tout de suite).
 
-Les chiffres mesurés sur 42 mails d'essai sont dans `docs/METRIQUES.md`.
+Les chiffres mesurés sur 45 mails d'essai sont dans `docs/METRIQUES.md`.
 
 ## Ce que VaultGuard garde
 
@@ -114,24 +117,70 @@ Cette partie n'a pas pu être essayée sans les identifiants d'une boîte : la l
 verdicts sont testés sur des mails enregistrés, la connexion à Gmail reste à faire une fois par Ozgun.
 En production, on utiliserait notre propre nom de domaine (`nom-du-client@factures.vaultguard.fr`).
 
-## Et le paiement ? En euros.
+## Le paiement : en euros, par virement (construit)
 
 Décision de l'équipe : **le fournisseur doit recevoir des euros sur son compte bancaire**, comme d'habitude.
 Personne ne doit avoir à toucher à de la crypto. C'est pour cela que le fournisseur est identifié par son IBAN.
 
-Deux chemins possibles pour la suite, non construits :
+Ce qui marche aujourd'hui, sans partenaire ni agrément :
 
-1. **Virement bancaire direct.** L'entreprise nous donne le droit de préparer des virements depuis son compte (cela
-   s'appelle l'initiation de paiement, un service prévu par la réglementation européenne des paiements et réservé à
-   des prestataires agréés). Une facture « bonne à payer » devient un virement SEPA.
-2. **Par Avalanche, de façon invisible.** Les euros de l'entreprise sont convertis en EURC (des euros en jetons, émis
-   par un établissement régulé et disponibles sur Avalanche), passent par notre contrat qui applique les règles
-   (plafonds, liste de fournisseurs, accord humain), puis un prestataire agréé les reconvertit en euros et fait le
-   virement vers l'IBAN du fournisseur. Le fournisseur voit un virement ordinaire.
+1. Les factures « bonnes à payer » s'accumulent. Le bloc **« Payer en euros, par virement »** en donne le nombre et
+   le total.
+2. Un clic sur **« Préparer le fichier de virements »** produit un fichier SEPA (norme ISO 20022, message pain.001 :
+   le format que les banques acceptent pour les virements en lot, celui qu'utilisent les logiciels de comptabilité).
+3. L'entreprise l'importe dans le site de sa banque et **valide une seule fois** pour tout le lot. Chaque
+   fournisseur reçoit un virement ordinaire en euros.
+4. L'empreinte du fichier est inscrite au journal infalsifiable, puis **scellée sur Avalanche** : avec `CHAIN=web3`
+   c'est une vraie transaction sur Fuji (lien vers l'explorateur affiché) ; hors ligne, c'est le coffre de
+   démonstration. Si le réseau ne répond pas, le fichier est quand même prêt et un bouton « Sceller sur Avalanche »
+   permet de réessayer.
 
-Dans les deux cas, **Avalanche sert de registre de preuves** : on y inscrit l'empreinte de chaque facture, le verdict
-et qui a donné son accord. Le bouton « Sceller sur Avalanche » de « Historique et preuves » inscrit déjà l'empreinte de
-tout le journal (contrôles de factures compris) sur la blockchain.
+Garanties :
+- L'IBAN du virement est celui **du carnet de l'entreprise**, jamais celui écrit sur la facture.
+- Une facture ne peut entrer que dans **un seul fichier** : pas de double virement, même en cliquant deux fois.
+- Une facture acceptée à la main pour un fournisseur absent du carnet n'est pas payée automatiquement.
+- Le fichier n'est pas stocké : il se régénère à l'identique. S'il ne correspond plus à l'empreinte scellée (ligne
+  modifiée en base), il n'est plus délivré.
+- VaultGuard ne détient jamais l'argent et n'a aucun accès au compte bancaire.
+
+**« Est-ce que ça enlève l'automatique ? »** Non. La réception, la lecture, le contrôle, la préparation des virements
+et la preuve sont automatiques. Il reste un geste humain : valider le lot dans sa banque. C'est voulu (l'argent ne
+part jamais sans un humain de l'entreprise) et c'est ce qui nous évite d'avoir besoin d'un agrément.
+Étape suivante pour retirer ce dernier clic : envoyer le même fichier à la banque par le canal EBICS (liaison
+automatique entre une entreprise et sa banque, proposée par les banques françaises), sans changer le reste.
+
+À dire honnêtement : le fichier a été vérifié par nos tests (structure, montants, IBAN) mais **jamais importé dans
+une vraie banque**. Certaines banques demandent une variante plus récente du format ; c'est un réglage.
+
+### Pourquoi pas l'EURC directement ?
+Convertir des EURC (des euros en jetons, disponibles sur Avalanche) en euros sur le compte de quelqu'un d'autre,
+c'est fournir un service de paiement : il faut un prestataire agréé, il n'existe pas de version gratuite. Ce chemin
+reste possible plus tard avec un partenaire ; il n'apporte rien au client tant que le virement fait le travail.
+
+**Avalanche sert de registre de preuves** : l'empreinte de chaque fichier de virements y est scellée, et le bouton
+« Sceller sur Avalanche » de « Historique et preuves » y inscrit l'empreinte de tout le journal.
+
+## La facture électronique obligatoire
+
+Depuis le 1er septembre 2026, toutes les entreprises françaises doivent pouvoir **recevoir** leurs factures au
+format électronique (Factur-X, UBL ou CII) par l'intermédiaire d'une plateforme agréée par l'État ; l'obligation
+d'en **émettre** s'applique d'abord aux grandes entreprises, puis aux PME en septembre 2027.
+(Calendrier à confirmer sur impots.gouv.fr avant de le citer au jury.)
+
+Ce que VaultGuard fait déjà :
+- Il lit les trois formats structurés. Le détail d'une facture indique « Facture électronique » ou « non électronique ».
+- Il contrôle les **mentions légales du vendeur** : un SIREN ou un numéro de TVA doit figurer sur une facture
+  française ; le SIREN doit avoir une clé de contrôle valide ; le numéro de TVA doit correspondre au SIREN. Sinon,
+  une personne est sollicitée.
+- En option (`REGISTRY_CHECK=1` dans `agent/.env`), il interroge **l'annuaire public des entreprises de l'État**
+  (API gratuite « Recherche d'entreprises ») : le SIREN existe-t-il, l'entreprise est-elle en activité, porte-t-elle
+  le nom du fournisseur attendu ? Seul le SIREN est envoyé, jamais la facture. Si l'annuaire ne répond pas, la
+  facture n'est ni bloquée ni validée par ce contrôle. Désactivé par défaut car les entreprises de la démonstration
+  sont fictives.
+
+Ce que VaultGuard n'est pas : une plateforme agréée. Les factures légales arriveront par la plateforme du client.
+L'étape suivante naturelle est de **brancher VaultGuard sur cette plateforme** (elles proposent des accès par
+programme) au lieu du mail : mêmes contrôles, même verdict, source officielle.
 
 À dire honnêtement au jury :
 - La blockchain n'empêche pas une illégalité. Elle rend impossible de modifier après coup ce qui a été décidé, par
@@ -156,6 +205,8 @@ tout le journal (contrôles de factures compris) sur la blockchain.
 | `agent/mail_agent.py` | l'assistant : relève la boîte, filtre sur les en-têtes, lit, répond, efface |
 | `agent/inbox.py` | VaultGuard : adresse par entreprise, listes, contrôle de la facture, verdict, décision humaine |
 | `sdk/invoice_reader.py` | lecture des formats (texte, HTML, PDF, Factur-X, UBL/CII, Word) |
-| `agent/test_inbox.py` | 20 tests, dont le jeu d'essai de 42 mails |
+| `agent/transfers.py` | fichier de virements SEPA, compte de l'entreprise, preuve |
+| `agent/registry.py` | SIREN, TVA, annuaire public des entreprises |
+| `agent/test_inbox.py` | 28 tests, dont le jeu d'essai de 45 mails |
 | `examples/boite_demo.py` | fabrique les mails de démonstration et le jeu d'essai |
 | `scripts/detection-metrics.py` | produit `docs/METRIQUES.md` |

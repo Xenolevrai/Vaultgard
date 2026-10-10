@@ -23,7 +23,9 @@
   L'équipe veut rester centrée Track 1 / Avalanche ; les factures restent en euros (AVAX = jeton de démo, EURC en réel).
 - **10 oct, fin de journée — direction actuelle : la boîte de dépôt des factures** (`docs/BOITE-FACTURES.md`, à lire
   en premier ; AGENTS.md §6). Une adresse mail par entreprise, expéditeurs de confiance, verdict « bonne à payer / à
-  vérifier / refusée », en euros avec IBAN, sans paiement ni Avalanche pour l'instant. Code : `agent/inbox.py`,
+  vérifier / refusée », en euros avec IBAN ; paiement = fichier de virements SEPA validé par
+  l'entreprise dans sa banque, empreinte scellée sur Avalanche (`agent/transfers.py`) ; mentions légales SIREN/TVA
+  et annuaire public en option (`agent/registry.py`). Code : `agent/inbox.py`,
   `agent/mail_agent.py`, `agent/test_inbox.py`, `examples/boite_demo.py`. Démo : `ENVOYER-FACTURES-DEMO.bat`.
   Chiffres : `python3 ../scripts/detection-metrics.py --write` (depuis `agent/`).
   Toujours lancer les tests avec `CHAIN=` ou `CHAIN=mock` : `agent/.env` contient `CHAIN=web3` et un test qui

@@ -274,6 +274,45 @@ CREATE TABLE IF NOT EXISTS invoice_checks (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
+-- 17. Compte bancaire de l'entreprise (celui qui paie les fournisseurs)
+CREATE TABLE IF NOT EXISTS org_bank_accounts (
+    org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    holder TEXT NOT NULL,
+    iban TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- 18. Fichiers de virements SEPA préparés. Le fichier n'est pas stocké : il se régénère à l'identique
+-- à partir de ces lignes, et son empreinte est scellée (journal chaîné, puis Avalanche).
+CREATE TABLE IF NOT EXISTS transfer_batches (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    debtor_name TEXT NOT NULL,
+    debtor_iban TEXT NOT NULL,
+    tx_count INTEGER NOT NULL,
+    total_cents INTEGER NOT NULL,
+    file_sha256 TEXT NOT NULL,
+    seal_status TEXT NOT NULL DEFAULT '',
+    seal_tx TEXT NOT NULL DEFAULT '',
+    seal_url TEXT NOT NULL DEFAULT '',
+    sealed_at INTEGER,
+    created_at INTEGER NOT NULL
+);
+
+-- Une facture ne peut figurer que dans un seul fichier : pas de double virement.
+CREATE TABLE IF NOT EXISTS transfer_items (
+    check_id TEXT PRIMARY KEY,
+    batch_id TEXT NOT NULL REFERENCES transfer_batches(id) ON DELETE CASCADE,
+    org_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    payee_name TEXT NOT NULL,
+    iban TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+    reference TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_transfer_batches_org ON transfer_batches(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_transfer_items_batch ON transfer_items(batch_id);
 CREATE INDEX IF NOT EXISTS idx_inbox_senders_org ON inbox_senders(org_id);
 CREATE INDEX IF NOT EXISTS idx_payees_org ON payees(org_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_checks_org ON invoice_checks(org_id, created_at);

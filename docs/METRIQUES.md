@@ -1,18 +1,18 @@
 # Chiffres de détection — boîte de dépôt des factures
 
 Mesure du 10/10/2026, reproductible : `cd agent && python3 ../scripts/detection-metrics.py`.
-Jeu d'essai : **42 mails** fabriqués par nous (`examples/boite_demo.py`), 30 à arrêter et 12 factures honnêtes.
+Jeu d'essai : **45 mails** fabriqués par nous (`examples/boite_demo.py`), 33 à arrêter et 12 factures honnêtes.
 
 | Mesure | Résultat |
 |---|---|
-| Fraudes et anomalies arrêtées | **30 sur 30** (100 %) |
+| Fraudes et anomalies arrêtées | **33 sur 33** (100 %) |
 | — dont mails écartés sans être lus (expéditeur non autorisé ou imité) | 8 |
 | — dont factures refusées | 13 |
-| — dont factures envoyées à une personne | 9 |
+| — dont factures envoyées à une personne | 12 |
 | Fraudes passées en « bon à payer » | **0** |
 | Factures honnêtes passées sans déranger personne | **12 sur 12** |
 | Fausses alertes | **0** |
-| Temps de contrôle d'un mail | médiane 17 ms, maximum 42 ms |
+| Temps de contrôle d'un mail | médiane 21 ms, maximum 41 ms |
 
 ## Par famille
 
@@ -22,7 +22,7 @@ Jeu d'essai : **42 mails** fabriqués par nous (`examples/boite_demo.py`), 30 à
 | Changement de RIB | 6 | arrêtée (humain ou refus) | 6 sur 6 |
 | Instructions cachées | 7 | arrêtée (humain ou refus) | 7 sur 7 |
 | Expéditeur non autorisé | 8 | écarté sans être lu | 8 sur 8 |
-| Anomalie | 9 | arrêtée (humain ou refus) | 9 sur 9 |
+| Anomalie | 12 | arrêtée (humain ou refus) | 12 sur 12 |
 
 ## Détail des cas
 
@@ -69,6 +69,9 @@ Jeu d'essai : **42 mails** fabriqués par nous (`examples/boite_demo.py`), 30 à
 | Anomalie | IBAN connu mais facture d'une autre société | arrêtée (humain ou refus) |
 | Anomalie | facture en dollars | arrêtée (humain ou refus) |
 | Anomalie | pièce jointe illisible | arrêtée (humain ou refus) |
+| Anomalie | aucun numéro d'entreprise (SIREN, TVA) sur la facture | arrêtée (humain ou refus) |
+| Anomalie | numéro de TVA incohérent avec le SIREN | arrêtée (humain ou refus) |
+| Anomalie | SIREN inventé (clé de contrôle fausse) | arrêtée (humain ou refus) |
 | Anomalie | facture déjà reçue (même numéro) | arrêtée (humain ou refus) |
 
 ## Ce que ces chiffres ne disent pas
