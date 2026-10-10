@@ -107,7 +107,17 @@
                 <tr>
                   <td class="mono">documents</td>
                   <td>Tableau (optionnel)</td>
-                  <td>Liste de documents analysés par l'agent : [{"source": "facture.pdf", "content": "..."}].</td>
+                  <td>Liste de documents analysés par l'agent : [{"source": "facture.pdf", "content": "...", "file_sha256": "..."}].
+                    Ils sont analysés en mémoire et ne sont pas conservés : seule leur empreinte SHA-256 est enregistrée
+                    et renvoyée dans la réponse. <code>file_sha256</code> (optionnel) est l'empreinte du fichier d'origine.</td>
+                </tr>
+                <tr>
+                  <td class="mono">invoice</td>
+                  <td>Objet (optionnel)</td>
+                  <td>Facture structurée pour le contrôle de cohérence : {"currency": "EUR", "total": "100.00", "tax": "0.00",
+                    "lines": [{"label", "quantity", "unit_price"}], "references": [{"label", "unit_price"}]}. Nombres en
+                    chaînes. Total incohérent avec les lignes ou prix unitaire très supérieur à votre prix de référence :
+                    validation humaine. Rien n'est conservé.</td>
                 </tr>
               </tbody>
             </table>

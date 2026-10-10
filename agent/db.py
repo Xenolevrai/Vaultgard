@@ -366,6 +366,35 @@ def init_db(db_path: str | Path | None = None) -> None:
     conn = connect(db_path)
     conn.executescript(SCHEMA_SQL)
     conn.commit()
+    purge_stored_content(db_path)
+
+
+def purge_stored_content(db_path: str | Path | None = None) -> int:
+    """Zéro conservation : remplace par des empreintes SHA-256 les textes de factures et de consignes
+    enregistrés par les versions précédentes. Renvoie le nombre de paiements nettoyés."""
+    conn = connect(db_path)
+    rows = conn.execute(
+        "SELECT id, user_request, documents_json FROM payments "
+        "WHERE documents_json LIKE '%\"content\"%' OR (user_request != '' AND user_request NOT LIKE 'sha256:%');"
+    ).fetchall()
+    for row in rows:
+        try:
+            docs = json.loads(row["documents_json"] or "[]")
+        except ValueError:
+            docs = []
+        prints = []
+        for index, d in enumerate(docs if isinstance(docs, list) else [], 1):
+            if isinstance(d, dict) and "content" in d:
+                content = str(d["content"])
+                d = {"n": index, "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(), "chars": len(content)}
+            prints.append(d)
+        mandate = row["user_request"]
+        if mandate and not mandate.startswith("sha256:"):
+            mandate = "sha256:" + hashlib.sha256(mandate.encode("utf-8")).hexdigest()
+        conn.execute("UPDATE payments SET user_request = ?, documents_json = ? WHERE id = ?;",
+                     (mandate, json.dumps(prints), row["id"]))
+    conn.commit()
+    return len(rows)
 
 
 # ------------------------------------------------------------------ Transactions et requêtes

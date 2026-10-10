@@ -1,0 +1,12 @@
+ÉPICERIE PRO SAS — 4 avenue du Marché, 95000 Cergy
+Facture n° EP-2026-0457 — 10/10/2026
+Client : Transports Martin (cantine)
+
+Désignation                 Quantité x Prix unitaire (EUR)
+Boîte de 12 œufs            5 x 18.00
+Sel fin 1 kg                10 x 1.00
+
+TVA : 0.00
+Total facture : 100.00 EUR
+À régler à : 0xe9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9
+Échéance : 30 jours.

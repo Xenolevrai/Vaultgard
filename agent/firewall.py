@@ -19,6 +19,7 @@ import statistics
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 
 ADDRESS_RE = re.compile(r"0x[a-fA-F0-9]{40}")
@@ -70,6 +71,9 @@ CATALOG = {
     "injection": ("Un document contient des instructions cachées destinées à l'IA.", "OWASP LLM01"),
     "obfuscation": ("Un document essaie de cacher du texte (caractères invisibles, encodage).", "OWASP LLM01"),
     "amount_anomaly": ("Le montant est inhabituel pour ce fournisseur.", "Détection d'anomalie"),
+    "price_anomaly": ("Un prix de la facture est anormalement élevé.", "Détection d'anomalie"),
+    "invoice_arithmetic": ("Le total de la facture ne correspond pas à la somme de ses lignes.", "Contrôle de cohérence"),
+    "invoice_amount_mismatch": ("Le montant demandé n'est pas celui de la facture.", "OWASP ASI01 (goal hijack)"),
     "double_payment": ("Cette facture a déjà été payée.", "Fraude au double paiement"),
     "quota": ("Trop de paiements dans cette session.", "OWASP LLM10 / ASI02"),
     "secret_in_memo": ("Un secret allait être publié sur la blockchain : il a été masqué.", "OWASP LLM02"),
@@ -162,6 +166,64 @@ def parse_amount(value) -> float | None:
     return v
 
 
+def _dec(value) -> Decimal | None:
+    """Nombre décimal exact (pas de flottant pour de l'argent) ; None si illisible, négatif ou démesuré."""
+    try:
+        d = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return None
+    return d if d.is_finite() and 0 <= d <= Decimal("1e12") else None
+
+
+def _plain(text: str) -> str:
+    """Minuscules sans accents ni ligatures, pour comparer « Œufs » et « oeufs »."""
+    text = normalize(str(text)).lower().replace("œ", "oe").replace("æ", "ae")
+    return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+
+
+def check_invoice(invoice: dict, amount: float, payment_currency: str = "AVAX") -> list[tuple[str, int, str, str, str]]:
+    """Cohérence d'une facture lue par l'agent : (action, risque, code, détail, détail conservable) par anomalie.
+
+    invoice = {currency, total, tax, lines: [{label, quantity, unit_price}], references: [{label, unit_price}],
+    factor}. Les prix de référence viennent de l'entreprise (son agent les envoie), jamais de la facture.
+    Une anomalie de prix est le plus souvent une erreur, pas une attaque : validation humaine, pas blocage.
+    Le détail cite la facture (libellé, prix) : il est rendu à l'agent mais ne doit pas être enregistré. Le
+    « détail conservable » dit la même chose sans rien recopier de la facture.
+    """
+    out = []
+    currency = str(invoice.get("currency") or "").upper()
+    total, tax = _dec(invoice.get("total")), _dec(invoice.get("tax") or "0")
+    lines = [(str(ln.get("label", "")), _dec(ln.get("quantity")), _dec(ln.get("unit_price")))
+             for ln in invoice.get("lines") or [] if isinstance(ln, dict)]
+    lines = [ln for ln in lines if ln[1] is not None and ln[2] is not None]
+
+    if lines and total is not None and tax is not None:
+        computed = sum(q * u for _, q, u in lines) + tax
+        if abs(computed - total) > max(Decimal("0.01"), total * Decimal("0.001")):
+            out.append(("CONFIRM", 30, "invoice_arithmetic",
+                        f"somme des lignes + taxes = {computed.normalize():f} {currency}, total annoncé = {total.normalize():f} {currency}",
+                        "la somme des lignes et des taxes diffère du total annoncé"))
+
+    if total is not None and currency == payment_currency.upper():
+        if abs(total - Decimal(str(amount))) > Decimal("0.000000001"):
+            out.append(("CONFIRM", 45, "invoice_amount_mismatch",
+                        f"paiement demandé : {amount} {currency} ; total de la facture : {total.normalize():f} {currency}",
+                        "le paiement demandé diffère du total de la facture"))
+
+    factor = _dec(invoice.get("factor") or "3") or Decimal(3)
+    refs = [(_plain(r.get("label", "")), _dec(r.get("unit_price")))
+            for r in invoice.get("references") or [] if isinstance(r, dict)]
+    for index, (label, _, unit) in enumerate(lines, 1):
+        for key, usual in refs:
+            if key and usual and key in _plain(label) and unit > factor * usual:
+                out.append(("CONFIRM", 35, "price_anomaly",
+                            f"« {label[:80]} » facturé {unit.normalize():f} {currency} l'unité ; prix habituel "
+                            f"{usual.normalize():f} {currency} ({(unit / usual):.1f} fois plus)",
+                            f"ligne {index} de la facture : {(unit / usual):.1f} fois le prix habituel"))
+                break
+    return out
+
+
 @dataclass
 class FirewallSession:
     trusted: list[str] = field(default_factory=list)
@@ -198,7 +260,7 @@ class TxFirewall:
         self.canaries = {c.lower() for c in (canaries or set())}
         self.quarantine_after = quarantine_after
 
-    def check(self, s: FirewallSession, to: str, amount, memo: str = "") -> Verdict:
+    def check(self, s: FirewallSession, to: str, amount, memo: str = "", invoice: dict | None = None) -> Verdict:
         action, risk, reasons = Action.ALLOW, 0, []
 
         def flag(a: str, r: int, code: str, detail: str):
@@ -253,6 +315,11 @@ class TxFirewall:
         hist = self.history.get(to_l)
         if hist and amt > 3 * statistics.median(hist):
             flag("CONFIRM", 25, "amount_anomaly", f"{amt} > 3 x médiane historique ({statistics.median(hist)})")
+
+        if invoice:
+            for a, r, code, detail, storable in check_invoice(invoice, amt):
+                flag(a, r, code, detail)
+                reasons[-1]["detail_stored"] = storable
 
         for inv in INVOICE_RE.findall(memo):
             if (to_l, inv.upper()) in s.paid:

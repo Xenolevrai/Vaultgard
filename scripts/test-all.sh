@@ -15,7 +15,7 @@ echo "== 1. Contrat : tests unitaires, fuzzing, invariants (forge test)"
 bash scripts/export-abi.sh >/dev/null; ok "ABI exportée"
 
 echo "== 2. Agent : tests unitaires + fonctionnels + sécurité de l'API"
-(cd agent && AUDIT_PATH=/dev/null CHAIN= "$PY" -m unittest -q test_vaultguard test_server test_product test_layout 2>&1 | grep -vE '^\{"event"' ) || { echo "   ECHEC : voir ci-dessus"; exit 1; }; ok "python"
+(cd agent && AUDIT_PATH=/dev/null CHAIN= "$PY" -m unittest -q test_vaultguard test_server test_product test_layout test_invoices 2>&1 | grep -vE '^\{"event"' ) || { echo "   ECHEC : voir ci-dessus"; exit 1; }; ok "python"
 
 if [ $FULL = 1 ]; then
   echo "== 3. Parité simulation <-> contrat + bout en bout (anvil)"
@@ -37,7 +37,7 @@ if [ $FULL = 1 ]; then
     (cd contracts && forge build -q)  # slither nettoie out/ : on recompile
   else echo "   (Slither absent : bash scripts/security-audit.sh l'installe)"; fi
   if [ -x "$AUDIT/bandit" ]; then
-    "$AUDIT/bandit" -q -r agent -x agent/test_vaultguard.py,agent/test_server.py,agent/test_parity.py,agent/test_product.py,agent/test_layout.py -ll || { echo "   ALERTE bandit"; exit 1; }; ok "bandit (aucune alerte moyenne/haute)"
+    "$AUDIT/bandit" -q -r agent sdk -x agent/test_vaultguard.py,agent/test_server.py,agent/test_parity.py,agent/test_product.py,agent/test_layout.py,agent/test_invoices.py -ll || { echo "   ALERTE bandit"; exit 1; }; ok "bandit (aucune alerte moyenne/haute)"
   fi
 fi
 echo "== Tout est vert"

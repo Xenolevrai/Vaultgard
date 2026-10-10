@@ -78,7 +78,8 @@ class VaultGuardClient:
         return self._request("GET", "/v1/policy")
 
     def pay(self, to: str, amount: str, memo: str = "", user_request: str = "",
-            documents: list[dict[str, str]] | None = None) -> dict[str, Any]:
+            documents: list[dict[str, str]] | None = None,
+            invoice: dict[str, Any] | None = None) -> dict[str, Any]:
         """Soumet un paiement à l'évaluation du pare-feu et du coffre on-chain.
 
         Arguments :
@@ -86,7 +87,11 @@ class VaultGuardClient:
           amount       : montant en AVAX sous forme de CHAÎNE stricte (ex. "0.05")
           memo         : note publique associée au paiement (max 140 octets)
           user_request : consigne initiale de l'utilisateur (donnée fiable de mandat)
-          documents    : liste des documents analysés par l'agent [{source, content}]
+          documents    : liste des documents analysés par l'agent [{source, content, file_sha256}] ;
+                         VaultGuard les analyse en mémoire et n'en garde que l'empreinte SHA-256
+          invoice      : facture structurée pour le contrôle de cohérence (voir sdk/invoice_reader.py) :
+                         {currency, total, tax, lines: [{label, quantity, unit_price}],
+                          references: [{label, unit_price}]} — nombres en chaînes
 
         Retourne :
           {
@@ -107,6 +112,8 @@ class VaultGuardClient:
             "user_request": user_request,
             "documents": documents or [],
         }
+        if invoice is not None:
+            payload["invoice"] = invoice
         return self._request("POST", "/v1/payments", body=payload)
 
     def get_payment(self, payment_id: str) -> dict[str, Any]:

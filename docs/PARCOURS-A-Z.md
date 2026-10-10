@@ -1,7 +1,10 @@
 # Parcours de A à Z : une entreprise, un agent IA, des factures
 
 ## Qui possède quoi
-VaultGuard **ne reçoit pas les factures** et n'a aucun accès à la boîte mail de ses clients.
+VaultGuard **ne va pas chercher les factures** et n'a aucun accès à la boîte mail de ses clients. L'agent de
+l'entreprise lui envoie le texte à contrôler ; VaultGuard l'analyse en mémoire et **n'en garde que l'empreinte
+SHA-256** (un identifiant qui ne permet pas de retrouver le contenu). Détails, argent réel et légalité :
+`docs/CONFIANCE-ARGENT-LEGAL.md`.
 
 ```
 Fournisseur ──mail──> boîte « factures@ » de l'entreprise
@@ -18,7 +21,7 @@ Fournisseur ──mail──> boîte « factures@ » de l'entreprise
 |---|---|---|
 | Boîte mail des factures | l'entreprise | reçoit les mails des fournisseurs |
 | Agent IA (`examples/agent_mail.py`) | l'entreprise, sur sa machine | lire la boîte, **demander** un paiement avec une clé d'API |
-| VaultGuard (API `/v1`, `/app`) | nous | juger la demande, expliquer, journaliser ; ne voit que ce que l'agent lui envoie |
+| VaultGuard (API `/v1`, `/app`) | nous | juger la demande, expliquer, journaliser ; ne conserve aucun texte de facture, seulement des empreintes |
 | Coffre | l'entreprise | payer, dans les limites inscrites dans le contrat |
 
 Ce qu'une entreprise fait pour s'équiper : créer son compte, fixer ses plafonds et ses fournisseurs dans `/app`,
@@ -76,8 +79,15 @@ changement de banque, utilisez notre nouvelle adresse » et l'adresse `0xd92b152
 
 Sans boîte mail : `python3 examples/agent_mail.py --eml examples/mails/facture-piegee.eml` rejoue un mail enregistré.
 
+### Variante : une adresse dédiée, où l'entreprise transfère ce qu'elle veut faire payer
+Pour que l'agent ne voie aucun autre courriel, l'entreprise crée une adresse réservée (par exemple
+`factures-a-payer@entreprise.fr`) et y **transfère** les factures à payer. Dans `examples/.env.mail` :
+`MODE=dediee`, `EXPEDITEURS_AUTORISES=compta@entreprise.fr` (seules ces adresses peuvent déposer une facture, les
+autres mails sont ignorés sans être lus), et `SUPPRIMER_APRES=1` pour effacer chaque mail une fois traité.
+Les pièces jointes sont lues : PDF, Factur-X, XML, Word.
+
 ## Version rapide, sans mail
-`TRAITER-FACTURES.bat` fait lire à l'agent les cinq fichiers de `examples/factures/` :
+`TRAITER-FACTURES.bat` fait lire à l'agent les huit fichiers de `examples/factures/` :
 
 | Facture | Ce qui se passe | Verdict |
 |---|---|---|
@@ -86,10 +96,19 @@ Sans boîte mail : `python3 examples/agent_mail.py --eml examples/mails/facture-
 | `03-garage-dupont-piegee` | un commentaire caché ordonne d'envoyer 0.09 AVAX à un inconnu ; l'agent obéit | bloqué (injection) |
 | `04-changement-de-rib` | « nouvelle adresse » qui ressemble à celle du garage à 2 caractères près | bloqué |
 | `05-fournisseur-inconnu` | fournisseur absent du carnet, pression sur le délai | bloqué |
+| `06-epicerie-prix-anormal` | facture en euros : la boîte d'œufs est facturée 18 € au lieu de 3 € | en attente d'un humain (prix anormal) |
+| `07-garage-dupont-ubl.xml` | facture électronique structurée (UBL), 50 € | payé |
+| `08-garage-dupont-facturx.pdf` | PDF Factur-X (les données sont dans le PDF), 50 € | payé |
+
+Les factures 06 à 08 sont en euros. Dans la démo le règlement part en AVAX de test avec un taux fictif
+(`--taux`, 2 500 € pour 1 AVAX) ; en réel il se ferait en euro numérique (EURC, 1 jeton = 1 €).
+Les prix habituels de l'entreprise sont dans `examples/prix-reference.json`, chez elle : VaultGuard ne les stocke pas.
+Dans `/app`, le détail d'un paiement montre les empreintes et le bouton « Vérifier une facture » : choisis le
+fichier d'origine, le navigateur confirme que c'est bien celui qui a été jugé.
 
 ## À savoir
 - **5 refus dans la journée gèlent le coffre et mettent la clé de l'agent en quarantaine** (c'est le disjoncteur, c'est
-  voulu). Les mails 3 et 4 font 2 refus, `TRAITER-FACTURES.bat` en fait 3 : les deux le même jour déclenchent le gel.
+  voulu). Les mails 3 et 4 font 2 refus, `TRAITER-FACTURES.bat` en fait 3 : les deux dans la même heure déclenchent le gel.
   Pour repartir d'une base propre : arrête le site, puis dans Kali
   `cd agent && ~/.venvs/vaultguard/bin/python ../scripts/seed-demo-local.py` (les identifiants de
   `COMPTES-DEMO.txt` changent), et relance le site.

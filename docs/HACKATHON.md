@@ -25,7 +25,7 @@ Value », lus le 10 oct 2026. Emails organisateurs (Fuji, AWS) et `../AWS Partic
 ## Livrables (avant dimanche 12h00)
 | Livrable | État |
 |---|---|
-| Dépôt Git accessible au jury, README (problème, architecture, installation, limites connues) | dépôt privé : donner l'accès au jury ; README à compléter (limites connues) |
+| Dépôt Git accessible au jury, README (problème, architecture, installation, limites connues) | dépôt privé : donner l'accès au jury ; limites connues écrites dans le README |
 | Vidéo de démo 2 à 3 min | à faire |
 | Pitch deck, 8 slides max (problème, cible, solution, démo, business model, équipe) | à faire |
 | Fiche de défense, 1 page (scénario, fonctions NIST CSF, techniques ATT&CK/ATLAS/OWASP, métriques, limites) | à faire |
@@ -53,6 +53,9 @@ journal de chaque action avec la chaîne d'autorité (mandat de l'utilisateur vs
 transactions hors périmètre, clé d'agent révocable et expirante, kill switch automatique (disjoncteur, appât),
 validation humaine. Touche aussi l'axe 4 (surveillance d'un contrat sur Fuji, pause, rapport).
 Fonctions NIST CSF : Identify, Protect, Detect, Respond. Risques OWASP : LLM01, LLM02, ASI01, ASI02, ASI03, ASI10.
+
+Données, argent réel, confiance, légalité (DORA, LCB-FT, MiCA, AI Act, RGPD) et concurrence : voir
+`CONFIANCE-ARGENT-LEGAL.md`, matière première de la slide conformité et de la fiche de défense.
 
 ## Points ouverts
 1. Règle « cœur développé pendant l'événement » : demander à un organisateur ce qui est acceptable et le dire

@@ -565,12 +565,19 @@
           <div class="detail-val" id="pm-memo"></div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Demande originale de l'utilisateur</div>
-          <div class="detail-val detail-val-box" id="pm-user-req"></div>
+          <div class="detail-key">Consigne donnée à l'agent (empreinte, texte non conservé)</div>
+          <div class="detail-val detail-val-box mono" id="pm-user-req"></div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Documents analysés par l'agent</div>
+          <div class="detail-key">Documents analysés (empreintes, contenu non conservé)</div>
           <div class="detail-val text-xs" id="pm-docs"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-key">Vérifier une facture (le fichier reste sur votre poste)</div>
+          <div class="detail-val text-xs">
+            <input type="file" id="pm-verify-file" aria-label="Fichier de facture à comparer aux empreintes">
+            <div class="mt-2" id="pm-verify-result" role="status"></div>
+          </div>
         </div>
         <div class="detail-row">
           <div class="detail-key">Verdict du pare-feu VaultGuard</div>

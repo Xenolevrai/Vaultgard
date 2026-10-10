@@ -15,6 +15,7 @@ Exigences :
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import logging
@@ -351,19 +352,72 @@ def handle_post_payment(body: dict[str, Any], api_key: dict[str, Any], org: dict
             raise ApiV1Error(400, "Les champs source et content d'un document doivent être des chaînes")
         if len(src) > 256 or len(cnt) > 32_000:
             raise ApiV1Error(400, "Taille d'un document trop importante")
-        clean_docs.append({"source": src, "content": cnt})
+        file_hash = d.get("file_sha256", "")
+        if not isinstance(file_hash, str) or (file_hash and not SHA256_RE.match(file_hash)):
+            raise ApiV1Error(400, "file_sha256 doit être une empreinte SHA-256 (64 caractères hexadécimaux)")
+        clean_docs.append({"source": src, "content": cnt, "file_sha256": file_hash.lower()})
+
+    invoice = _clean_invoice(body.get("invoice"))
 
     with _org_lock(org["id"]):
         # La clé a pu être mise en quarantaine ou révoquée par une requête parallèle depuis l'authentification.
         k = db.query_one("SELECT is_active, quarantined_until FROM api_keys WHERE id = ?;", (api_key["id"],), db_path=db_path)
         if not k or not k["is_active"] or (k["quarantined_until"] or 0) > int(time.time()):
             raise ApiV1Error(401, AUTH_ERROR_MSG)
-        return _decide_payment(to_clean, amount_gwei, memo_raw, user_req, clean_docs, api_key, org, ip, db_path)
+        return _decide_payment(to_clean, amount_gwei, memo_raw, user_req, clean_docs, api_key, org, ip, db_path,
+                               invoice=invoice)
+
+
+SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+_NUMBER_RE = re.compile(r"^[0-9]{1,12}(\.[0-9]{1,6})?$")
+
+
+def _clean_invoice(raw: Any) -> dict[str, Any] | None:
+    """Valide la facture structurée (optionnelle) : types, bornes, nombres en chaînes ASCII sans flottant."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ApiV1Error(400, "invoice doit être un objet JSON")
+
+    def number(value: Any, name: str, required: bool = True) -> str:
+        if value in (None, "") and not required:
+            return ""
+        if not isinstance(value, str) or not _NUMBER_RE.match(value):
+            raise ApiV1Error(400, f"invoice.{name} doit être un nombre positif en chaîne (ex. \"18.00\")")
+        return value
+
+    def rows(key: str, maximum: int, fields: tuple[str, ...]) -> list[dict[str, str]]:
+        items = raw.get(key, [])
+        if not isinstance(items, list) or len(items) > maximum:
+            raise ApiV1Error(400, f"invoice.{key} doit être une liste d'au plus {maximum} éléments")
+        out = []
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("label"), str) or len(item["label"]) > 200:
+                raise ApiV1Error(400, f"invoice.{key} : chaque élément a un label (200 caractères max)")
+            out.append({"label": item["label"], **{f: number(item.get(f), f"{key}.{f}") for f in fields}})
+        return out
+
+    currency = raw.get("currency", "")
+    if not isinstance(currency, str) or not re.match(r"^[A-Za-z]{3,5}$", currency):
+        raise ApiV1Error(400, "invoice.currency doit être un code de devise (ex. \"EUR\")")
+    return {
+        "currency": currency.upper(),
+        "total": number(raw.get("total"), "total"),
+        "tax": number(raw.get("tax"), "tax", required=False),
+        "factor": number(raw.get("factor"), "factor", required=False),
+        "lines": rows("lines", 200, ("quantity", "unit_price")),
+        "references": rows("references", 500, ("unit_price",)),
+    }
+
+
+def fingerprint(text: str) -> str:
+    """Empreinte SHA-256 : identifie un contenu sans permettre de le retrouver."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: str, clean_docs: list,
                     api_key: dict[str, Any], org: dict[str, Any], ip: str | None,
-                    db_path: str | None) -> tuple[int, dict[str, Any]]:
+                    db_path: str | None, invoice: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
     """Section critique (verrou de l'organisation tenu) : pare-feu, coffre simulé, enregistrement, quarantaine."""
     amount_avax = amount_gwei / 1e9
     # Données propres à l'organisation
@@ -410,11 +464,17 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
     sess.paid = past_invoices
     if user_req:
         sess.add_trusted(user_req)
-    for d in clean_docs:
-        sess.add_untrusted(d["source"], d["content"])
+    # Zéro conservation : les documents sont analysés en mémoire puis oubliés. Leur nom (fichier, expéditeur)
+    # ne doit pas se retrouver dans les raisons enregistrées : le pare-feu ne voit que « document N ».
+    for index, d in enumerate(clean_docs, 1):
+        sess.add_untrusted(f"document {index}", d["content"])
+    prints = [{"n": index, "sha256": fingerprint(d["content"]), "chars": len(d["content"]),
+               **({"file_sha256": d["file_sha256"]} if d.get("file_sha256") else {})}
+              for index, d in enumerate(clean_docs, 1)]
+    mandate_print = "sha256:" + fingerprint(user_req) if user_req else ""
 
     # Vérification par le pare-feu
-    verdict = fw.check(sess, to_clean, amount_avax, memo_raw)
+    verdict = fw.check(sess, to_clean, amount_avax, memo_raw, invoice=invoice)
 
     is_canary = (to_clean in canaries) or ("canary" in verdict.codes)
 
@@ -459,6 +519,12 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
                 "vault_address": org.get("vault_address") or "",
             }
 
+    # Zéro conservation : l'agent reçoit le détail complet (il cite la facture), la base n'en garde qu'une
+    # version qui ne recopie rien du document.
+    public_reasons = [{k: v for k, v in r.items() if k != "detail_stored"} for r in verdict.reasons]
+    stored_reasons = [dict(r, detail=verdict.reasons[i].get("detail_stored", r["detail"]))
+                      for i, r in enumerate(public_reasons)]
+
     # Persistance de la demande en base
     payment_id = "pay_" + secrets.token_hex(12)
     db.execute(
@@ -467,8 +533,8 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
         "                      chain_status, created_at, updated_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
         (payment_id, org["id"], api_key["id"], to_clean, amount_gwei, verdict.memo,
-         user_req, json.dumps(clean_docs, ensure_ascii=False), decision,
-         json.dumps(verdict.reasons, ensure_ascii=False), chain_status, now, now),
+         mandate_print, json.dumps(prints), decision,
+         json.dumps(stored_reasons, ensure_ascii=False), chain_status, now, now),
         db_path=db_path,
     )
 
@@ -476,7 +542,9 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
         "payment.request",
         org_id=org["id"],
         api_key_id=api_key["id"],
-        details={"payment_id": payment_id, "to": to_clean, "amount_gwei": amount_gwei, "decision": decision},
+        # Les empreintes entrent dans le journal chaîné : on peut prouver quel document a été jugé, sans le détenir.
+        details={"payment_id": payment_id, "to": to_clean, "amount_gwei": amount_gwei, "decision": decision,
+                 "documents_sha256": [p["sha256"] for p in prints], "mandate": mandate_print},
         ip=ip,
         db_path=db_path,
     )
@@ -503,9 +571,10 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
     return 200, {
         "id": payment_id,
         "decision": decision,
-        "reasons": verdict.reasons,
+        "reasons": public_reasons,
         "chain": chain_info,
         "memo": verdict.memo,
+        "documents": prints,
     }
 
 

@@ -28,6 +28,7 @@ db.init_db()
 
 SUPPLIER = "0xd92B1525628baA7AB228796FD49304Ef1435a234"
 NEW_SUPPLIER = "0x8AE704D42082EfbdAbc338D740c9984669049f18"
+GROCER = "0x" + "e9" * 20
 ATTACKER = "0x" + "7a" * 20
 
 
@@ -48,9 +49,10 @@ r = auth.signup(owner_email, owner_pwd, org_name="Transports Martin")
 org_id, uid = r["org"]["id"], r["user"]["id"]
 orgs.add_supplier(org_id, uid, "Garage Dupont", SUPPLIER)
 orgs.add_supplier(org_id, uid, "Loueur Camions Express", NEW_SUPPLIER)
-# Démo : le premier fournisseur a déjà passé son délai d'activation de 24 h, le second non.
-db.execute("UPDATE suppliers SET active_after = ? WHERE org_id = ? AND address = ?;",
-           (int(time.time()) - 60, org_id, SUPPLIER.lower()))
+orgs.add_supplier(org_id, uid, "Épicerie Pro", GROCER)
+# Démo : le garage et l'épicerie ont déjà passé leur délai d'activation de 24 h, le loueur non.
+db.execute("UPDATE suppliers SET active_after = ? WHERE org_id = ? AND address IN (?, ?);",
+           (int(time.time()) - 60, org_id, SUPPLIER.lower(), GROCER.lower()))
 key = orgs.create_api_key(org_id, uid, "Agent comptable IA")
 raw_key = key.get("key") or key.get("raw_key") or key.get("api_key")
 H = {"Authorization": f"Bearer {raw_key}"}
@@ -74,6 +76,13 @@ demands = [
 for title, body in demands:
     st, res = api_v1.dispatch_v1("POST", "/v1/payments", H, body)
     print(f"  {title:30s} -> {res.get('decision', res)}")
+
+# Cet historique date d'« hier » : sinon ses 3 refus comptent pour le disjoncteur (5 refus en 1 h) et la clé de
+# l'agent part en quarantaine au milieu du parcours de démonstration. Le loueur a depuis passé son délai.
+db.execute("UPDATE payments SET created_at = created_at - 86400, updated_at = updated_at - 86400 WHERE org_id = ?;",
+           (org_id,))
+db.execute("UPDATE suppliers SET active_after = ? WHERE org_id = ? AND address = ?;",
+           (int(time.time()) - 60, org_id, NEW_SUPPLIER.lower()))
 
 out = DB.parent / "COMPTES-DEMO.txt"
 out.write_text(f"""COMPTES DE DÉMONSTRATION LOCAUX (base {DB.name}) — ne pas réutiliser ailleurs

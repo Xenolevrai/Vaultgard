@@ -63,7 +63,7 @@ Utilisateur (fiable) ─▶ Agent LLM ─▶ lit factures/emails (NON fiables, e
 | `agent/orgs.py` | Espaces organisations, fournisseurs, politiques d'approbation bornées, états de coffre isolés. |
 | `agent/api_v1.py` | API REST `/v1` pour agents IA (Bearer token temps constant, quarantaine sans expiration, pare-feu multi-tenant). |
 | `agent/admin.py` | Espace super-admin furtif `/admin` (404 stealth, révocations globales de sessions, suspension d'organisation). |
-| `sdk/` | Client Python autonome sans dépendance tierce (`VaultGuardClient`) et exemple d'agent (`examples/agent_example.py`). |
+| `sdk/` | Client Python autonome sans dépendance tierce (`VaultGuardClient`), lecteur de factures multi-formats côté client (`invoice_reader.py` : texte, HTML, UBL, CII, PDF, Factur-X, mail, Word) et exemple d'agent (`examples/agent_example.py`). |
 | `dashboard/` | Interfaces web : accueil (`index.html`), console (`app.html`), administration (`admin.html`), démo (`demo.html`), doc API (`docs.html`), sécurité (`securite.html`), mentions légales, 404. |
 | `agent/abi/AgentVault.json` | ABI exportée (`scripts/export-abi.sh`) : la prod n'a pas besoin de Foundry. |
 | `agent/test_vaultguard.py`, `test_server.py`, `test_parity.py`, `test_product.py`, `test_layout.py` | Tests unitaires, fonctionnels, parité on-chain, produit multi-tenant et conformité ergonomie/CSP. |
@@ -239,9 +239,33 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   deux fois le même jour sur la même base, ou reseeder). La consigne (`user_request`) doit nommer le fournisseur,
   sinon le pare-feu envoie en validation humaine.
 - [x] **Agent branché sur une vraie boîte mail** : `examples/agent_mail.py` (IMAP en lecture seule, objet contenant « facture »), configuration `examples/.env.mail` (ignoré par git), lanceur `LIRE-MAILS.bat`, mails types et schéma « qui possède quoi » dans `docs/PARCOURS-A-Z.md`. Lecture des mails et décisions vérifiées sur `examples/mails/*.eml` ; la connexion IMAP réelle reste à essayer par Ozgun (mot de passe d'application à créer).
+- [x] **Zéro conservation, formats, prix, boîte dédiée (10 oct soir, demandes de l'équipe)** — synthèse et réponses
+  blockchain / argent réel / légalité / marché dans `docs/CONFIANCE-ARGENT-LEGAL.md`.
+  - Règle : **aucun texte de facture ni de consigne en base**. `payments.documents_json` = `[{n, sha256, chars,
+    file_sha256}]`, `payments.user_request` = `sha256:<empreinte>`, empreintes aussi dans le journal chaîné.
+    Le pare-feu reçoit les sources sous le nom « document N » (pas de nom de fichier ni d'expéditeur dans les
+    raisons). Une raison qui cite la facture porte un `detail_stored` neutre : l'agent reçoit `detail`, la base
+    garde `detail_stored`. `db.purge_stored_content()` nettoie les anciennes lignes à chaque `init_db`.
+    Tout nouveau champ venant d'un document suit cette règle (test `test_no_invoice_text_reaches_the_database`).
+  - `firewall.check_invoice` (champ `invoice` de `/v1/payments`) : total ≠ somme des lignes, montant demandé ≠ total
+    (même devise), prix unitaire > 3 × le prix de référence envoyé par l'agent du client → `CONFIRM` (humain), jamais
+    `BLOCK` : une erreur de prix ne doit pas compter pour le disjoncteur. Décimaux exacts (`Decimal`).
+  - `sdk/invoice_reader.py` (stdlib) : rien n'est tronqué (`documents()` découpe avec recouvrement, sinon un ordre
+    caché après la coupure échappe au pare-feu) ; XML avec DOCTYPE/entités refusé ; décompression bornée ; le texte
+    brut (commentaires XML/HTML, texte PDF invisible) est transmis au pare-feu ; format illisible → `UnreadableInvoice`
+    → humain. `/app` : « Vérifier une facture » compare l'empreinte d'un fichier dans le navigateur.
+  - `examples/agent_mail.py` : `MODE=dediee` (expéditeurs autorisés, SPF/DKIM si l'en-tête existe, suppression par
+    UID). Factures 06 (œufs à 18 €, attente humaine), 07 (UBL), 08 (Factur-X, `scripts/make-facturx-demo.py`).
+    Factures en euros, règlement de démo en AVAX au taux fictif `--taux` (en réel : EURC 1:1).
+  - Corrigé : `seed-demo-local.py` laissait 3 refus « du jour » sur la clé de l'agent et le loueur inactif → sur une
+    base fraîche le parcours bloquait la facture 02 et mettait la clé en quarantaine à la 3e. L'historique est daté
+    de la veille et le loueur activé après. Vérifié : 01 payé, 02 attente, 03-05 bloqués, 06 attente, 07-08 payés.
+  - 172 tests Python (`test_invoices.py` ajouté à `test-all.sh`), `--full` vert, audit 29/29.
+  - Non vérifié dans Chrome : le bouton « Vérifier une facture » de `/app`. La base de démo d'Ozgun n'a pas été
+    recréée (relancer `seed-demo-local.py` puis le site pour voir les factures 06-08 et l'épicerie).
 - [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
-  1 page, playbook de réponse, README (limites connues), accès du jury au dépôt, métriques de détection chiffrées.
+  1 page, playbook de réponse, accès du jury au dépôt, métriques de détection chiffrées. (README « limites connues » : fait.)
 - [ ] Demander à un organisateur comment s'applique la règle « cœur du projet développé entre sam. 11h30 et dim. 12h ».
 - [ ] Mode `--llm` testé avec une vraie clé API
 - [ ] Backlog jour J : voir `docs/PLAN.md`

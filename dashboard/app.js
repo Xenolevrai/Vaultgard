@@ -374,6 +374,30 @@
     }
   }
 
+  // Le fichier choisi ne quitte pas le navigateur : son empreinte est calculée ici et comparée à celles du paiement.
+  async function verifyInvoiceFile(ev) {
+    const out = document.getElementById('pm-verify-result');
+    const file = ev.target.files && ev.target.files[0];
+    const p = state.currentPayment;
+    out.textContent = '';
+    if (!file || !p) return;
+    if (!window.crypto || !window.crypto.subtle) {
+      out.textContent = 'Vérification indisponible dans ce navigateur (connexion HTTPS requise).';
+      return;
+    }
+    const digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const match = (p.documents || []).some(d => d.file_sha256 === hex || d.sha256 === hex);
+    out.style.color = match ? 'var(--status-green)' : 'var(--status-red)';
+    out.textContent = match
+      ? 'Ce fichier est bien celui que VaultGuard a jugé pour ce paiement.'
+      : 'Ce fichier ne correspond à aucun document de ce paiement (empreinte ' + hex.slice(0, 16) + '…).';
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('pm-verify-file');
+    if (input) input.addEventListener('change', verifyInvoiceFile);
+  });
+
   function openPaymentModal(p) {
     state.currentPayment = p;
     document.getElementById('pm-id').textContent = p.id;
@@ -382,7 +406,7 @@
     document.getElementById('pm-memo').textContent = p.memo || '—';
     document.getElementById('pm-user-req').textContent = p.user_request || '—';
 
-    // Documents
+    // Documents : VaultGuard ne garde que leur empreinte SHA-256, jamais leur contenu
     const docsEl = document.getElementById('pm-docs');
     docsEl.textContent = '';
     if (p.documents && p.documents.length > 0) {
@@ -392,13 +416,16 @@
         div.style.background = 'var(--bg)';
         div.style.padding = '4px 6px';
         div.style.borderRadius = '3px';
-        div.className = 'break-all';
-        div.textContent = (d.source ? '[' + d.source + '] ' : '') + (d.content || '');
+        div.className = 'break-all mono';
+        div.textContent = 'Document ' + (d.n || idx + 1) + ' · ' + (d.chars || 0) + ' caractères analysés · SHA-256 '
+          + (d.file_sha256 || d.sha256 || '');
         docsEl.appendChild(div);
       });
     } else {
       docsEl.textContent = 'Aucun document associé';
     }
+    document.getElementById('pm-verify-file').value = '';
+    document.getElementById('pm-verify-result').textContent = '';
 
     // Raisons pare-feu
     const reasonsEl = document.getElementById('pm-reasons');

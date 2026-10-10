@@ -32,8 +32,25 @@ cd agent && ~/.venvs/vaultguard/bin/python server.py
 ```
 
 ## Parcours de A à Z (factures)
-Une entreprise, un agent IA, cinq factures dont trois piégées : `TRAITER-FACTURES.bat` (ou
-`python3 examples/agent_factures.py --pause`), puis http://localhost:8000/app. Explications : `docs/PARCOURS-A-Z.md`.
+Une entreprise, un agent IA, huit factures (texte, XML, PDF Factur-X) dont trois piégées et une au prix anormal :
+`TRAITER-FACTURES.bat` (ou `python3 examples/agent_factures.py --pause`), puis http://localhost:8000/app.
+Explications : `docs/PARCOURS-A-Z.md`.
+
+## Données du client
+VaultGuard ne conserve aucun texte de facture ni de consigne : analyse en mémoire, puis empreinte SHA-256 seulement.
+Pas de service d'IA tiers : le pare-feu est un moteur de règles, le lecteur de factures (`sdk/invoice_reader.py`)
+tourne chez le client. Argent réel, confiance, légalité, marché : `docs/CONFIANCE-ARGENT-LEGAL.md`.
+
+## Limites connues
+- Réseau de test uniquement ; contrat non audité par un tiers.
+- Les factures sont en euros mais la démo règle en AVAX de test (taux fictif) ; le règlement en euro numérique
+  (EURC) et la conversion vers un virement SEPA ne sont pas construits.
+- PDF scannés, chiffrés ou à polices exotiques : non lus, renvoyés à un humain. Images : OCR `tesseract` optionnel.
+- Le contrôle des prix s'appuie sur une liste tenue par le client : il attrape les erreurs, pas un agent
+  entièrement compromis. Les bornes dures sont celles du contrat.
+- Sur une chaîne publique, adresses et montants sont visibles : une L1 Avalanche dédiée est la réponse prévue.
+- Le texte des factures transite en mémoire sur le serveur : pour l'éviter, installer VaultGuard chez le client.
+- Pas de filtrage des listes de sanctions, pas de connecteur vers une plateforme de facturation agréée.
 
 ## Tests et sécurité
 | Suite | Contenu |
@@ -48,7 +65,7 @@ Une entreprise, un agent IA, cinq factures dont trois piégées : `TRAITER-FACTU
 Guide : `docs/MISE_EN_PRODUCTION.md`. En production, la clé owner n'est jamais sur le serveur : l'owner signe avec Core Wallet.
 
 ## Documentation
-`AGENTS.md` (contexte technique) · `docs/HACKATHON.md` (règles, livrables, grille) · `docs/PARCOURS-A-Z.md` · `docs/PITCH.md` · `docs/SECURITE.md` · `docs/MISE_EN_PRODUCTION.md` · `docs/PLAN.md` ·
+`AGENTS.md` (contexte technique) · `docs/HACKATHON.md` (règles, livrables, grille) · `docs/PARCOURS-A-Z.md` · `docs/CONFIANCE-ARGENT-LEGAL.md` · `docs/PITCH.md` · `docs/SECURITE.md` · `docs/MISE_EN_PRODUCTION.md` · `docs/PLAN.md` ·
 guide complet : `../GUIDE-VAULTGUARD.pdf`.
 
 Réseau de test uniquement. Contrat non audité par un tiers : ne pas utiliser avec de vrais fonds.
