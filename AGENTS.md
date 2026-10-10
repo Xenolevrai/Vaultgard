@@ -206,10 +206,21 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     après le script (le PID de `setsid nohup` n'est pas toujours celui de Python) → `free_port` (`fuser -k`) au début,
     à la fin et en `trap EXIT`. Règle : un contrôle d'audit doit pouvoir échouer ; tout serveur lancé en arrière-plan
     est arrêté par port, pas seulement par PID. Commandes longues (sqlmap, nmap) : toujours un `timeout`.
-- [x] Premier commit `f268601` (v2 + v3 étapes 1-3) ; étapes 4-8 en attente de commit
-- [ ] Faucet Fuji sur Owner puis `bash scripts/deploy-fuji.sh` + `doctor.sh` + vérification sur Snowtrace
-- [ ] Dépôt GitHub privé + push (CI verte)
-- [ ] Slides + vidéo de secours
+- [x] Commits `f268601` (v2 + v3 1-3), `98e49b5` (v3 4-8), `a16d359` (CI) ; dépôt privé github.com/Xenolevrai/SecureHorizon, **CI verte**
+  (le contrôle « aucun secret » de la CI refuse toute chaîne 0x + 64 hex, même la clé publique d'Anvil : utiliser `anvil_setBalance`)
+- [x] Répétition locale du déploiement `scripts/rehearse-deploy.sh` OK le 2026-10-06 (déploiement, doctor 20 OK,
+  paiement réel, appât -> coffre gelé par le guardian).
+- [ ] **Faucet Fuji sur Owner** `0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5` (~0,5 AVAX) : core.app exige un code promo
+  (à obtenir auprès de Team1 Avalanche / organisateurs) ou un solde mainnet > 0 ; sinon Builder Hub (compte d'Ozgun créé,
+  Core Wallet installé mais wallet pas encore créé/connecté). Puis `bash scripts/deploy-fuji.sh`, `CHAIN=web3` dans
+  `agent/.env`, `bash scripts/doctor.sh`, vérification sur Snowtrace.
+- [x] Démo locale : `scripts/seed-demo-local.py` (depuis `agent/`) recrée la base avec un super-admin 2FA et un client
+  « Transports Martin » (5 paiements réels via `/v1` : 1 autorisé, 1 en attente, 3 bloqués). Identifiants dans
+  `agent/data/COMPTES-DEMO.txt` (ignoré par git, ne jamais les afficher). Lancement : `LANCER-DASHBOARD.bat`.
+- [x] Production : `DB_PATH=/data/vaultguard.db` dans le Dockerfile (sinon base non inscriptible avec `read_only`).
+  En production, **ne pas définir `ADMIN_PASSWORD_HASH`** (ancien admin de la démo, mot de passe seul, sans 2FA, qui
+  pilote le coffre « live ») : l'administration passe par le super-admin 2FA. `ALLOWED_HOSTS` = le domaine.
+- [ ] Revue de sécurité finale avant production (voir §8) ; slides + vidéo de secours.
 - [ ] Mode `--llm` testé avec une vraie clé API
 - [ ] Backlog jour J : voir `docs/PLAN.md`
 
@@ -218,3 +229,21 @@ LLM-juge en plus des motifs · politique par destinataire (plafond fournisseur) 
 alertes (email/Slack) sur `CanaryAlert`/`CircuitBreakerTripped` · fenêtre glissante au lieu du jour calendaire ·
 owner multisig Safe · ICM/Teleporter Avalanche (politique multi-chaînes) · L1 Avalanche dédiée avec allowlist native ·
 rapport d'audit PDF signé.
+
+## 8. Mode hackathon (10-11 oct 2026, 36 h) — à lire en premier le jour J
+Quand Ozgun revient avec le sujet exact / le code promo du faucet :
+1. **Lire le sujet** et le comparer à la Track 1 « Guardians of Value » : reformuler en 3 lignes ce que VaultGuard
+   couvre déjà, ce qui manque, et proposer **le plus petit ajout visible** qui colle au sujet (pas de refonte).
+2. **Faucet** : code promo sur core.app/tools/testnet-faucet (réseau Fuji C-Chain, token AVAX) vers l'adresse Owner
+   ci-dessus, puis `bash scripts/deploy-fuji.sh` → `CHAIN=web3` dans `agent/.env` → `bash scripts/doctor.sh` → lien
+   Snowtrace du contrat. Le CAPTCHA et les connexions de wallet sont faits par Ozgun.
+3. **Avant toute démo** : `bash scripts/test-all.sh --full` et `bash scripts/security-audit.sh` au vert ;
+   `python3 ../scripts/seed-demo-local.py` (depuis `agent/`) pour une base propre ; `LANCER-DASHBOARD.bat`.
+4. **Parcours de démo (3 min)** : accueil `/` → `/demo` (scénarios d'attaque : injection, appât, sosie, double
+   paiement) → `/login` client → `/app` (paiement en attente à valider, paiement bloqué expliqué, journal chaîné
+   « Vérifier l'intégrité », export CSV) → `/admin` (super-admin 2FA) → contrat sur Snowtrace (événements on-chain).
+5. **Livrables restants** : slides (problème, 2 couches, Avalanche, sécurité prouvée : 147 tests Python, 33 Foundry,
+   audit 29/29, Slither/Bandit 0 alerte), vidéo de secours du parcours ci-dessus, pitch `docs/PITCH.md`.
+6. Commit après chaque avancée validée ; jamais de secret dans git (la CI refuse toute chaîne 0x + 64 hex).
+Points de vigilance : ne jamais afficher `agent/.env` ni `agent/data/COMPTES-DEMO.txt` ; clés testnet uniquement ;
+toute vérification « avant écriture » dans la même requête SQL ou sous le même verrou (règle des revues §6).

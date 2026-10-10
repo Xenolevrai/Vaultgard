@@ -1,6 +1,6 @@
-VaultGuard — audit de sécurité automatisé — 2026-10-06T20:58:59+02:00
+VaultGuard — audit de sécurité automatisé — 2026-10-06T21:29:28+02:00
 
-   930== 1. Surface réseau (nmap)
+== 1. Surface réseau (nmap)
   Écoute : 127.0.0.1:8765 (doit être 127.0.0.1, pas 0.0.0.0)
 == 2. Rejeu des failles de la v1
   [OK]    CSRF : POST depuis un site tiers (Origin evil) (attendu 403)
@@ -38,7 +38,7 @@ VaultGuard — audit de sécurité automatisé — 2026-10-06T20:58:59+02:00
 == 6. Injection SQL (sqlmap)
   [OK]    sqlmap : aucun paramètre injectable sur /api/auth/login (attendu sûr)
 == 7. Limitation de débit (300 requêtes rapides)
-  codes :     259 200      41 429 
+  codes :     257 200      43 429 
   [OK]    des requêtes sont limitées (429) (attendu 1)
 == 8. Analyse statique du contrat (Slither)
   aucune alerte moyenne/haute
