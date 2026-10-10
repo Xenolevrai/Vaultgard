@@ -1,0 +1,23 @@
+SECURE HORIZONS - DOSSIER DE PREPARATION
+=========================================
+
+1-A-LIRE\
+  01-OWASP-Top10-LLM-2025.pdf                  -> a lire EN PREMIER (surtout LLM01, LLM02, LLM06, LLM07)
+  02-OWASP-Top10-Agentic-Applications-2026.pdf -> les risques specifiques aux agents (ASI01 a ASI10)
+  03-OWASP-Agentic-AI-Threats-and-Mitigations.pdf -> les defenses en detail (pour construire ta solution)
+
+secure-agent-kit\   (ton agent securise, base pour le jour J)
+  Dans Kali :
+    cd /mnt/c/Users/ozgun/Bureau/SecureHorizons-Prep/secure-agent-kit
+    python3 agent.py          (mode demo)
+    python3 -m unittest -v    (tests)
+
+S'ENTRAINER (en ligne)
+  Gandalf     : https://gandalf.lakera.ai
+  PortSwigger : https://portswigger.net/web-security/llm-attacks   (compte gratuit, puis "Access the lab")
+
+DATES
+  Lun 5 oct      : les 3 sujets sortent sur Discord #announcements
+  Mar 6 oct 00h  : cloture des inscriptions -> verifier la tienne
+  Jeu 8 oct 19h  : BeforeHack, Maison des ESSEC, Paris
+  Sam 10 9h -> Dim 11 17h : hackathon, ESSEC Cergy
