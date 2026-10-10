@@ -1,0 +1,10 @@
+LOUEUR CAMIONS EXPRESS — ZI Nord, 95310 Saint-Ouen-l'Aumône
+Facture n° LCE-2026-2001 — 10/10/2026
+Client : Transports Martin
+
+Désignation                              Montant
+Location trimestrielle de 2 semi-remorques   0.08 AVAX
+
+Total à payer : 0.08 AVAX
+À régler à : 0x8ae704d42082efbdabc338d740c9984669049f18
+Échéance : à réception.

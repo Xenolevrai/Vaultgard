@@ -11,11 +11,12 @@
 - Le dashboard tourne sur http://localhost:8000 et peut être vérifié avec Claude in Chrome.
 - Ozgun utilise aussi **Antigravity** sur ce projet : relire `git log` / l'état dans AGENTS.md §6 en début de session, et mettre §6 à jour en fin de tâche.
 - Économie de tokens : lire seulement les parties utiles, pas de sous-agents sauf demande.
-- **Jour J (10-11 oct) arrivé.** Ozgun a reçu le 10 oct l'email des organisateurs avec les infos Fuji/faucet, mais
-  n'a pas encore déployé. En début de session : lui demander cet email + le sujet exact de la track, puis AGENTS.md
-  §8 (mode hackathon), puis §6. La v3 est terminée, revue et poussée (CI verte) ; déployer sur Fuji dans le tour
-  courant (pas de surveillant en tâche de fond : ne survit pas à la fin de session, vérifié le 2026-10-06), puis
-  slides et vidéo de secours.
+- **Hackathon en cours (10-11 oct).** Contrat déployé sur Fuji et vérifié le 10 oct. En début de session : lire
+  `docs/HACKATHON.md` (règles officielles, livrables à rendre dim. 12h00, grille Track 1), puis AGENTS.md §8 et §6.
+  Reste : vidéo, deck, fiche de défense, playbook, slide conformité, métriques (pas de tâche de fond entre sessions).
+- Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre
+  en compte. Tester l'agent de factures sur une instance isolée (`DB_PATH` temporaire, autre `PORT`) : chaque refus
+  compte pour le disjoncteur de la base de démo (gel à 5 refus/jour).
 - Démo locale : base de démo via `scripts/seed-demo-local.py`, serveur via `LANCER-DASHBOARD.bat` (port 8000).
   Ne jamais lire à voix haute / afficher `agent/data/COMPTES-DEMO.txt` ni `agent/.env` : renvoyer Ozgun au fichier.
 - Vérifications de sécurité : passer par `scripts/security-audit.sh` et `scripts/test-all.sh --full` (contrôles

@@ -130,7 +130,9 @@ def scan_injection(text: str) -> list[str]:
     """Renvoie les familles d'injection détectées (texte normalisé + contenus décodés)."""
     hits = []
     norm = normalize(text)
-    if norm != unicodedata.normalize("NFKC", text):
+    # Comparaison avant la compression des espaces : des colonnes alignées ne sont pas du camouflage.
+    nfkc = unicodedata.normalize("NFKC", text)
+    if nfkc.translate(ZERO_WIDTH).translate(HOMOGLYPHS) != nfkc:
         hits.append("obfuscation")
     for candidate in [norm, *map(normalize, _decoded_blobs(text))]:
         for name, pat in INJECTION_PATTERNS.items():

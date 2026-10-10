@@ -15,6 +15,10 @@ indépendantes :
 
 > « Ne faites pas confiance au LLM. Bornez-le. »
 
+## Déploiement Fuji
+Contrat `AgentVault` : [`0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793`](https://testnet.snowtrace.io/address/0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793)
+(Avalanche Fuji C-Chain, testnet, bloc 59263971).
+
 ## Démarrer
 Windows : double-clic sur `LANCER-DASHBOARD.bat` → démo sur http://localhost:8000/demo (accueil sur http://localhost:8000).
 
@@ -26,6 +30,10 @@ bash scripts/security-audit.sh   # attaques rejouées sur 127.0.0.1 -> docs/audi
 bash scripts/doctor.sh           # diagnostic de la configuration
 cd agent && ~/.venvs/vaultguard/bin/python server.py
 ```
+
+## Parcours de A à Z (factures)
+Une entreprise, un agent IA, cinq factures dont trois piégées : `TRAITER-FACTURES.bat` (ou
+`python3 examples/agent_factures.py --pause`), puis http://localhost:8000/app. Explications : `docs/PARCOURS-A-Z.md`.
 
 ## Tests et sécurité
 | Suite | Contenu |
@@ -40,7 +48,7 @@ cd agent && ~/.venvs/vaultguard/bin/python server.py
 Guide : `docs/MISE_EN_PRODUCTION.md`. En production, la clé owner n'est jamais sur le serveur : l'owner signe avec Core Wallet.
 
 ## Documentation
-`AGENTS.md` (contexte technique) · `docs/PITCH.md` · `docs/SECURITE.md` · `docs/MISE_EN_PRODUCTION.md` · `docs/PLAN.md` ·
+`AGENTS.md` (contexte technique) · `docs/HACKATHON.md` (règles, livrables, grille) · `docs/PARCOURS-A-Z.md` · `docs/PITCH.md` · `docs/SECURITE.md` · `docs/MISE_EN_PRODUCTION.md` · `docs/PLAN.md` ·
 guide complet : `../GUIDE-VAULTGUARD.pdf`.
 
 Réseau de test uniquement. Contrat non audité par un tiers : ne pas utiliser avec de vrais fonds.

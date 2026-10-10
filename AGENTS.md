@@ -210,19 +210,38 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   (le contrôle « aucun secret » de la CI refuse toute chaîne 0x + 64 hex, même la clé publique d'Anvil : utiliser `anvil_setBalance`)
 - [x] Répétition locale du déploiement `scripts/rehearse-deploy.sh` OK le 2026-10-06 (déploiement, doctor 20 OK,
   paiement réel, appât -> coffre gelé par le guardian).
-- [ ] **Faucet Fuji sur Owner** `0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5` (~0,5 AVAX). Ozgun a reçu le 10 oct
-  (jour J) l'email des organisateurs avec les infos Fuji/faucet (probablement un code promo pour core.app/tools/testnet-faucet) :
-  **lui demander ces infos en premier**, les utiliser pour créditer Owner (CAPTCHA/wallet = lui), puis
-  `bash scripts/deploy-fuji.sh`, `CHAIN=web3` dans `agent/.env`, `bash scripts/doctor.sh`, vérification sur Snowtrace.
-  Pas de surveillant en tâche de fond : le process ne survit pas à la fin de session (vérifié le 2026-10-06) — déployer
-  dans le tour courant dès que les AVAX sont là.
+- [x] **Déploiement Fuji fait (10 oct, jour J)** : contrat AgentVault à `0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793`
+  (bloc 59263971) — https://testnet.snowtrace.io/address/0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793 . Faucet officiel
+  utilisé : Builder Hub (`build.avax.network/console/primary-network/faucet`), pas de code promo nécessaire (l'email
+  du 10 oct ne contenait qu'un lien Builder Hub standard + contact de secours Yassir en cas de faucet insuffisant).
+  Piège rencontré : le wallet Core d'Ozgun avait été recréé (nouveau mot de passe) donc les AVAX du faucet sont tombés
+  sur une adresse différente de l'Owner du projet — réglé par un virement interne C-Chain vers l'Owner (pas besoin de
+  refaire le faucet, pas de cooldown). `CHAIN=web3` activé dans `agent/.env` ; `scripts/doctor.sh` 20/20 OK.
 - [x] Démo locale : `scripts/seed-demo-local.py` (depuis `agent/`) recrée la base avec un super-admin 2FA et un client
   « Transports Martin » (5 paiements réels via `/v1` : 1 autorisé, 1 en attente, 3 bloqués). Identifiants dans
   `agent/data/COMPTES-DEMO.txt` (ignoré par git, ne jamais les afficher). Lancement : `LANCER-DASHBOARD.bat`.
 - [x] Production : `DB_PATH=/data/vaultguard.db` dans le Dockerfile (sinon base non inscriptible avec `read_only`).
   En production, **ne pas définir `ADMIN_PASSWORD_HASH`** (ancien admin de la démo, mot de passe seul, sans 2FA, qui
   pilote le coffre « live ») : l'administration passe par le super-admin 2FA. `ALLOWED_HOSTS` = le domaine.
-- [ ] Revue de sécurité finale avant production (voir §8) ; slides + vidéo de secours.
+- [x] Vérification complète après déploiement (10 oct) : `test-all.sh --full` vert (148 tests Python, 33 Foundry,
+  parité, Slither, Bandit), `security-audit.sh` 29/29, `/demo` + `/app` + `/admin` contrôlés, un vrai paiement
+  on-chain de 0,02 AVAX (tx `0xd7df5685…5b036be4ac`, visible sur la page Snowtrace du contrat).
+  Corrigé ce jour-là : (1) **faux positif du pare-feu** — `scan_injection` signalait « obfuscation » dès qu'un
+  document contenait deux espaces de suite (colonnes d'une facture), car la comparaison se faisait après compression
+  des espaces ; elle se fait maintenant avant (test `test_aligned_columns_are_not_obfuscation`). (2) Deux tests 2FA
+  instables : un `now + 31` ou `+ 35` peut sauter 2 pas de 30 s et sortir de la fenêtre ±1 → toujours calculer le
+  compteur (`now // 30 + 1`), jamais un décalage en secondes. (3) `test-all.sh` affichait « Tout est vert » malgré
+  un échec (`A && ok` ne déclenche pas `set -e`) → chaque étape fait maintenant `|| exit 1`. (4) Les venv
+  `vaultguard` et `vg-audit` avaient perdu `pip` (Python de Kali passé en 3.14) : `get-pip.py` puis réinstallation.
+- [x] **Parcours de A à Z** : `examples/agent_factures.py` (agent naïf qui lit `examples/factures/*.txt` et appelle
+  `/v1`), lanceur `TRAITER-FACTURES.bat`, mode d'emploi `docs/PARCOURS-A-Z.md`. Verdicts attendus : 01 payé, 02 en
+  attente humaine, 03/04/05 bloqués. Un passage = 3 refus ; le disjoncteur gèle à 5 refus/jour (ne pas le lancer
+  deux fois le même jour sur la même base, ou reseeder). La consigne (`user_request`) doit nommer le fournisseur,
+  sinon le pare-feu envoie en validation humaine.
+- [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
+- [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
+  1 page, playbook de réponse, README (limites connues), accès du jury au dépôt, métriques de détection chiffrées.
+- [ ] Demander à un organisateur comment s'applique la règle « cœur du projet développé entre sam. 11h30 et dim. 12h ».
 - [ ] Mode `--llm` testé avec une vraie clé API
 - [ ] Backlog jour J : voir `docs/PLAN.md`
 
@@ -233,9 +252,10 @@ owner multisig Safe · ICM/Teleporter Avalanche (politique multi-chaînes) · L1
 rapport d'audit PDF signé.
 
 ## 8. Mode hackathon (10-11 oct 2026, 36 h) — à lire en premier le jour J
-Jour J arrivé (10 oct). Ozgun a reçu l'email des organisateurs avec les infos Fuji/faucet le 10 oct au matin, mais
-n'a pas encore déployé (next session après celle du 6 oct). **Dès qu'Ozgun revient : lui demander cet email / le
-sujet exact de la track** avant toute chose — ne rien supposer sur leur contenu.
+**État au 10 oct après-midi : contrat déployé sur Fuji, tout vérifié, règles officielles lues → lire
+`docs/HACKATHON.md` en premier** (livrables à rendre dim. 12h00, grille Track 1, points ouverts). VaultGuard se place
+sur l'axe 3 de la Track 1 (supervision et confinement des agents IA financiers). Round 1 : pitch de 5 min + 2 min.
+Les points 1 et 2 ci-dessous sont faits ; restent 3 à 6, plus la fiche de défense, le playbook et la slide conformité.
 1. **Lire le sujet** et le comparer à la Track 1 « Guardians of Value » : reformuler en 3 lignes ce que VaultGuard
    couvre déjà, ce qui manque, et proposer **le plus petit ajout visible** qui colle au sujet (pas de refonte).
 2. **Faucet** : utiliser les infos reçues par email (code promo probable) sur core.app/tools/testnet-faucet (réseau

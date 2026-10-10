@@ -609,9 +609,9 @@ class TestProductAuth(unittest.TestCase):
         with self.assertRaises(auth.AuthError):
             auth.login("frank@example.com", "PassphraseValide123!", totp_code=good_code, db_path=self.db_path)
 
-        # Avec nouveau code pour le pas suivant (+1 pas)
-        future_now = now + 31
-        fresh_code = auth.hotp(setup_res["secret"], future_now // 30)
+        # Avec nouveau code pour le pas suivant (+1 pas exactement : éviter qu'un `now + 31`
+        # proche d'une frontière de 30 s saute 2 pas et sorte de la fenêtre de tolérance ±1 de verify_totp)
+        fresh_code = auth.hotp(setup_res["secret"], now // 30 + 1)
         res_with_totp = auth.login("frank@example.com", "PassphraseValide123!", totp_code=fresh_code, db_path=self.db_path)
         self.assertIn("token", res_with_totp)
 
@@ -2634,8 +2634,8 @@ class TestAppServerHTTP(unittest.TestCase):
 
         # 10. Dégeler alors que le coffre n'est pas gelé -> 400 (rowcount check: WHERE is_paused = 1)
         db.execute("DELETE FROM totp_used_codes WHERE user_id = ?;", (owner_id,), db_path=self.db_path)
-        t_now2 = int(time.time()) + 35
-        fresh_code2 = auth.hotp(owner_secret, t_now2 // 30)
+        # Codes utilisés purgés ci-dessus : le pas courant suffit (un « + 35 s » peut sauter 2 pas, hors fenêtre ±1).
+        fresh_code2 = auth.hotp(owner_secret, int(time.time()) // 30)
         s_already, _, _, _ = self._req("POST", "/api/app/vault/unpause",
                                        {"code": fresh_code2},
                                        cookie=owner_cookie, csrf=owner_csrf)

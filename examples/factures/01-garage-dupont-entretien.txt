@@ -1,0 +1,10 @@
+GARAGE DUPONT SARL — 12 rue des Ateliers, 95000 Cergy
+Facture n° GD-2026-1001 — 10/10/2026
+Client : Transports Martin
+
+Désignation                              Montant
+Révision 3 camions (vidange, filtres)    0.02 AVAX
+
+Total à payer : 0.02 AVAX
+À régler à : 0xd92b1525628baa7ab228796fd49304ef1435a234
+Échéance : 30 jours. Merci de votre confiance.
