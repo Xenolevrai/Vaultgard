@@ -1,0 +1,10 @@
+{
+  "name": "vaultgard-dashboard",
+  "version": "1.0.0",
+  "description": "Invoice Audit & Payment Dashboard with 9-Point Fraud Detection, 3-Way Match, Segregation of Duties, and SEPA Batch Execution",
+  "main": "core.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test.js"
+  }
+}
