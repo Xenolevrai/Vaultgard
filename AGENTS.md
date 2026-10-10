@@ -238,6 +238,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   attente humaine, 03/04/05 bloqués. Un passage = 3 refus ; le disjoncteur gèle à 5 refus/jour (ne pas le lancer
   deux fois le même jour sur la même base, ou reseeder). La consigne (`user_request`) doit nommer le fournisseur,
   sinon le pare-feu envoie en validation humaine.
+- [x] **Agent branché sur une vraie boîte mail** : `examples/agent_mail.py` (IMAP en lecture seule, objet contenant « facture »), configuration `examples/.env.mail` (ignoré par git), lanceur `LIRE-MAILS.bat`, mails types et schéma « qui possède quoi » dans `docs/PARCOURS-A-Z.md`. Lecture des mails et décisions vérifiées sur `examples/mails/*.eml` ; la connexion IMAP réelle reste à essayer par Ozgun (mot de passe d'application à créer).
 - [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
   1 page, playbook de réponse, README (limites connues), accès du jury au dépôt, métriques de détection chiffrées.
