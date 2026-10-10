@@ -24,7 +24,10 @@ premier**, puis `vaultguard/AGENTS.md` §8 et §6.
 des empreintes SHA-256 des factures), lecteur de factures multi-formats côté client (`vaultguard/sdk/invoice_reader.py`),
 contrôle de cohérence des prix, boîte mail dédiée, factures en euros (règlement de démo en AVAX, en réel EURC).
 Réponses de l'équipe sur blockchain / confiance / argent réel / légalité / marché :
-**`vaultguard/docs/CONFIANCE-ARGENT-LEGAL.md`**. 172 tests + audit 29/29 verts. Le dépôt GitHub contient aussi une
+**`vaultguard/docs/CONFIANCE-ARGENT-LEGAL.md`**. Ajoutés ensuite : preuve de paiement et recherche « facture déjà
+payée ? », tableau de bord `/app` réécrit en langage simple, `docs/INSTALLATION-CLIENT.md` (mise en place chez une
+entreprise) et `docs/EXPLIQUER-SIMPLEMENT.md` (pitch simple, lien avec le sujet : axe 3 de la Track 1, pas hors
+sujet). 174 tests + audit 29/29 verts. Le dépôt GitHub contient aussi une
 copie du dossier parent dans `vaultguard/preparation/`. Ligne de l'équipe : rester centré Track 1 / Avalanche.
 
 **Gel des livrables : dimanche 11 oct 12h00.** Restent : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche
@@ -36,8 +39,8 @@ non utilisé pour l'instant.
 
 **À savoir pour la prochaine session :** la base de démo locale a été recréée le 10 oct au soir et Ozgun essaie le
 parcours avec `vaultguard/docs/ESSAYER.md` (`TRAITER-FACTURES.bat`, `REJOUER-MAILS.bat`, `RECREER-DEMO.bat`). Lui
-demander d'abord ce qu'il a observé (en particulier le bouton « Vérifier une facture » de `/app`, jamais contrôlé dans
-un navigateur). Point faible à assumer au pitch : en réel le fournisseur reçoit des EURC sur un portefeuille, pas un
+demander d'abord ce qu'il a observé. L'équipe trouve le projet dur à expliquer : parler simplement, sans jargon.
+Manque principal face à la grille : les chiffres de détection (30 %). Point faible à assumer au pitch : en réel le fournisseur reçoit des EURC sur un portefeuille, pas un
 virement bancaire.
 
 Ozgun alterne entre Claude Code et **Antigravity** (règles dans `vaultguard/.agent/`). En début de session : lire

@@ -7,7 +7,9 @@ Camions Express, Épicerie Pro), un historique de 5 paiements daté de la veille
 1. Double-clic sur `LANCER-DASHBOARD.bat`. Laisse la fenêtre ouverte : la fermer arrête le site.
 2. Ouvre http://localhost:8000/login et connecte-toi avec le compte **client** écrit dans
    `agent/data/COMPTES-DEMO.txt` (ouvre ce fichier toi-même, ne le montre à personne).
-3. Tu arrives sur `/app` : menu « 2. Paiements », « 3. Agents & Clés API », « 4. Fournisseurs », « 6. Journal d'audit ».
+3. Tu arrives sur l'accueil de `/app`. Le bloc « À faire » liste les paiements qui attendent ton accord, avec la
+   raison et les boutons Accepter / Refuser. Menu : « 2. Paiements », « 3. Assistants et clés d'accès »,
+   « 4. Fournisseurs », « 5. Règles de paiement », « 6. Historique et preuves ».
 
 ## 2. Faire lire les factures par l'agent
 Double-clic sur `TRAITER-FACTURES.bat`, puis Entrée entre chaque facture. Résultat attendu :
@@ -23,15 +25,28 @@ Double-clic sur `TRAITER-FACTURES.bat`, puis Entrée entre chaque facture. Résu
 | 07 garage | XML (facture électronique UBL) | payé | 50 € |
 | 08 garage | PDF Factur-X | payé | 50 € |
 
-## 3. Voir ce que VaultGuard a gardé
-Dans `/app`, onglet Paiements, clique « Détails » sur la facture de l'épicerie :
-- la raison est écrite sans recopier la facture (« ligne 1 de la facture : 6.0 fois le prix habituel ») ;
-- la consigne et le document n'apparaissent que sous forme d'empreintes SHA-256 ;
-- « Vérifier une facture » : choisis `examples/factures/06-epicerie-prix-anormal.txt` → message vert. Choisis un
-  autre fichier → message rouge. Le fichier ne quitte pas ton navigateur.
-- Approuve ou rejette le paiement en attente.
+## 3. Décider, puis retrouver la preuve
+1. Sur l'accueil, bloc « À faire » : la facture de l'épicerie attend, avec « Un prix de la facture est
+   anormalement élevé ». Clique « Voir le détail » : la raison est écrite sans recopier la facture
+   (« ligne 1 de la facture : 6.0 fois le prix habituel »). Clique « Accepter ».
+2. Menu « 2. Paiements », en haut : **« Cette facture a-t-elle déjà été payée ? »**
+   - tape `EP-2026-0457` puis « Chercher » → « Oui, … a déjà été payée » ;
+   - ou choisis le fichier `examples/factures/01-garage-dupont-entretien.txt` → même réponse, sans numéro ;
+   - tape `ZZ-999` → « Non : aucune trace de paiement ».
+3. Clique « Voir la preuve » : la **preuve de paiement** (à qui, combien, quand, empreinte de la facture,
+   inscriptions au journal infalsifiable). « Copier la preuve » la met dans le presse-papiers.
+4. Dans la même fenêtre, « Est-ce bien cette facture ? » : choisis le fichier d'origine → message vert ; un autre
+   fichier → message rouge. Le fichier ne quitte pas ton navigateur.
+5. « Détails techniques » (replié) : identifiant, adresse, empreintes. La consigne et les documents n'y figurent
+   que sous forme d'empreintes.
 
-Menu « 6. Journal d'audit » : « Vérifier l'intégrité » contrôle la chaîne d'empreintes.
+Menu « 6. Historique et preuves » : « Vérifier l'intégrité » contrôle la chaîne d'empreintes.
+
+### Une facture ne se paie pas deux fois
+Dans Kali : `python3 examples/agent_factures.py --only 01` rejoue la facture 01 : elle est refusée (« Cette facture
+a déjà été payée »). Attention : ce refus compte pour le disjoncteur.
+Si le même fichier revient sous un autre numéro de facture, son empreinte est reconnue et un humain doit trancher
+(vérifié par un test automatique, pas dans ce parcours). Un fichier modifié, lui, a une autre empreinte.
 
 ## 4. Rejouer deux mails
 Double-clic sur `REJOUER-MAILS.bat` : un mail normal (payé, ou bloqué pour double paiement si tu l'as déjà joué),

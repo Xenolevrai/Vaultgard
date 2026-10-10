@@ -517,11 +517,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/app/payments":
                 user, org, _ = self._app_context("viewer")
                 q = self.path.split("?", 1)[1] if "?" in self.path else ""
-                status_filter = None
+                status_filter, limit = None, 50
                 for part in q.split("&"):
                     if part.startswith("status="):
                         status_filter = part.split("=", 1)[1]
-                return self._json(orgs.list_payments(org["id"], status=status_filter))
+                    elif part.startswith("limit=") and part[6:].isascii() and part[6:].isdigit():
+                        limit = int(part[6:10])  # borné à 200 par list_payments
+                return self._json(orgs.list_payments(org["id"], status=status_filter, limit=limit))
             if path.startswith("/api/app/payments/"):
                 sub = path[len("/api/app/payments/"):].strip()
                 if sub and sub not in ("approve", "reject"):

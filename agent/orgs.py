@@ -299,7 +299,28 @@ def list_payments(org_id: str, status: str | None = None, limit: int = 50,
         except Exception:
             d["documents"] = []
         out.append(d)
-    return out
+    return _with_proof(org_id, out, db_path)
+
+
+def _with_proof(org_id: str, payments: list[dict[str, Any]], db_path: str | None) -> list[dict[str, Any]]:
+    """Ajoute à chaque paiement le nom du fournisseur et sa trace au journal chaîné (preuve de paiement) :
+    `proof` = [{action, entry_hash, created_at}] pour la demande puis l'éventuelle validation humaine."""
+    names = {s["address"].lower(): s["name"] for s in db.query_all(
+        "SELECT name, address FROM suppliers WHERE org_id = ?;", (org_id,), db_path=db_path)}
+    trail: dict[str, list[dict[str, Any]]] = {}
+    for a in db.query_all(
+            "SELECT action, details_json, entry_hash, created_at FROM audit WHERE org_id = ? AND action IN "
+            "('payment.request', 'payment.approve', 'payment.reject') ORDER BY id;", (org_id,), db_path=db_path):
+        try:
+            pid = json.loads(a["details_json"] or "{}").get("payment_id")
+        except ValueError:
+            continue
+        trail.setdefault(pid, []).append(
+            {"action": a["action"], "entry_hash": a["entry_hash"], "created_at": a["created_at"]})
+    for p in payments:
+        p["supplier_name"] = names.get(p["recipient"].lower(), "")
+        p["proof"] = trail.get(p["id"], [])
+    return payments
 
 
 def get_payment(org_id: str, payment_id: str, db_path: str | None = None) -> dict[str, Any]:
@@ -321,7 +342,7 @@ def get_payment(org_id: str, payment_id: str, db_path: str | None = None) -> dic
         d["documents"] = json.loads(d.get("documents_json") or "[]")
     except Exception:
         d["documents"] = []
-    return d
+    return _with_proof(org_id, [d], db_path)[0]
 
 
 def approve_payment(org_id: str, user_id: str, payment_id: str,

@@ -173,6 +173,30 @@ class TestZeroRetention(unittest.TestCase):
                            invoice=normal)
         self.assertEqual((st, res["decision"]), (200, "allowed"))
 
+    def test_same_document_twice_is_caught_even_under_another_number(self):
+        doc = [{"source": "f.pdf", "content": "Entretien de 2 camions", "file_sha256": "cd" * 32}]
+        base = dict(to=SUPPLIER, amount="0.02", user_request="Paie Garage Dupont", documents=doc)
+        st, first = self.pay(memo="Facture GD-77", **base)
+        self.assertEqual((st, first["decision"]), (200, "allowed"))
+        st, again = self.pay(memo="Facture GD-78", **base)       # même fichier, numéro changé
+        self.assertEqual((st, again["decision"]), (200, "pending_review"))
+        self.assertIn("double_payment", [r["code"] for r in again["reasons"]])
+        st, other = self.pay(to=GROCER, amount="0.01", memo="Facture EP-9", user_request="Paie Épicerie Pro",
+                             documents=doc)                       # un relevé commun à deux fournisseurs
+        self.assertNotIn("double_payment", [r["code"] for r in other["reasons"]])
+
+    def test_each_payment_carries_its_proof(self):
+        import orgs
+        st, res = self.pay(to=SUPPLIER, amount="0.02", memo="Facture GD-90", user_request="Paie Garage Dupont")
+        self.assertEqual(st, 200)
+        listed = orgs.list_payments(self.org_id, db_path=self.db_path)[0]
+        self.assertEqual((listed["id"], listed["supplier_name"]), (res["id"], "Garage Dupont"))
+        self.assertEqual([t["action"] for t in listed["proof"]], ["payment.request"])
+        logged = db.query_one("SELECT entry_hash FROM audit WHERE action = 'payment.request' ORDER BY id DESC LIMIT 1;",
+                              db_path=self.db_path)
+        self.assertEqual(listed["proof"][0]["entry_hash"], logged["entry_hash"])
+        self.assertEqual(orgs.get_payment(self.org_id, res["id"], db_path=self.db_path)["proof"], listed["proof"])
+
     def test_invoice_field_is_validated(self):
         base = dict(to=GROCER, amount="0.01", memo="Facture EP-3", user_request="Paie Épicerie Pro")
         for bad in ("texte", {"currency": "EUR", "total": 12.5}, {"currency": "EUR", "total": "1e9"},

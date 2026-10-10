@@ -17,22 +17,22 @@
 
       <ul class="nav-list" id="main-nav">
         <li class="nav-item">
-          <a href="#overview" class="nav-link active" data-section="overview">1. Vue d'ensemble</a>
+          <a href="#overview" class="nav-link active" data-section="overview">1. Accueil</a>
         </li>
         <li class="nav-item">
           <a href="#payments" class="nav-link" data-section="payments">2. Paiements</a>
         </li>
         <li class="nav-item">
-          <a href="#api-keys" class="nav-link" data-section="api-keys">3. Agents & Clés API</a>
+          <a href="#api-keys" class="nav-link" data-section="api-keys">3. Assistants et clés d'accès</a>
         </li>
         <li class="nav-item">
           <a href="#suppliers" class="nav-link" data-section="suppliers">4. Fournisseurs</a>
         </li>
         <li class="nav-item">
-          <a href="#policy" class="nav-link" data-section="policy">5. Politique</a>
+          <a href="#policy" class="nav-link" data-section="policy">5. Règles de paiement</a>
         </li>
         <li class="nav-item">
-          <a href="#audit" class="nav-link" data-section="audit">6. Journal d'audit</a>
+          <a href="#audit" class="nav-link" data-section="audit">6. Historique et preuves</a>
         </li>
         <li class="nav-item">
           <a href="#team" class="nav-link" data-section="team">7. Équipe</a>
@@ -76,57 +76,65 @@
         <!-- SECTION 1 : Vue d'ensemble -->
         <section id="sec-overview" class="app-section active">
           <div class="section-header">
-            <h1 class="section-title">Vue d'ensemble de l'organisation</h1>
-            <p class="section-desc">Activité quotidienne, protections actives et métriques de trésorerie.</p>
+            <h1 class="section-title">Où en sont vos paiements</h1>
+            <p class="section-desc">Votre assistant lit vos factures et demande à les payer. VaultGuard vérifie chaque paiement
+              avant qu'il parte et vous demande votre accord en cas de doute. Vos factures ne sont pas conservées ici.</p>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title" id="todo-title">À faire</div>
+            </div>
+            <div class="todo-list" id="todo-list">Chargement...</div>
           </div>
 
           <div class="cards-grid">
             <div class="card">
-              <div class="card-label">Paiements aujourd'hui</div>
+              <div class="card-label">Demandes reçues aujourd'hui</div>
               <div class="card-value" id="stat-today-count">0</div>
               <div class="card-sub" id="stat-today-wei">0 AVAX</div>
             </div>
 
             <div class="card">
-              <div class="card-label">Bloqués par le pare-feu</div>
+              <div class="card-label">Paiements suspects arrêtés</div>
               <div class="card-value text-danger" id="stat-blocked-count">0</div>
-              <div class="card-sub">Tentatives frauduleuses arrêtées</div>
+              <div class="card-sub">Rien n'est parti</div>
             </div>
 
             <div class="card">
-              <div class="card-label">En attente de validation</div>
+              <div class="card-label">En attente de votre accord</div>
               <div class="card-value text-warning" id="stat-pending-count">0</div>
-              <div class="card-sub">Validation humaine requise</div>
+              <div class="card-sub">À accepter ou refuser ci-dessus</div>
             </div>
 
             <div class="card">
-              <div class="card-label">Montant protégé</div>
+              <div class="card-label">Argent protégé</div>
               <div class="card-value" id="stat-protected-wei">0 AVAX</div>
-              <div class="card-sub">Épargné des injections & fraudes</div>
+              <div class="card-sub">Somme que des fraudes ont tenté de faire sortir</div>
             </div>
 
             <div class="card">
-              <div class="card-label">État du coffre</div>
-              <div class="card-value" id="stat-vault-status">Actif</div>
-              <div class="card-sub mono break-all" id="stat-vault-addr">Mock chain</div>
+              <div class="card-label">Votre coffre</div>
+              <div class="card-value" id="stat-vault-status">Ouvert</div>
+              <div class="card-sub break-all" id="stat-vault-addr">Coffre de démonstration</div>
               <button id="btn-unpause-vault" class="btn btn-secondary btn-unpause">Dégeler le coffre</button>
             </div>
           </div>
 
           <div class="table-container">
             <div class="table-header-bar">
-              <div class="table-title">Derniers paiements enregistrés</div>
-              <a href="#payments" class="btn btn-secondary">Voir tout le registre</a>
+              <div class="table-title">Dernières demandes de paiement</div>
+              <a href="#payments" class="btn btn-secondary">Tout voir</a>
             </div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Date (UTC)</th>
-                    <th>Destinataire</th>
+                    <th>Date</th>
+                    <th>Payé à</th>
                     <th>Montant</th>
-                    <th>Motif</th>
-                    <th>Décision</th>
+                    <th>Facture</th>
+                    <th>Résultat</th>
                   </tr>
                 </thead>
                 <tbody id="overview-payments-tbody">
@@ -140,18 +148,32 @@
         <!-- SECTION 2 : Paiements -->
         <section id="sec-payments" class="app-section">
           <div class="section-header">
-            <h1 class="section-title">Registre des paiements</h1>
-            <p class="section-desc">Audit des requêtes émises par les agents IA et arbitrage humain.</p>
+            <h1 class="section-title">Paiements</h1>
+            <p class="section-desc">Toutes les demandes de paiement de votre assistant, avec le résultat et la raison.</p>
           </div>
 
           <div class="table-container">
             <div class="table-header-bar">
-              <div class="table-title">Transactions</div>
+              <div class="table-title">Cette facture a-t-elle déjà été payée ?</div>
+            </div>
+            <div class="lookup-box">
+              <input class="form-input lookup-input" type="text" id="lookup-number" maxlength="80"
+                     placeholder="Numéro de facture, ex. GD-2026-1001" aria-label="Numéro de facture">
+              <button id="btn-lookup" class="btn btn-secondary">Chercher</button>
+              <span class="text-muted-sm">ou choisissez le fichier de la facture (il reste sur votre poste) :</span>
+              <input type="file" id="lookup-file" aria-label="Fichier de facture à rechercher">
+            </div>
+            <div class="lookup-result" id="lookup-result" role="status"></div>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Toutes les demandes</div>
               <div class="filters-row">
                 <select id="filter-payment-status" class="select-input">
-                  <option value="">Tous les statuts</option>
-                  <option value="pending_review">En attente de revue</option>
-                  <option value="allowed">Autorisés / Exécutés</option>
+                  <option value="">Tout afficher</option>
+                  <option value="pending_review">En attente de votre accord</option>
+                  <option value="allowed">Payés</option>
                   <option value="blocked">Bloqués</option>
                 </select>
                 <button id="btn-refresh-payments" class="btn btn-secondary">Actualiser</button>
@@ -162,13 +184,13 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Date</th>
-                    <th>Destinataire</th>
+                    <th>Payé à</th>
                     <th>Montant</th>
-                    <th>Mémo</th>
-                    <th>Décision</th>
-                    <th>Action</th>
+                    <th>Facture</th>
+                    <th>Résultat</th>
+                    <th>Pourquoi</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody id="payments-tbody">
@@ -544,57 +566,76 @@
   <div id="payment-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title" id="pm-title">Détail de la transaction</div>
+        <div class="modal-title" id="pm-title">Détail du paiement</div>
         <button id="pm-close" class="btn btn-secondary btn-close-sm">Fermer</button>
       </div>
       <div class="modal-body">
         <div class="detail-row">
-          <div class="detail-key">Identifiant</div>
-          <div class="detail-val mono" id="pm-id"></div>
+          <div class="detail-key">Résultat</div>
+          <div class="detail-val" id="pm-decision"></div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Destinataire</div>
-          <div class="detail-val mono break-all" id="pm-to"></div>
+          <div class="detail-key">Payé à</div>
+          <div class="detail-val break-all" id="pm-to"></div>
         </div>
         <div class="detail-row">
           <div class="detail-key">Montant</div>
           <div class="detail-val mono" id="pm-amount"></div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Mémo</div>
+          <div class="detail-key">Facture</div>
           <div class="detail-val" id="pm-memo"></div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Consigne donnée à l'agent (empreinte, texte non conservé)</div>
-          <div class="detail-val detail-val-box mono" id="pm-user-req"></div>
+          <div class="detail-key">Pourquoi cette décision</div>
+          <div class="detail-val" id="pm-reasons"></div>
+        </div>
+        <div class="detail-row is-hidden" id="pm-proof-row">
+          <div class="detail-key">Preuve de paiement</div>
+          <div class="detail-val">
+            <div class="proof-box mono" id="pm-proof"></div>
+            <button id="pm-btn-copy-proof" class="btn btn-secondary mt-2">Copier la preuve</button>
+            <span class="text-muted-sm" id="pm-copy-status" role="status"></span>
+          </div>
         </div>
         <div class="detail-row">
-          <div class="detail-key">Documents analysés (empreintes, contenu non conservé)</div>
-          <div class="detail-val text-xs" id="pm-docs"></div>
-        </div>
-        <div class="detail-row">
-          <div class="detail-key">Vérifier une facture (le fichier reste sur votre poste)</div>
+          <div class="detail-key">Est-ce bien cette facture ? (le fichier reste sur votre poste)</div>
           <div class="detail-val text-xs">
             <input type="file" id="pm-verify-file" aria-label="Fichier de facture à comparer aux empreintes">
             <div class="mt-2" id="pm-verify-result" role="status"></div>
           </div>
         </div>
-        <div class="detail-row">
-          <div class="detail-key">Verdict du pare-feu VaultGuard</div>
-          <div class="detail-val" id="pm-reasons"></div>
-        </div>
-        <div class="detail-row">
-          <div class="detail-key">Décision & Contrat</div>
-          <div class="detail-val mono" id="pm-decision"></div>
-        </div>
-        <div class="detail-row is-hidden" id="pm-tx-row">
-          <div class="detail-key">Empreinte de transaction (Snowtrace)</div>
-          <div class="detail-val mono break-all" id="pm-tx"></div>
-        </div>
+        <details class="tech-details">
+          <summary>Détails techniques</summary>
+          <div class="detail-row">
+            <div class="detail-key">Identifiant du paiement</div>
+            <div class="detail-val mono" id="pm-id"></div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-key">Adresse du destinataire</div>
+            <div class="detail-val mono break-all" id="pm-addr"></div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-key">Consigne donnée à l'assistant (empreinte, texte non conservé)</div>
+            <div class="detail-val detail-val-box mono" id="pm-user-req"></div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-key">Documents analysés (empreintes, contenu non conservé)</div>
+            <div class="detail-val text-xs" id="pm-docs"></div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-key">État dans le coffre</div>
+            <div class="detail-val mono" id="pm-chain"></div>
+          </div>
+          <div class="detail-row is-hidden" id="pm-tx-row">
+            <div class="detail-key">Transaction sur Avalanche (visible sur Snowtrace)</div>
+            <div class="detail-val mono break-all" id="pm-tx"></div>
+          </div>
+        </details>
       </div>
       <div class="modal-footer" id="pm-actions-footer">
-        <button id="pm-btn-reject" class="btn btn-danger">Rejeter</button>
-        <button id="pm-btn-approve" class="btn btn-success">Valider & Exécuter</button>
+        <button id="pm-btn-reject" class="btn btn-danger">Refuser</button>
+        <button id="pm-btn-approve" class="btn btn-success">Accepter le paiement</button>
       </div>
     </div>
   </div>

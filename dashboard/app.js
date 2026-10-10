@@ -245,7 +245,7 @@
         statusEl.textContent = 'Suspendu';
         statusEl.style.color = 'var(--status-amber)';
       } else {
-        statusEl.textContent = 'Actif';
+        statusEl.textContent = 'Ouvert';
         statusEl.style.color = 'var(--status-green)';
       }
 
@@ -255,19 +255,24 @@
       }
 
       const addrEl = document.getElementById('stat-vault-addr');
-      addrEl.textContent = data.org.vault_address || (data.org.network === 'mock' ? 'Simulation active' : 'Non configuré');
+      addrEl.textContent = isPaused
+        ? 'Plus aucun paiement ne part tant que vous ne le rouvrez pas'
+        : (data.org.vault_address || (data.org.network === 'mock' ? 'Coffre de démonstration' : 'Non configuré'));
 
-      // 5 derniers paiements
-      const payments = await api('/api/app/payments');
+      const payments = await api('/api/app/payments') || [];
+      state.payments = payments;
+      renderTodo(payments.filter(p => p.decision === 'pending_review'));
+
+      // 5 dernières demandes
       const tbody = document.getElementById('overview-payments-tbody');
       tbody.textContent = '';
-      if (!payments || payments.length === 0) {
+      if (payments.length === 0) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
         td.colSpan = 5;
         td.style.textAlign = 'center';
         td.style.color = 'var(--ink-muted)';
-        td.textContent = 'Aucun paiement enregistré pour le moment.';
+        td.textContent = 'Aucune demande de paiement pour le moment.';
         tr.appendChild(td);
         tbody.appendChild(tr);
         return;
@@ -277,13 +282,12 @@
         const tr = document.createElement('tr');
 
         const tdDate = document.createElement('td');
-        tdDate.className = 'mono';
         tdDate.textContent = formatTimestamp(p.created_at);
         tr.appendChild(tdDate);
 
         const tdTo = document.createElement('td');
-        tdTo.className = 'mono break-all';
-        tdTo.textContent = p.recipient;
+        tdTo.className = 'break-all';
+        tdTo.textContent = whoIsPaid(p);
         tr.appendChild(tdTo);
 
         const tdAmount = document.createElement('td');
@@ -312,6 +316,7 @@
     const url = '/api/app/payments' + (status ? '?status=' + encodeURIComponent(status) : '');
     try {
       const list = await api(url);
+      if (!status) state.payments = list || [];
       const tbody = document.getElementById('payments-tbody');
       tbody.textContent = '';
 
@@ -321,7 +326,7 @@
         td.colSpan = 7;
         td.style.textAlign = 'center';
         td.style.color = 'var(--ink-muted)';
-        td.textContent = 'Aucune transaction ne correspond à ce filtre.';
+        td.textContent = 'Aucune demande ne correspond.';
         tr.appendChild(td);
         tbody.appendChild(tr);
         return;
@@ -330,19 +335,13 @@
       list.forEach(p => {
         const tr = document.createElement('tr');
 
-        const tdId = document.createElement('td');
-        tdId.className = 'mono';
-        tdId.textContent = p.id.slice(0, 10) + '...';
-        tr.appendChild(tdId);
-
         const tdDate = document.createElement('td');
-        tdDate.className = 'mono';
         tdDate.textContent = formatTimestamp(p.created_at);
         tr.appendChild(tdDate);
 
         const tdTo = document.createElement('td');
-        tdTo.className = 'mono break-all';
-        tdTo.textContent = p.recipient;
+        tdTo.className = 'break-all';
+        tdTo.textContent = whoIsPaid(p);
         tr.appendChild(tdTo);
 
         const tdAmount = document.createElement('td');
@@ -358,11 +357,15 @@
         tdDec.appendChild(createDecisionBadge(p.decision));
         tr.appendChild(tdDec);
 
+        const tdWhy = document.createElement('td');
+        tdWhy.textContent = mainReason(p);
+        tr.appendChild(tdWhy);
+
         const tdAction = document.createElement('td');
         const btn = document.createElement('button');
         btn.className = 'btn btn-secondary';
         btn.style.padding = '3px 8px';
-        btn.textContent = 'Détails';
+        btn.textContent = p.decision === 'pending_review' ? 'Décider' : 'Détails';
         btn.onclick = () => openPaymentModal(p);
         tdAction.appendChild(btn);
         tr.appendChild(tdAction);
@@ -401,8 +404,9 @@
   function openPaymentModal(p) {
     state.currentPayment = p;
     document.getElementById('pm-id').textContent = p.id;
-    document.getElementById('pm-to').textContent = p.recipient;
-    document.getElementById('pm-amount').textContent = formatWei(p.amount_gwei) + ' (' + p.amount_gwei + ' gwei)';
+    document.getElementById('pm-to').textContent = whoIsPaid(p);
+    document.getElementById('pm-addr').textContent = p.recipient;
+    document.getElementById('pm-amount').textContent = formatWei(p.amount_gwei);
     document.getElementById('pm-memo').textContent = p.memo || '—';
     document.getElementById('pm-user-req').textContent = p.user_request || '—';
 
@@ -433,33 +437,41 @@
     if (p.reasons && p.reasons.length > 0) {
       p.reasons.forEach(r => {
         const div = document.createElement('div');
-        div.style.marginBottom = '6px';
-        div.style.padding = '6px 8px';
-        div.style.borderRadius = '4px';
-        div.style.background = 'var(--status-red-bg)';
-        div.style.border = '1px solid var(--status-red-border)';
+        div.className = 'reason-box ' + ({ BLOCK: 'reason-box-block', CONFIRM: 'reason-box-confirm', ALLOW: 'reason-box-ok' }[r.action] || '');
 
         const title = document.createElement('div');
-        title.style.fontWeight = '600';
-        title.style.color = 'var(--status-red)';
+        title.className = 'reason-title';
         title.textContent = r.title || r.code;
         div.appendChild(title);
 
-        if (r.detail) {
+        if (r.detail && r.code !== 'ok') {
           const detail = document.createElement('div');
-          detail.style.fontSize = '12px';
+          detail.className = 'reason-detail';
           detail.textContent = r.detail;
           div.appendChild(detail);
         }
         reasonsEl.appendChild(div);
       });
     } else {
-      reasonsEl.textContent = 'Aucun blocage signalé (verdict favorable)';
+      reasonsEl.textContent = 'Rien d\'anormal.';
     }
 
-    // Décision
+    // Résultat, en une phrase
     const decEl = document.getElementById('pm-decision');
-    decEl.textContent = p.decision.toUpperCase() + ' (état on-chain : ' + (p.chain_status || 'none') + ')';
+    decEl.textContent = '';
+    decEl.appendChild(createDecisionBadge(p.decision));
+    decEl.appendChild(document.createTextNode(' ' + plainResult(p)));
+    document.getElementById('pm-chain').textContent = p.chain_status || 'none';
+
+    // Preuve de paiement : seulement pour un paiement réellement parti
+    const proofRow = document.getElementById('pm-proof-row');
+    document.getElementById('pm-copy-status').textContent = '';
+    if (p.decision === 'allowed') {
+      document.getElementById('pm-proof').textContent = proofText(p);
+      proofRow.style.display = 'block';
+    } else {
+      proofRow.style.display = 'none';
+    }
 
     // Tx Hash
     const txRow = document.getElementById('pm-tx-row');
@@ -493,6 +505,7 @@
       });
       document.getElementById('payment-modal').classList.remove('active');
       loadPayments();
+      loadOverview();
     } catch (e) {
       alert(e.message);
     }
@@ -507,10 +520,191 @@
       });
       document.getElementById('payment-modal').classList.remove('active');
       loadPayments();
+      loadOverview();
     } catch (e) {
       alert(e.message);
     }
   };
+
+  document.getElementById('pm-btn-copy-proof').onclick = async () => {
+    const status = document.getElementById('pm-copy-status');
+    try {
+      await navigator.clipboard.writeText(document.getElementById('pm-proof').textContent);
+      status.textContent = ' Copié.';
+    } catch (e) {
+      status.textContent = ' Copie impossible : sélectionnez le texte à la main.';
+    }
+  };
+
+  // ------------------------------------------------------------------ Langage simple : qui, pourquoi, preuve
+  function whoIsPaid(p) {
+    const short = p.recipient.slice(0, 8) + '…' + p.recipient.slice(-4);
+    return p.supplier_name ? p.supplier_name : 'Destinataire inconnu (' + short + ')';
+  }
+
+  // La raison la plus grave en premier : c'est elle qui explique le résultat.
+  function mainReason(p) {
+    const rank = { BLOCK: 3, CONFIRM: 2, INFO: 1, ALLOW: 0 };
+    const sorted = (p.reasons || []).slice().sort((a, b) => (rank[b.action] || 0) - (rank[a.action] || 0));
+    if (p.review_action === 'approved') return 'Accepté par une personne de votre équipe.';
+    if (p.review_action === 'rejected') return 'Refusé par une personne de votre équipe.';
+    return sorted.length ? (sorted[0].title || sorted[0].code) : '';
+  }
+
+  function plainResult(p) {
+    if (p.decision === 'allowed') {
+      return p.review_action === 'approved' ? 'Payé, après accord d\'une personne de votre équipe.' : 'Payé automatiquement : tout était en règle.';
+    }
+    if (p.decision === 'pending_review') return 'Rien n\'est parti. Ce paiement attend votre accord.';
+    return p.review_action === 'rejected' ? 'Refusé par votre équipe : rien n\'est parti.' : 'Bloqué : rien n\'est parti.';
+  }
+
+  function proofText(p) {
+    const lines = [
+      'PREUVE DE PAIEMENT',
+      'Entreprise : ' + ((state.org && state.org.name) || ''),
+      'Payé à : ' + whoIsPaid(p),
+      'Adresse du destinataire : ' + p.recipient,
+      'Montant : ' + formatWei(p.amount_gwei),
+      'Facture : ' + (p.memo || 'non précisée'),
+      'Date : ' + formatTimestamp(p.reviewed_at || p.created_at),
+      'Paiement n° : ' + p.id
+    ];
+    (p.documents || []).slice(0, 3).forEach(d => {
+      lines.push('Empreinte de la facture : ' + (d.file_sha256 || d.sha256));
+    });
+    if (p.tx_hash) {
+      lines.push('Transaction sur Avalanche, consultable par tous : ' + p.tx_hash);
+    } else {
+      lines.push('Coffre de démonstration : pas de transaction publique.');
+    }
+    (p.proof || []).forEach(t => {
+      const what = { 'payment.request': 'Demande inscrite', 'payment.approve': 'Accord inscrit', 'payment.reject': 'Refus inscrit' }[t.action] || t.action;
+      lines.push(what + ' au journal infalsifiable le ' + formatTimestamp(t.created_at) + ' : ' + t.entry_hash);
+    });
+    return lines.join('\n');
+  }
+
+  // ------------------------------------------------------------------ Accueil : ce qui attend une décision
+  async function decidePayment(id, action) {
+    try {
+      await api('/api/app/payments/' + action, { method: 'POST', body: JSON.stringify({ id: id }) });
+    } catch (e) {
+      alert(e.message);
+    }
+    loadOverview();
+  }
+
+  function renderTodo(pending) {
+    const box = document.getElementById('todo-list');
+    const title = document.getElementById('todo-title');
+    box.textContent = '';
+    if (pending.length === 0) {
+      title.textContent = 'À faire';
+      box.textContent = 'Rien à faire : aucun paiement n\'attend votre accord.';
+      return;
+    }
+    title.textContent = 'À faire : ' + pending.length + (pending.length > 1 ? ' paiements attendent' : ' paiement attend') + ' votre accord';
+    const canDecide = hasRole('approver') && !(state.org && state.org.is_suspended);
+    pending.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'todo-item';
+
+      const text = document.createElement('div');
+      text.className = 'todo-text';
+      const head = document.createElement('div');
+      head.textContent = formatWei(p.amount_gwei) + ' pour ' + whoIsPaid(p) + (p.memo ? ' — ' + p.memo : '');
+      const why = document.createElement('div');
+      why.className = 'todo-why';
+      why.textContent = 'Pourquoi on vous demande : ' + mainReason(p);
+      text.appendChild(head);
+      text.appendChild(why);
+      item.appendChild(text);
+
+      const actions = document.createElement('div');
+      actions.className = 'todo-actions';
+      const more = document.createElement('button');
+      more.className = 'btn btn-secondary';
+      more.textContent = 'Voir le détail';
+      more.onclick = () => openPaymentModal(p);
+      actions.appendChild(more);
+      if (canDecide) {
+        const no = document.createElement('button');
+        no.className = 'btn btn-danger';
+        no.textContent = 'Refuser';
+        no.onclick = () => decidePayment(p.id, 'reject');
+        const yes = document.createElement('button');
+        yes.className = 'btn btn-success';
+        yes.textContent = 'Accepter';
+        yes.onclick = () => decidePayment(p.id, 'approve');
+        actions.appendChild(no);
+        actions.appendChild(yes);
+      }
+      item.appendChild(actions);
+      box.appendChild(item);
+    });
+  }
+
+  // ------------------------------------------------------------------ « Cette facture a-t-elle déjà été payée ? »
+  function showLookup(matches, label) {
+    const out = document.getElementById('lookup-result');
+    out.textContent = '';
+    const paid = matches.filter(p => p.decision === 'allowed');
+    const head = document.createElement('div');
+    head.className = 'reason-title';
+    if (paid.length > 0) {
+      head.style.color = 'var(--status-green)';
+      head.textContent = 'Oui, ' + label + ' a déjà été payée.';
+    } else if (matches.length > 0) {
+      head.style.color = 'var(--status-amber)';
+      head.textContent = 'Non, ' + label + ' n\'a pas été payée, mais une demande existe.';
+    } else {
+      head.style.color = 'var(--ink-muted)';
+      head.textContent = 'Non : aucune trace de paiement pour ' + label + '.';
+    }
+    out.appendChild(head);
+    matches.slice(0, 5).forEach(p => {
+      const line = document.createElement('div');
+      line.className = 'lookup-hit';
+      line.appendChild(createDecisionBadge(p.decision));
+      line.appendChild(document.createTextNode(' ' + formatTimestamp(p.reviewed_at || p.created_at) + ' — ' + formatWei(p.amount_gwei)
+        + ' pour ' + whoIsPaid(p) + (p.memo ? ' — ' + p.memo : '') + ' '));
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.style.padding = '3px 8px';
+      btn.textContent = p.decision === 'allowed' ? 'Voir la preuve' : 'Détails';
+      btn.onclick = () => openPaymentModal(p);
+      line.appendChild(btn);
+      out.appendChild(line);
+    });
+  }
+
+  async function allPayments() {
+    state.payments = await api('/api/app/payments?limit=200') || [];
+    return state.payments;
+  }
+
+  document.getElementById('btn-lookup').onclick = async () => {
+    const wanted = document.getElementById('lookup-number').value.trim().toLowerCase();
+    if (!wanted) return;
+    const list = await allPayments();
+    showLookup(list.filter(p => (p.memo || '').toLowerCase().includes(wanted)), 'la facture « ' + wanted.toUpperCase() + ' »');
+  };
+  document.getElementById('lookup-number').addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') document.getElementById('btn-lookup').click();
+  });
+  document.getElementById('lookup-file').addEventListener('change', async ev => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (!window.crypto || !window.crypto.subtle) {
+      document.getElementById('lookup-result').textContent = 'Recherche par fichier indisponible dans ce navigateur (connexion HTTPS requise).';
+      return;
+    }
+    const digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const list = await allPayments();
+    showLookup(list.filter(p => (p.documents || []).some(d => d.file_sha256 === hex || d.sha256 === hex)), 'cette facture');
+  });
 
   document.getElementById('filter-payment-status').onchange = loadPayments;
   document.getElementById('btn-refresh-payments').onclick = loadPayments;
@@ -1254,21 +1448,20 @@
 
   function formatTimestamp(ts) {
     if (!ts) return '—';
-    const d = new Date(ts * 1000);
-    return d.toISOString().replace('T', ' ').slice(0, 19);
+    return new Date(ts * 1000).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
   }
 
   function createDecisionBadge(dec) {
     const span = document.createElement('span');
     if (dec === 'allowed') {
       span.className = 'badge badge-status-allowed';
-      span.textContent = 'Autorisé';
+      span.textContent = 'Payé';
     } else if (dec === 'blocked') {
       span.className = 'badge badge-status-blocked';
       span.textContent = 'Bloqué';
     } else if (dec === 'pending_review') {
       span.className = 'badge badge-status-pending';
-      span.textContent = 'En revue';
+      span.textContent = 'À valider';
     } else {
       span.className = 'badge badge-viewer';
       span.textContent = dec || 'Inconnu';

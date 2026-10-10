@@ -267,7 +267,21 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     veille), site relancé. `docs/ESSAYER.md` = parcours d'essai pas à pas ; `REJOUER-MAILS.bat` et `RECREER-DEMO.bat`
     ajoutés. Le disjoncteur compte les refus **sur 1 h par clé** : un passage de `TRAITER-FACTURES` = 3 refus, le
     mail piégé = 1 ; un 2e passage gèle la clé (HTTP 401) → `RECREER-DEMO.bat`.
-  - Non vérifié dans un navigateur : le bouton « Vérifier une facture » de `/app` (Ozgun doit l'essayer).
+  - **Preuve de paiement et facture déjà payée** : `orgs._with_proof` ajoute à chaque paiement `supplier_name` et
+    `proof` (empreintes du journal chaîné pour la demande et l'accord) ; le pare-feu reconnaît un document déjà
+    réglé au même destinataire par son empreinte (`FirewallSession.paid_docs`, raison `double_payment` en `CONFIRM`,
+    le numéro de facture identique restant un `BLOCK`). `/api/app/payments?limit=` (200 max).
+  - **`/app` en langage simple** (l'équipe trouve le produit dur à comprendre, utilisateurs non informaticiens) :
+    accueil « Où en sont vos paiements » avec bloc « À faire » (Accepter / Refuser), noms de fournisseurs au lieu
+    d'adresses, « Payé / À valider / Bloqué », colonne « Pourquoi », recherche « Cette facture a-t-elle déjà été
+    payée ? » (numéro ou fichier), preuve de paiement copiable, « Détails techniques » repliés. Garder ce registre
+    dans tout nouveau texte d'interface : pas de « gwei », « mock », « on-chain », « agent », « pare-feu » côté client.
+  - Vérifié dans Chrome sur une instance jetable (port 8791) : accueil, Accepter, recherche par numéro et par
+    fichier, preuve, vérification d'un fichier, 0 erreur console. 174 tests Python.
+  - `docs/INSTALLATION-CLIENT.md` (qui fait quoi chez un client, jamais joué en vrai) et
+    `docs/EXPLIQUER-SIMPLEMENT.md` (image du stagiaire et du coffre, pitch en un scénario, tableau sujet ↔ produit).
+    Position : VaultGuard est sur l'axe 3 de la Track 1 ; ne pas pitcher « traitement de factures ».
+  - Manque toujours : les **métriques de détection** (30 % de la note), une alerte au valideur (mail/SMS).
   - Explications données à Ozgun, à réutiliser pour le pitch : Avalanche = le réseau, AVAX = sa monnaie (démo),
     EURC = des euros en jetons (règlement réel) ; le fournisseur reçoit des EURC sur un portefeuille, pas un virement :
     c'est la friction assumée. L'agent de démo est le nôtre ; chez un client c'est son agent, branché par le SDK.

@@ -78,7 +78,7 @@ CATALOG = {
     "quota": ("Trop de paiements dans cette session.", "OWASP LLM10 / ASI02"),
     "secret_in_memo": ("Un secret allait être publié sur la blockchain : il a été masqué.", "OWASP LLM02"),
     "onchain_block": ("Le coffre on-chain refuserait ce paiement.", "Simulation on-chain"),
-    "onchain_queue": ("Le coffre demandera une validation humaine.", "Human-in-the-loop"),
+    "onchain_queue": ("Montant élevé : votre accord est demandé.", "Human-in-the-loop"),
     "ok": ("Rien d'anormal.", ""),
 }
 
@@ -230,6 +230,8 @@ class FirewallSession:
     untrusted: list[str] = field(default_factory=list)
     injection_hits: list[str] = field(default_factory=list)
     paid: set[tuple[str, str]] = field(default_factory=set)
+    paid_docs: set[tuple[str, str]] = field(default_factory=set)  # (destinataire, empreinte) déjà réglés
+    doc_hashes: list[str] = field(default_factory=list)  # empreintes des documents de cette demande
     payments: int = 0
     blocked: int = 0
     quarantined: bool = False
@@ -325,6 +327,11 @@ class TxFirewall:
             if (to_l, inv.upper()) in s.paid:
                 flag("BLOCK", 80, "double_payment", f"facture {inv.upper()} déjà réglée à ce destinataire dans la session")
                 break
+        else:
+            # Même document présenté sous un autre numéro : l'empreinte ne change pas. Un relevé peut contenir
+            # plusieurs factures du même fournisseur, donc un humain tranche au lieu de bloquer.
+            if any((to_l, h) in s.paid_docs for h in s.doc_hashes):
+                flag("CONFIRM", 60, "double_payment", "ce document (même empreinte SHA-256) a déjà servi à un paiement vers ce destinataire")
 
         if s.payments >= self.max_payments:
             flag("BLOCK", 60, "quota", f"quota de {self.max_payments} paiements par session atteint")

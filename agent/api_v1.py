@@ -415,6 +415,12 @@ def fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _doc_key(doc: dict[str, Any]) -> str:
+    """Ce qui identifie une facture d'un paiement à l'autre : l'empreinte du fichier d'origine si l'agent la
+    donne (elle ne dépend pas du découpage du texte), sinon celle du texte analysé."""
+    return str(doc.get("file_sha256") or doc.get("sha256") or "")
+
+
 def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: str, clean_docs: list,
                     api_key: dict[str, Any], org: dict[str, Any], ip: str | None,
                     db_path: str | None, invoice: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
@@ -435,18 +441,24 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
 
     # Historique de l'organisation pour anomalie de montant et doubles paiements
     past_rows = db.query_all(
-        "SELECT recipient, amount_gwei, memo, decision FROM payments WHERE org_id = ?;",
+        "SELECT recipient, amount_gwei, memo, decision, documents_json FROM payments WHERE org_id = ?;",
         (org["id"],),
         db_path=db_path,
     )
     history: dict[str, list[float]] = {}
     past_invoices: set[tuple[str, str]] = set()
+    paid_docs: set[tuple[str, str]] = set()
     for p in past_rows:
         if p["decision"] == "allowed":
             history.setdefault(p["recipient"].lower(), []).append(p["amount_gwei"] / 1e9)
         if p["decision"] in ("allowed", "pending_review"):
             for inv in firewall.INVOICE_RE.findall(p["memo"] or ""):
                 past_invoices.add((p["recipient"].lower(), inv.upper()))
+            try:
+                paid_docs.update((p["recipient"].lower(), _doc_key(d))
+                                 for d in json.loads(p["documents_json"] or "[]") if isinstance(d, dict) and _doc_key(d))
+            except ValueError:
+                pass
 
     # Coffre simulé ou configuration
     mock_chain = load_org_mock_chain(org["id"], db_path=db_path)
@@ -472,6 +484,8 @@ def _decide_payment(to_clean: str, amount_gwei: int, memo_raw: str, user_req: st
                **({"file_sha256": d["file_sha256"]} if d.get("file_sha256") else {})}
               for index, d in enumerate(clean_docs, 1)]
     mandate_print = "sha256:" + fingerprint(user_req) if user_req else ""
+    sess.paid_docs = paid_docs
+    sess.doc_hashes = [_doc_key(p) for p in prints]
 
     # Vérification par le pare-feu
     verdict = fw.check(sess, to_clean, amount_avax, memo_raw, invoice=invoice)

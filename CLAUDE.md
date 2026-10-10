@@ -16,7 +16,10 @@
   Reste : vidéo, deck, fiche de défense, playbook, slide conformité, métriques (pas de tâche de fond entre sessions).
 - **10 oct soir** : demandes de l'équipe traitées (zéro conservation, lecteur multi-formats, prix, boîte dédiée) —
   AGENTS.md §6, `docs/CONFIANCE-ARGENT-LEGAL.md` (blockchain, argent réel, légalité, marché) et `docs/ESSAYER.md`
-  (parcours d'essai d'Ozgun). Règle à tenir : aucun texte de facture ni de consigne en base, seulement des empreintes.
+  (parcours d'essai d'Ozgun), `docs/INSTALLATION-CLIENT.md`, `docs/EXPLIQUER-SIMPLEMENT.md`. Règles à tenir : aucun
+  texte de facture ni de consigne en base, seulement des empreintes ; interface `/app` en langage simple (utilisateurs
+  non informaticiens : pas de jargon, une phrase claire, technique repliée). Ozgun a du mal à expliquer le projet :
+  lui répondre avec des images simples (le stagiaire au chéquier, le contrôleur, le coffre à règles fixes).
   L'équipe veut rester centrée Track 1 / Avalanche ; les factures restent en euros (AVAX = jeton de démo, EURC en réel).
 - Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre
   en compte. Tester l'agent de factures sur une instance isolée (`DB_PATH` temporaire, autre `PORT`) : chaque refus
