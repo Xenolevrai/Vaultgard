@@ -37,7 +37,7 @@ Value », lus le 10 oct 2026. Emails organisateurs (Fuji, AWS) et `../AWS Partic
 ## Grille d'évaluation Track 1
 | Critère | Poids | Ce que VaultGuard montre |
 |---|---|---|
-| Efficacité de détection (précision, faux positifs, délai) | 30 % | Jeu d'essai de 45 mails (`docs/METRIQUES.md`, reproductible) : 33 fraudes/anomalies arrêtées sur 33 (0 passée), 12 factures honnêtes sur 12 sans fausse alerte, décision en 21 ms en médiane. C'est notre propre jeu d'essai, pas du trafic réel : à dire au jury. |
+| Efficacité de détection (précision, faux positifs, délai) | 30 % | **Notre point fort depuis le 10 oct au soir** (`DETECTION-FRAUDE.md`, `METRIQUES.md`, reproductible). 70 mails : 50 fraudes/anomalies arrêtées sur 50, 20 factures honnêtes sur 20, ~20 ms par mail. Sur les 25 cas reconstruits depuis des fraudes publiées, notre version précédente en laissait payer 7 sur 17 ; maintenant 0, sans fausse alerte. C'est notre propre jeu d'essai, pas du trafic réel : à dire au jury. |
 | Qualité de la réponse (proportionnée, actionnable) | 20 % | réponse graduée : payer / attente humaine / blocage / quarantaine de la clé / gel du coffre |
 | Faisabilité et intégration | 20 % | API `/v1` + SDK, contrat déployé sur Fuji, 148 tests |
 | Conformité et explicabilité | 15 % | raisons en clair avec référence OWASP, journal chaîné, rapport scellé on-chain, export CSV |
@@ -60,5 +60,14 @@ Données, argent réel, confiance, légalité (DORA, LCB-FT, MiCA, AI Act, RGPD)
 ## Points ouverts
 1. Règle « cœur développé pendant l'événement » : demander à un organisateur ce qui est acceptable et le dire
    honnêtement au jury (ce qui a été fait avant, ce qui a été fait pendant).
-2. Métriques : mesurer taux de détection, faux positifs et temps de décision sur un jeu de factures synthétiques.
+2. Métriques : fait, voir `METRIQUES.md` et `DETECTION-FRAUDE.md`.
+3. **Depuis le 10 oct tard, direction = détection de fraude à la facture / add-on Pennylane** (`DETECTION-FRAUDE.md`).
+   Ozgun a soulevé deux questions non tranchées, à vérifier auprès d'un organisateur ou sur la page Track 1 :
+   - Cette direction répond-elle encore à un problème *agentique* ? Notre réponse actuelle : le XML d'une facture
+     électronique est ce qu'un agent de paiement lit (l'humain ne voit que le PDF) — une facture à la page honnête
+     et aux données piégées est une attaque contre un agent, pas seulement un humain. À confirmer que c'est
+     suffisant pour le jury.
+   - Cette direction reste-t-elle dans les axes listés de la Track 1 ? Nos notes ne citent que les axes 3 et 4
+     (voir ci-dessus) ; la liste complète des axes n'a pas été relue en entier — à vérifier sur Notion avant le
+     pitch final.
 3. Compte AWS de l'équipe (Bedrock, `us-east-1`, supprimé à la fin, pas de production) : non utilisé pour l'instant.

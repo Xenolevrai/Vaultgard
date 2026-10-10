@@ -1,0 +1,67 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=compta@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: compta@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: facture =?utf-8?q?=C3=A9lectronique?=
+Message-ID: <20@demo.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============8867534291021125696=="
+
+--===============8867534291021125696==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Bonjour,
+
+Facture en pièce jointe.
+
+--===============8867534291021125696==
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="GD-2026-3001.pdf"
+MIME-Version: 1.0
+
+JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgL05h
+bWVzIDw8IC9FbWJlZGRlZEZpbGVzIDw8IC9OYW1lcyBbKGZhY3R1ci14LnhtbCkgNyAwIFJdID4+
+ID4+IC9BRiBbNyAwIFJdID4+CmVuZG9iagoyIDAgb2JqCjw8IC9UeXBlIC9QYWdlcyAvS2lkcyBb
+MyAwIFJdIC9Db3VudCAxID4+CmVuZG9iagozIDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQg
+MiAwIFIgL01lZGlhQm94IFswIDAgNTk1IDg0Ml0gL0NvbnRlbnRzIDQgMCBSIC9SZXNvdXJjZXMg
+PDwgL0ZvbnQgPDwgL0YxIDUgMCBSID4+ID4+ID4+CmVuZG9iago0IDAgb2JqCjw8IC9MZW5ndGgg
+Mzg4IC9GaWx0ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4nH1SSU7DMBTdc4q3QQLEYCdNS9il
+Q0olWkowqFsrmGLUOpHjVLDjFlyDa3ALlvQWfIMIYhCWF/Z/g57/d1fgIOXgDOIaEUMnptMVeARx
+srE1TLJkOED/Yno6EThPshM8ggewtcKVqpA4tdDKVruII8YYesrO77chbiF2NrbOR9lgAl9nLQ5G
+ukeIywTaOCvzYrmsjayd1FYhzaKAiMQjWmOQytzVhJonDPt7AQvaeyFj3GdgB7R9pSH3KIlxOIKw
+0lRlYV2FsbROm4bSHPrrSs+NdLow+H+d1dI47da4Q2n1HY5FY5KtV7ryDvSUcvHqFHK5/NORk5rH
+0S5jv6OIwskF2VLwDwoevjBqVsCwSVgY/4DeZS8o5b2yhAdh6zvhK+brfKGWvjWltFhRt/2lgUfd
+ZEL6NOu0EfpZtd8HxmlaYStqo3NIP4Ifxo2gO+oRvz8Yn6bZdDqbzRrkOb9ZS5MrH5fhtqhttY+x
+srmmz4JV4WiUeWGutSftf8oG4g0npawRCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlw
+ZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgL0VuY29kaW5nIC9X
+aW5BbnNpRW5jb2RpbmcgPj4KZW5kb2JqCjYgMCBvYmoKPDwgL0xlbmd0aCA2OTAgL0ZpbHRlciAv
+RmxhdGVEZWNvZGUgL1R5cGUgL0VtYmVkZGVkRmlsZSAvU3VidHlwZSAvdGV4dCMyRnhtbCA+Pgpz
+dHJlYW0KeJyNVdtO4zAQfecrorxDkwJdGrVBaUPZSgvqtrDvXnsIlhK7cmxE/mj3O/ixndgp9JJm
+G0W5eM7MnLl4PLp9L3LvDVTJpRj74UXgeyCoZFxkY//5aXZ+49/GZyNVFtFUybKcC2ZKraq5eJOc
+gofqooxQPPaNEpGpb6CATwovhOqIEU2iUhPBiGKtNqIwCPwzD6/GGDnR2BJMSX7nkGSZgoxomJiS
+C6gdvEhVEI0x3QnNdWVdxOjDBnL3Tl+JyIClkpoChI5H6DOap/F9et4P+oPzyyAIR71mET9alTbm
+Vma9zqvpK+HiSREG+BAlskXvsQ3LWRc0NwzYPvoHMp5rKBy0Aa/WQPkLB2YhCyWZoQ3LR1JAvPz4
++8brknlUFuv8448Gj5ICFxxrC3Kf7aZandVULCrBfMJXYh5BLxQWqlFuDOGCE2MsKoOkkAYVwuH1
+RRA41zuChthxU73/cenmnELOsY8rx2nC8xzYT0Ns+T0juJ5KBmN/Ouj7cVPbXdBRBp+WXTF7p1fT
+UkkQwWndp98BEaorKkBCDrAgSldbFb8nimTgpWYthd4u8m6NyfsSMo6byzb/pq+9kr6it3k69n8l
+fjxbXvcDvK7CIOxvt3mnqV4rw236E1MdYW+3xFoqXXoPKOKHbbqvu5XrUxJ4PNMr0Do/THUze6ZG
+KZx3Vd0c8d3zclPdQ+Hx7fnlYUGq+vUAGO1GoVFBEbjQpgoY11LNuCCCcpInlLodYl1Pkkcsxmz5
+bYBDKBjUdQrD/uXV9eDbzTAIb4YNRYdzPycY39BvmQnd/DsDdnl+kAI0UdXKFG7o7sWOrfQkNXKx
+k8CjTVrrdsSU+/Hl8HNk7EL37NxjF7FtMablU/NAuKubGkxQZU+LQ90D4UnZ6gy+o3V3O9KdLp1n
+iIO0HZ3x2T8l3rEoCmVuZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRmlsZXNwZWMg
+L0YgKGZhY3R1ci14LnhtbCkgL1VGIChmYWN0dXIteC54bWwpIC9BRlJlbGF0aW9uc2hpcCAvQWx0
+ZXJuYXRpdmUgL0VGIDw8IC9GIDYgMCBSID4+ID4+CmVuZG9iago4IDAgb2JqCjw8IC9Qcm9kdWNl
+ciAoU2FnZSAxMDAgR2VzdGlvbiBjb21tZXJjaWFsZSkgL0NyZWF0b3IgKFNhZ2UgMTAwIEdlc3Rp
+b24gY29tbWVyY2lhbGUpIC9DcmVhdGlvbkRhdGUgKEQ6MjAyNjEwMDkxMDE1MDArMDInMDAnKSAv
+TW9kRGF0ZSAoRDoyMDI2MTAwOTEwMTUwMCswMicwMCcpID4+CmVuZG9iagp4cmVmCjAgOQowMDAw
+MDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDE0MCAwMDAwMCBuIAow
+MDAwMDAwMTk3IDAwMDAwIG4gCjAwMDAwMDAzMjMgMDAwMDAgbiAKMDAwMDAwMDc4MyAwMDAwMCBu
+IAowMDAwMDAwODgwIDAwMDAwIG4gCjAwMDAwMDE2ODMgMDAwMDAgbiAKMDAwMDAwMTgwNSAwMDAw
+MCBuIAp0cmFpbGVyCjw8IC9TaXplIDkgL1Jvb3QgMSAwIFIgL0luZm8gOCAwIFIgPj4Kc3RhcnR4
+cmVmCjE5ODIKJSVFT0YK
+
+--===============8867534291021125696==--

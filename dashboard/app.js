@@ -195,7 +195,7 @@
 
   function handleRoute() {
     const hash = (window.location.hash || '#overview').replace('#', '');
-    const validSections = ['overview', 'inbox', 'payments', 'api-keys', 'suppliers', 'policy', 'audit', 'team', 'settings'];
+    const validSections = ['overview', 'inbox', 'einvoices', 'payments', 'api-keys', 'suppliers', 'policy', 'audit', 'team', 'settings'];
     const target = validSections.includes(hash) ? hash : 'overview';
 
     // Mise à jour de la barre latérale
@@ -224,6 +224,7 @@
     state.inboxTimer = sec === 'inbox' ? setInterval(loadInbox, 5000) : null;
     if (sec === 'overview') loadOverview();
     else if (sec === 'inbox') loadInbox();
+    else if (sec === 'einvoices') loadEinvoices();
     else if (sec === 'payments') loadPayments();
     else if (sec === 'api-keys') loadApiKeys();
     else if (sec === 'suppliers') loadSuppliers();
@@ -1640,6 +1641,8 @@
       const lines = [];
       if (c.iban_tail) lines.push('Compte bancaire lu sur la facture : finissant par ' + c.iban_tail);
       if (c.fmt) lines.push(/ubl|cii|factur/i.test(c.fmt) ? 'Facture électronique (format structuré ' + c.fmt.replace('mail+', '').toUpperCase() + ').' : 'Facture non électronique (texte ou PDF simple) : lue, mais pas au format prévu par la réforme de la facture électronique.');
+      const viaPlatform = (box.platform || {})[c.id];
+      if (viaPlatform) lines.push('Reçue par la plateforme, émise par ' + viaPlatform.seller_name + ' (SIREN ' + viaPlatform.seller_siren + ').');
       if (c.batch_id) lines.push('Virement préparé dans le fichier ' + c.batch_id + '.');
       if (c.file_sha256) lines.push('Empreinte de la facture (seule trace conservée) : ' + c.file_sha256);
       (c.proof || []).forEach(t => {
@@ -1648,6 +1651,11 @@
       });
       lines.push('Référence : ' + c.id);
       lines.forEach(line => proof.appendChild(el('div', 'break-all', line)));
+      if (viaPlatform) {
+        const dl = el('a', 'btn btn-secondary', 'Télécharger la facture');
+        dl.href = '/api/app/einvoices/received/' + encodeURIComponent(c.id) + '.pdf';
+        proof.appendChild(dl);
+      }
       cell.appendChild(proof);
       detail.appendChild(cell);
       detail.style.display = state.openChecks[c.id] ? '' : 'none';
@@ -1727,6 +1735,233 @@
     }
     btn.disabled = false;
     loadInbox();
+  };
+
+  // ---- Factures émises (plateforme de facturation)
+
+  const EINV_STATUS = {
+    undelivered: ['badge-viewer', 'Non remise'],
+    review: ['badge-status-pending', 'En vérification'],
+    ok: ['badge-status-allowed', 'Acceptée'],
+    refused: ['badge-status-blocked', 'Refusée'],
+    paid: ['badge-status-allowed', 'Virement préparé']
+  };
+
+  function einvCents(text) {
+    const m = /^(\d{1,7})(?:[.,](\d{1,2}))?$/.exec(String(text).trim());
+    return m ? parseInt(m[1], 10) * 100 + parseInt((m[2] || '0').padEnd(2, '0'), 10) : null;
+  }
+
+  function einvUpdateTotal() {
+    let ht = 0;
+    let complete = true;
+    document.querySelectorAll('#einv-lines .einv-line').forEach(row => {
+      const qty = parseInt(row.querySelector('.einv-qty').value, 10);
+      const cents = einvCents(row.querySelector('.einv-price').value);
+      if (qty > 0 && cents) ht += qty * cents; else complete = false;
+    });
+    const rate = (state.einvoices && state.einvoices.vat_percent) || 20;
+    const tax = Math.floor((ht * rate + 50) / 100);
+    document.getElementById('einv-total').textContent = ht && complete
+      ? 'Hors taxes ' + formatEuros(ht) + ' — TVA ' + rate + ' % ' + formatEuros(tax) + ' — à payer ' + formatEuros(ht + tax)
+      : '';
+  }
+
+  function einvAddLine() {
+    const holder = document.getElementById('einv-lines');
+    const n = holder.children.length + 1;
+    const row = el('div', 'form-row einv-line');
+    const field = (cls, label, type, extra) => {
+      const group = el('div', 'form-group' + (extra || ''));
+      const input = el('input', 'form-input ' + cls);
+      input.type = type;
+      input.id = cls.split(' ')[0] + '-' + n + '-' + Date.now();
+      input.required = true;
+      const lab = el('label', 'form-label', label);
+      lab.htmlFor = input.id;
+      input.oninput = einvUpdateTotal;
+      group.appendChild(lab);
+      group.appendChild(input);
+      row.appendChild(group);
+      return input;
+    };
+    field('einv-label', 'Désignation', 'text', ' supplier-name-field').maxLength = 120;
+    const qty = field('einv-qty', 'Quantité', 'number');
+    qty.min = 1; qty.max = 9999; qty.step = 1; qty.value = 1;
+    const price = field('einv-price mono', 'Prix unitaire HT (€)', 'text');
+    price.maxLength = 10;
+    price.inputMode = 'decimal';
+    price.placeholder = '150,00';
+    if (n > 1) {
+      const del = el('button', 'btn btn-secondary', 'Retirer');
+      del.type = 'button';
+      del.onclick = () => { row.remove(); einvUpdateTotal(); };
+      row.appendChild(del);
+    }
+    holder.appendChild(row);
+  }
+
+  async function loadEinvoices() {
+    let data;
+    try {
+      data = await api('/api/app/einvoices');
+    } catch (e) {
+      console.error('Erreur factures émises :', e);
+      return;
+    }
+    if (!data) return;
+    state.einvoices = data;
+    const editable = !(state.org && state.org.is_suspended);
+    const siren = document.getElementById('einv-siren');
+    const address = document.getElementById('einv-address');
+    if (document.activeElement !== siren && document.activeElement !== address) {
+      siren.value = data.profile ? data.profile.siren : '';
+      address.value = data.profile ? data.profile.address : '';
+    }
+    siren.disabled = address.disabled = !(hasRole('admin') && editable);
+    document.getElementById('btn-save-profile').style.display = hasRole('admin') && editable ? '' : 'none';
+    const ready = data.profile && data.bank;
+    document.getElementById('einv-bank-help').textContent = data.bank
+      ? 'Vos clients vous paieront sur le compte finissant par ' + data.bank.iban.slice(-4) + ' (réglé dans « 2. Factures reçues »).'
+      : 'Avant d\'émettre une facture, renseignez le compte bancaire de votre entreprise dans « 2. Factures reçues ».';
+    document.getElementById('einv-create-card').style.display = ready && hasRole('approver') && editable ? '' : 'none';
+    if (!document.getElementById('einv-lines').children.length) einvAddLine();
+
+    const tbody = document.getElementById('einv-tbody');
+    tbody.textContent = '';
+    if (!data.issued.length) emptyRow(tbody, 6, 'Aucune facture émise pour le moment.');
+    data.issued.forEach(inv => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', formatTimestamp(inv.created_at)));
+      tr.appendChild(el('td', 'mono', inv.number));
+      tr.appendChild(el('td', '', inv.buyer_name));
+      tr.appendChild(el('td', 'mono', formatEuros(inv.total_cents)));
+      const tdStatus = el('td');
+      const s = EINV_STATUS[inv.status] || ['badge-viewer', inv.status];
+      tdStatus.appendChild(el('span', 'badge ' + s[0], s[1]));
+      tdStatus.appendChild(el('div', 'todo-why', inv.status_text));
+      tr.appendChild(tdStatus);
+      const tdDl = el('td');
+      const dl = el('a', 'btn btn-secondary', 'Télécharger');
+      dl.href = '/api/app/einvoices/' + encodeURIComponent(inv.id) + '.pdf';
+      tdDl.appendChild(dl);
+      tr.appendChild(tdDl);
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('btn-refresh-einv').onclick = loadEinvoices;
+  document.getElementById('btn-einv-add-line').onclick = einvAddLine;
+
+  document.getElementById('einv-profile-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('einv-profile-msg');
+    msg.textContent = '';
+    try {
+      await api('/api/app/einvoices/profile', { method: 'POST', body: JSON.stringify({
+        siren: document.getElementById('einv-siren').value.trim(),
+        address: document.getElementById('einv-address').value.trim()
+      }) });
+      msg.textContent = 'Enregistré.';
+    } catch (err) {
+      msg.textContent = err.message;
+    }
+    loadEinvoices();
+  };
+
+  document.getElementById('einv-buyer-siren').onchange = async (e) => {
+    const status = document.getElementById('einv-buyer-status');
+    const name = document.getElementById('einv-buyer-name');
+    const siren = e.target.value.trim();
+    if (!siren) return;
+    try {
+      const res = await api('/api/app/einvoices/lookup', { method: 'POST', body: JSON.stringify({ siren }) });
+      if (res.found) {
+        name.value = res.name;
+        name.disabled = true;
+        status.textContent = res.name + ' est sur la plateforme : la facture lui sera remise directement.';
+      } else {
+        name.disabled = false;
+        status.textContent = 'Ce client n\'est pas sur la plateforme : indiquez son nom. La facture sera créée, à lui transmettre vous-même.';
+      }
+    } catch (err) {
+      name.disabled = false;
+      status.textContent = err.message;
+    }
+  };
+
+  document.getElementById('einv-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('einv-msg');
+    const btn = document.getElementById('btn-einv-send');
+    const lines = [...document.querySelectorAll('#einv-lines .einv-line')].map(row => ({
+      label: row.querySelector('.einv-label').value.trim(),
+      quantity: parseInt(row.querySelector('.einv-qty').value, 10),
+      unit_price: row.querySelector('.einv-price').value.trim()
+    }));
+    msg.textContent = '';
+    btn.disabled = true;
+    try {
+      const inv = await api('/api/app/einvoices', { method: 'POST', body: JSON.stringify({
+        buyer_siren: document.getElementById('einv-buyer-siren').value.trim(),
+        buyer_name: document.getElementById('einv-buyer-name').value.trim(),
+        lines
+      }) });
+      msg.textContent = 'Facture ' + inv.number + ' créée. ' + inv.status_text;
+      document.getElementById('einv-lines').textContent = '';
+      einvAddLine();
+      einvUpdateTotal();
+    } catch (err) {
+      msg.textContent = err.message;
+    }
+    btn.disabled = false;
+    loadEinvoices();
+  };
+
+  document.getElementById('audit-file').onchange = async (e) => {
+    const input = e.target;
+    const msg = document.getElementById('audit-msg');
+    const summary = document.getElementById('audit-summary');
+    const list = document.getElementById('audit-lines');
+    const file = input.files && input.files[0];
+    summary.textContent = '';
+    list.textContent = '';
+    if (!file) return;
+    if (file.size > 250000) {
+      msg.textContent = 'Fichier trop volumineux (250 Ko au plus).';
+      return;
+    }
+    msg.textContent = 'Contrôle en cours...';
+    try {
+      const out = await api('/api/app/transfers/audit', { method: 'POST', body: JSON.stringify({ content: await file.text() }) });
+      msg.textContent = '';
+      const n = out.lines.length;
+      const head = el('div', 'reason-box ' + { refused: 'reason-box-block', review: 'reason-box-confirm', ok: 'reason-box-ok' }[out.verdict]);
+      head.appendChild(el('div', 'reason-title', {
+        refused: 'N\'envoyez pas ce fichier à votre banque.',
+        review: 'À vérifier avant d\'envoyer ce fichier à votre banque.',
+        ok: 'Rien d\'anormal : tous les comptes sont ceux de votre liste.'
+      }[out.verdict]));
+      head.appendChild(el('div', 'reason-detail', n + (n > 1 ? ' virements, ' : ' virement, ') + formatEuros(out.total_cents)
+        + ' au total : ' + out.counts.ok + ' conforme' + (out.counts.ok > 1 ? 's' : '') + ', ' + out.counts.review
+        + ' à vérifier, ' + out.counts.refused + ' à ne pas payer.'));
+      summary.appendChild(head);
+      out.lines.forEach(line => {
+        const row = el('div', 'inbox-list-item');
+        const text = el('div', 'todo-text');
+        text.appendChild(el('div', '', line.position + '. ' + (line.name || 'Bénéficiaire sans nom') + ' — '
+          + formatEuros(line.amount_cents) + (line.iban_tail ? ' — compte finissant par ' + line.iban_tail : '')));
+        text.appendChild(el('div', 'todo-why', line.why + (line.level === 'ok' && !line.invoice_checked
+          ? ' Aucune facture contrôlée ici ne correspond à ce montant.' : '')));
+        row.appendChild(text);
+        const v = VERDICTS[line.level] || ['badge-viewer', line.level];
+        row.appendChild(el('span', 'badge ' + v[0], { ok: 'Conforme', review: 'À vérifier', refused: 'Ne pas payer' }[line.level]));
+        list.appendChild(row);
+      });
+    } catch (err) {
+      msg.textContent = err.message;
+    }
+    input.value = '';
   };
 
   ['bank-holder', 'bank-iban'].forEach(id => {

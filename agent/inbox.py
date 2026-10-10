@@ -30,10 +30,11 @@ try:
     import auth
     import db
     import firewall
+    import fraud
     import registry
     from orgs import OrgError, check_org_writable
 except ImportError:
-    from agent import auth, db, firewall, registry
+    from agent import auth, db, firewall, fraud, registry
     from agent.orgs import OrgError, check_org_writable
 
 DEFAULT_ADDRESS = "factures+{alias}@demo.vaultguard.local"
@@ -55,8 +56,10 @@ IBAN_LENGTHS = {
     "PK": 24, "PL": 28, "PS": 29, "PT": 25, "QA": 29, "RO": 24, "RS": 22, "SA": 24, "SC": 31, "SE": 24, "SI": 19,
     "SK": 24, "SM": 27, "ST": 25, "SV": 28, "TL": 23, "TN": 24, "TR": 26, "UA": 29, "VA": 22, "VG": 24, "XK": 20,
 }
-_IBAN_START = re.compile(r"(?<![A-Z0-9])[A-Z]{2}\d{2}(?=[   ]?[A-Z0-9])")
-_IBAN_SPACES = "   "
+_IBAN_START = re.compile(r"(?<![A-Z0-9])[A-Z]{2}\d{2}(?=[   \-./]?[A-Z0-9])")
+# « FR76-3000-... » ou « FR76.3000... » reste un IBAN : ces séparateurs servent parfois à échapper à la lecture.
+_IBAN_SEPARATORS = "-./"
+_IBAN_SPACES = _IBAN_SEPARATORS +"   "
 
 # Familles d'injection (firewall.INJECTION_PATTERNS) qui n'ont aucune raison d'être dans une vraie facture.
 ATTACK_FAMILIES = {"override", "fake_system", "role_hijack", "secrecy", "secret_exfil", "encoded_payload"}
@@ -79,6 +82,18 @@ CATALOG = {
                       "Fraude au faux fournisseur"),
     "payee_recent": ("review", "Ce fournisseur vient d'être ajouté à votre liste : un contrôle humain est demandé.",
                      "Délai d'activation"),
+    "layer_mismatch": ("refused", "La page que vous voyez et les données lues par les logiciels ne disent pas la même chose.",
+                       "Fraude à la facture électronique (PDF / XML)"),
+    "pdf_edited": ("review", "Ce PDF a été retouché après sa création.", "Document falsifié"),
+    "supplier_lookalike": ("refused", "Le nom du vendeur imite celui d'un de vos fournisseurs, avec un autre compte bancaire.",
+                           "Fraude au faux fournisseur"),
+    "known_scam": ("refused", "Ce document a la forme d'une fausse facture d'annuaire ou de registre officiel.",
+                   "Arnaque signalée par la DGCCRF"),
+    "account_reported": ("review", "Ce compte bancaire a déjà été refusé pour fraude par une autre entreprise.",
+                         "Alerte partagée entre entreprises"),
+    "iban_foreign": ("review", "Société française, mais compte bancaire tenu à l'étranger.", "Cohérence pays / fournisseur"),
+    "split_threshold": ("review", "Plusieurs factures du même fournisseur en 24 h dépassent ensemble votre seuil.",
+                        "Fractionnement sous le seuil"),
     "company_id_missing": ("review", "La facture ne porte pas le numéro d'entreprise du vendeur (SIREN ou TVA), mention obligatoire.",
                            "Mentions légales"),
     "company_id_invalid": ("review", "Un numéro d'entreprise indiqué sur la facture (SIREN ou TVA) est faux.", "Mentions légales"),
@@ -337,6 +352,8 @@ def add_payee(org_id: str, user_id: str, name: str, iban: str, ip: str | None = 
                        (payee_id, org_id, clean_name, compact, now + int(org["activation_delay"]), now), db_path=db_path)
         except sqlite3.IntegrityError:
             raise OrgError("Ce compte bancaire est déjà enregistré", 409) from None
+        # L'entreprise adopte ce compte : son ancien refus n'est plus une alerte pour les autres.
+        db.execute("DELETE FROM reported_accounts WHERE org_id = ? AND iban_sha256 = ?;", (org_id, _sha(compact)), db_path=db_path)
     auth.log_audit("payee.add", org_id=org_id, user_id=user_id,
                    details={"payee_id": payee_id, "name": clean_name, "iban_sha256": _sha(compact), "iban_tail": _tail(compact)},
                    ip=ip, db_path=db_path)
@@ -417,6 +434,22 @@ def note_ignored(org_id: str, reason: str, db_path: str | None = None) -> None:
     auth.log_audit("inbox.ignored", org_id=org_id, details={"reason": reason}, db_path=db_path)
 
 
+# Refus qui désignent un compte de fraudeur : son empreinte est partagée avec les autres entreprises.
+SHARED_CODES = ("iban_changed", "supplier_lookalike", "known_scam")
+
+
+def reported_elsewhere(org_id: str, ibans: list[str], db_path: str | None = None) -> int:
+    """Nombre d'autres entreprises qui ont refusé l'un de ces comptes pour fraude. Seules des empreintes sont
+    comparées : aucune entreprise ne voit les factures ni les fournisseurs d'une autre."""
+    if not ibans:
+        return 0
+    orgs_seen = set()
+    for iban in ibans[:10]:
+        orgs_seen.update(r["org_id"] for r in db.query_all(
+            "SELECT org_id FROM reported_accounts WHERE org_id != ? AND iban_sha256 = ?;", (org_id, _sha(iban)), db_path=db_path))
+    return len(orgs_seen)
+
+
 def _cents(total: str) -> int | None:
     try:
         d = Decimal(str(total))
@@ -484,13 +517,20 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
             elif unknown:
                 iban_seen = unknown[0]
                 target = (known or named or [None])[0]
+                where = fraud.bank_hint(unknown[0])
+                names = {_plain(p["name"]): p["name"] for p in payees}
+                twin = "" if target else fraud.lookalike(_plain(visible[:3000] + "\n" + str(invoice.supplier or "")), list(names))
                 if target:
                     payee = target
-                    flag("iban_changed", f"Facture : compte finissant par {_tail(unknown[0])}. Compte enregistré pour "
+                    flag("iban_changed", f"Facture : compte finissant par {_tail(unknown[0])}, {where}. Compte enregistré pour "
                                          f"{target['name']} : finissant par {_tail(target['iban'])}. C'est la fraude la plus "
                                          "courante : appelez le fournisseur à son numéro habituel avant tout paiement.")
+                elif twin:
+                    flag("supplier_lookalike", f"Le nom ressemble à « {names[twin]} » sans être le même, et le compte (finissant par "
+                                               f"{_tail(unknown[0])}, {where}) n'est pas celui de ce fournisseur. Ne l'ajoutez pas à "
+                                               "votre liste : appelez votre fournisseur à son numéro habituel.")
                 else:
-                    flag("unknown_supplier", f"Compte finissant par {_tail(unknown[0])}. Si vous connaissez ce fournisseur, "
+                    flag("unknown_supplier", f"Compte finissant par {_tail(unknown[0])}, {where}. Si vous connaissez ce fournisseur, "
                                              "ajoutez-le à votre liste après avoir vérifié son IBAN, puis renvoyez la facture.")
             else:
                 owners = {p["id"]: p for p in known}
@@ -503,14 +543,49 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
                 if payee["active_after"] > now:
                     flag("payee_recent", f"{payee['name']} sera considéré comme habituel dans "
                                          f"{max(1, (payee['active_after'] - now + 3599) // 3600)} h.")
+            elsewhere = reported_elsewhere(org_id, unknown, db_path=db_path)
+            if elsewhere:
+                flag("account_reported", f"Refusé chez {elsewhere} autre{'s' if elsewhere > 1 else ''} entreprise"
+                                         f"{'s' if elsewhere > 1 else ''} qui utilise{'nt' if elsewhere > 1 else ''} VaultGuard. "
+                                         "Ne l'ajoutez pas à votre liste sans avoir appelé le fournisseur.")
             if malformed and ibans:
                 flag("iban_invalid")
             if len(ibans) > 1 and not any(r["code"] in ("iban_changed", "several_accounts") for r in reasons):
                 flag("several_accounts")
 
+            # 2 ter. Facture électronique hybride : la page (lue par l'humain) contre le XML (lu par les logiciels)
+            shown = str(getattr(invoice, "shown", "") or "")
+            if shown:
+                page_ibans, _ = find_ibans(firewall.normalize(shown))
+                diffs = fraud.layers(invoice, structured if iban_valid(structured) else "", page_ibans, _plain(shown),
+                                     _plain(invoice.supplier or ""))
+                if diffs:
+                    flag("layer_mismatch", "Différence sur " + ", ".join(diffs) + ". Un logiciel de paiement suivrait les données "
+                                           "cachées, pas la page que vous avez sous les yeux. Ne payez pas : demandez une facture "
+                                           "corrigée au fournisseur, par téléphone.")
+            traces = set(getattr(invoice, "traces", []) or [])
+            if "rewritten" in traces:
+                flag("pdf_edited", "Le fichier contient encore l'ancienne version de la page, et elle est différente de celle "
+                                   "qui s'affiche. Demandez l'original au fournisseur.")
+            elif "other_tool" in traces or {"editor", "updated"} <= traces:
+                flag("pdf_edited", "Il a été modifié par un autre logiciel que celui qui l'a produit. Demandez l'original au fournisseur.")
+
+            # 2 quater. Fausse facture d'annuaire ou de registre « officiel », envoyée par un inconnu
+            if payee is None and fraud.scam(_plain(visible)):
+                flag("known_scam", "Vendeur inconnu, air officiel, « inscription » ou « offre » en petits caractères : aucun organisme "
+                                   "public ne réclame un paiement de cette façon. Ne payez pas.")
+
             # 2 bis. Mentions légales du vendeur (facture française) : SIREN / numéro de TVA, puis annuaire public
+            identity = firewall.normalize(raw) + "\n" + firewall.normalize(visible)
+            abroad = [i for i in ibans if i[:2] not in ("FR", "MC")]
+            # Un numéro de TVA du pays du compte indique un vendeur réellement étranger : rien d'anormal.
+            local_vat = abroad and any(not iban_valid(re.sub(r"\s", "", m.group(0))) for m in re.finditer(
+                r"(?<![A-Z0-9])" + abroad[0][:2] + r" ?[A-Z]{0,2}\d{7,11}[A-Z0-9]{0,3}(?![A-Z0-9])", identity.upper()))
+            if abroad and not local_vat and registry.find_ids(identity)[0]:
+                flag("iban_foreign", f"La facture porte un numéro d'entreprise français, mais le compte est {fraud.bank_hint(abroad[0])}. "
+                                     "Les comptes ouverts à l'étranger servent souvent à faire disparaître l'argent : vérifiez par téléphone.")
             if any(i[:2] in ("FR", "MC") for i in ibans):
-                sirens, wrong = registry.find_ids(firewall.normalize(raw) + "\n" + firewall.normalize(visible))
+                sirens, wrong = registry.find_ids(identity)
                 if wrong:
                     flag("company_id_invalid")
                 elif not sirens:
@@ -543,6 +618,16 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
                     if len(past) >= 3 and cents > 3 * statistics.median(past):
                         flag("amount_anomaly", f"{euros(cents)}, soit {cents / statistics.median(past):.1f} fois le montant "
                                                f"habituel ({euros(int(statistics.median(past)))}).")
+                # Fractionnement : plusieurs factures « moyennes » du même fournisseur en 24 h qui, ensemble, passent le seuil
+                threshold = org["review_threshold_cents"]
+                if payee and cents < threshold <= cents * 4:
+                    parts = [r["amount_cents"] for r in db.query_all(
+                        "SELECT amount_cents FROM invoice_checks WHERE org_id = ? AND payee_id = ? AND verdict != 'refused' "
+                        "AND created_at >= ? AND amount_cents < ? AND amount_cents * 4 >= ?;",
+                        (org_id, payee["id"], now - 86400, threshold, threshold), db_path=db_path)]
+                    if parts and sum(parts) + cents >= threshold:
+                        flag("split_threshold", f"{len(parts) + 1} factures de {payee['name']} en 24 h, {euros(sum(parts) + cents)} au "
+                                                f"total ; votre seuil est de {euros(threshold)}.")
                 structured_invoice = invoice.structured()
                 if structured_invoice and any(a[2] == "invoice_arithmetic" for a in firewall.check_invoice(
                         structured_invoice, float(invoice.total), currency)):
@@ -563,6 +648,17 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
             if previous:
                 flag("duplicate", "Première réception le " + time.strftime("%d/%m/%Y à %H:%M", time.localtime(previous["created_at"]))
                      + ". La payer deux fois serait une erreur.")
+            elif number and payee:
+                # Numéro maquillé : la lettre O pour un zéro, ou le même numéro suivi de « -BIS »
+                for old in db.query_all(
+                        "SELECT invoice_number, amount_cents, created_at FROM invoice_checks WHERE org_id = ? AND payee_id = ? "
+                        "AND verdict != 'refused' AND invoice_number != '' ORDER BY created_at DESC LIMIT 500;",
+                        (org_id, payee["id"]), db_path=db_path):
+                    if fraud.same_invoice(number, old["invoice_number"], cents is not None and old["amount_cents"] == cents):
+                        flag("duplicate", f"Elle porte presque le même numéro que la facture {old['invoice_number']}, reçue le "
+                             + time.strftime("%d/%m/%Y à %H:%M", time.localtime(old["created_at"]))
+                             + ". Un numéro légèrement modifié sert à faire payer deux fois.")
+                        break
 
             # La pression seule ne prouve rien ; elle appuie un autre signal.
             if reasons and families & PRESSURE_FAMILIES:
@@ -571,7 +667,8 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
         if not reasons:
             flag("ok")
         verdict = max((r["level"] for r in reasons), key=LEVEL_RANK.__getitem__)
-        reasons.sort(key=lambda r: -LEVEL_RANK[r["level"]])
+        # La raison la plus grave d'abord ; à gravité égale, la contradiction page / données, qui explique les autres.
+        reasons.sort(key=lambda r: (-LEVEL_RANK[r["level"]], r["code"] != "layer_mismatch"))
         check_id = "chk_" + secrets.token_hex(12)
         db.execute(
             "INSERT INTO invoice_checks (id, org_id, sender_id, payee_id, payee_name, invoice_number, amount_cents, "
@@ -580,6 +677,10 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
             (check_id, org_id, sender_id, payee["id"] if payee else None, payee["name"] if payee else "", number, cents,
              currency, _tail(iban_seen) if iban_seen else "", _sha(iban_seen) if iban_seen else "", file_sha256, fmt,
              verdict, json.dumps(reasons, ensure_ascii=False), now, now), db_path=db_path)
+        shared = next((r["code"] for r in reasons if r["code"] in SHARED_CODES), "")
+        if verdict == "refused" and shared and iban_seen and (not payee or iban_seen != payee["iban"]):
+            db.execute("INSERT OR IGNORE INTO reported_accounts (iban_sha256, org_id, code, created_at) VALUES (?, ?, ?, ?);",
+                       (_sha(iban_seen), org_id, shared, now), db_path=db_path)
     auth.log_audit("invoice.check", org_id=org_id,
                    details={"check_id": check_id, "verdict": verdict, "codes": [r["code"] for r in reasons],
                             "file_sha256": file_sha256, "amount_cents": cents, "payee_id": payee["id"] if payee else None},

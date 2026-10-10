@@ -1,4 +1,4 @@
-VaultGuard — audit de sécurité automatisé — 2026-10-10T16:19:25+02:00
+VaultGuard — audit de sécurité automatisé — 2026-10-10T18:35:55+02:00
 
 == 1. Surface réseau (nmap)
   Écoute : 127.0.0.1:8765 (doit être 127.0.0.1, pas 0.0.0.0)
@@ -38,12 +38,42 @@ VaultGuard — audit de sécurité automatisé — 2026-10-10T16:19:25+02:00
 == 6. Injection SQL (sqlmap)
   [OK]    sqlmap : aucun paramètre injectable sur /api/auth/login (attendu sûr)
 == 7. Limitation de débit (300 requêtes rapides)
-  codes :     270 200      30 429 
+  codes :     268 200      32 429 
   [OK]    des requêtes sont limitées (429) (attendu 1)
 == 8. Analyse statique du contrat (Slither)
   aucune alerte moyenne/haute
 == 9. Analyse statique Python (Bandit)
-  aucune alerte moyenne/haute
+Run started:2026-10-10 16:36:44.005982+00:00
+
+Test results:
+>> Issue: [B314:blacklist] Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called
+   Severity: Medium   Confidence: High
+   CWE: CWE-20 (https://cwe.mitre.org/data/definitions/20.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree
+   Location: agent/test_inbox.py:388:15
+387	        name, xml = transfers.batch_file(self.org_id, batch["id"], db_path=self.db_path)
+388	        root = ET.fromstring(xml)
+389	        ns = {"p": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"}
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 7408
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 5
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 10
+		Medium: 1
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 6
+		High: 5
+Files skipped (0):
 == 10. Dépendances vulnérables (pip-audit)
   No known vulnerabilities found
 

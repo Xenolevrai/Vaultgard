@@ -274,6 +274,48 @@ CREATE TABLE IF NOT EXISTS invoice_checks (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
+-- 16 bis. Comptes refusés pour fraude, partagés entre entreprises sous forme d'empreinte (jamais l'IBAN).
+-- Une entreprise qui reçoit une facture vers un compte déjà refusé ailleurs en est avertie.
+CREATE TABLE IF NOT EXISTS reported_accounts (
+    iban_sha256 TEXT NOT NULL,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (iban_sha256, org_id)
+);
+
+-- 16 ter. Plateforme de facturation : identité de l'entreprise (annuaire) et factures qu'elle émet.
+-- Une facture émise ici est la donnée de l'émetteur : elle est conservée (une plateforme doit pouvoir la
+-- redonner). La règle « zéro conservation » vaut pour les factures REÇUES et contrôlées (invoice_checks).
+CREATE TABLE IF NOT EXISTS company_profiles (
+    org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    siren TEXT UNIQUE NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS issued_invoices (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    number TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    seller_siren TEXT NOT NULL,
+    seller_address TEXT NOT NULL DEFAULT '',
+    seller_iban TEXT NOT NULL,
+    buyer_name TEXT NOT NULL,
+    buyer_siren TEXT NOT NULL,
+    buyer_org_id TEXT,
+    lines_json TEXT NOT NULL,
+    total_ht_cents INTEGER NOT NULL CHECK (total_ht_cents > 0),
+    tax_cents INTEGER NOT NULL CHECK (tax_cents >= 0),
+    total_cents INTEGER NOT NULL CHECK (total_cents > 0),
+    file_sha256 TEXT NOT NULL,
+    check_id TEXT,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(org_id, number)
+);
+
 -- 17. Compte bancaire de l'entreprise (celui qui paie les fournisseurs)
 CREATE TABLE IF NOT EXISTS org_bank_accounts (
     org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,

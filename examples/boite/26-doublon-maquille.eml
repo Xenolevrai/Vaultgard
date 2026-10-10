@@ -1,0 +1,28 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=compta@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: compta@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: relance facture
+Message-ID: <26@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+GARAGE DUPONT SARL — 12 rue des Ateliers, 95000 Cergy
+SIREN 000 041 012 — TVA intracommunautaire FR52000041012
+Facture n° GD-2O26-3001 — 10/10/2026
+Client : Transports Martin
+
+Désignation                               Quantité x prix HT
+Révision complète camion                  1 x 195,00
+
+Total HT : 195,00 €
+TVA 20 % : 39,00 €
+Total à payer : 234,00 €
+
+Règlement par virement
+IBAN : FR76 3000 6000 0112 3456 7890 189
+BIC : DEMOFRPPXXX
+Échéance : 30 jours. Merci de votre confiance.

@@ -54,7 +54,33 @@ def seed(org_id: str, user_id: str) -> str:
             digest = hashlib.sha256(transfers.build_xml(batch, batch["items"]).encode("utf-8")).hexdigest()
             db.execute("UPDATE transfer_batches SET created_at = ?, file_sha256 = ?, seal_status = 'simulated', sealed_at = ? "
                        "WHERE id = ?;", (batch["created_at"], digest, batch["created_at"], batch["id"]))
+    seed_platform(org_id, user_id)
     return inbox.address_for(box["alias"])
+
+
+def seed_platform(org_id: str, user_id: str) -> None:
+    """Plateforme de facturation : Transports Martin y est inscrit, ainsi qu'un fournisseur, « Garage Dupont »,
+    rattaché au même compte de démonstration. On passe de l'un à l'autre par le menu « Organisation » en haut de
+    /app : émettre côté garage, recevoir côté transporteur."""
+    import secrets
+
+    import einvoice
+
+    if not einvoice.get_profile(org_id):
+        einvoice.set_profile(org_id, user_id, demo.make_siren(4001), "8 avenue du Fret, 95000 Cergy")
+    row = db.query_one("SELECT o.id FROM orgs o JOIN members m ON m.org_id = o.id WHERE o.name = 'Garage Dupont' "
+                       "AND m.user_id = ?;", (user_id,))
+    garage = row["id"] if row else "org_" + secrets.token_hex(12)
+    if not row:
+        now = int(time.time())
+        db.execute("INSERT INTO orgs (id, name, slug, created_at, updated_at) VALUES (?, 'Garage Dupont', ?, ?, ?);",
+                   (garage, "org-" + secrets.token_hex(6), now, now))
+        db.execute("INSERT INTO members (id, org_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, 'owner', ?, ?);",
+                   ("m_" + secrets.token_hex(12), garage, user_id, now, now))
+    if not einvoice.get_profile(garage):
+        einvoice.set_profile(garage, user_id, demo.SIRENS["garage dupont"], "12 rue des Ateliers, 95000 Cergy")
+    if not transfers.get_bank(garage):
+        transfers.set_bank(garage, user_id, "Garage Dupont", demo.GARAGE)
 
 
 if __name__ == "__main__":

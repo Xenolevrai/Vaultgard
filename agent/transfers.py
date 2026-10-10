@@ -17,16 +17,18 @@ import re
 import secrets
 import time
 import unicodedata
+import xml.etree.ElementTree as ET  # nosec B405
 from typing import Any
 from xml.sax.saxutils import escape
 
 try:
     import auth
     import db
+    import fraud
     import inbox
     from orgs import OrgError, check_org_writable
 except ImportError:
-    from agent import auth, db, inbox
+    from agent import auth, db, fraud, inbox
     from agent.orgs import OrgError, check_org_writable
 
 MAX_PER_BATCH = 200
@@ -128,6 +130,103 @@ def build_xml(batch: dict[str, Any], items: list[dict[str, Any]]) -> str:
         ]
     out += ["  </PmtInf>", " </CstmrCdtTrfInitn>", "</Document>", ""]
     return "\n".join(out)
+
+
+# ------------------------------------------------------------------ Dernier contrôle avant la banque
+
+MAX_AUDIT_BYTES = 256_000
+MAX_AUDIT_LINES = 500
+
+
+def _tag(element) -> str:
+    return element.tag.rsplit("}", 1)[-1] if isinstance(element.tag, str) else ""
+
+
+def _find(node, *path: str) -> str:
+    for name in path:
+        node = next((e for e in node.iter() if e is not node and _tag(e) == name), None)
+        if node is None:
+            return ""
+    return (node.text or "").strip()
+
+
+def audit_file(org_id: str, user_id: str | None, content: str, ip: str | None = None,
+               db_path: str | None = None) -> dict[str, Any]:
+    """Contrôle un fichier de virements SEPA (pain.001) préparé par N'IMPORTE QUEL logiciel, avant son envoi à la
+    banque. Quelle que soit la façon dont une fraude est entrée (facture, carnet du logiciel modifié, poste piraté),
+    elle finit dans ce fichier : chaque ligne est comparée au carnet de fournisseurs tenu dans VaultGuard.
+
+    Rien du fichier n'est conservé : le journal garde son empreinte et le nombre de lignes par verdict."""
+    if not isinstance(content, str) or not content.strip():
+        raise OrgError("Fichier vide")
+    if len(content.encode("utf-8", "replace")) > MAX_AUDIT_BYTES:
+        raise OrgError("Fichier trop volumineux (250 Ko au plus)")
+    if re.search(r"<!\s*(DOCTYPE|ENTITY)", content, re.I):
+        raise OrgError("Fichier refusé : il contient une déclaration DOCTYPE ou ENTITY")
+    try:
+        root = ET.fromstring(content.encode("utf-8"))  # nosec B314
+    except ET.ParseError:
+        raise OrgError("Ce fichier n'est pas un fichier de virements SEPA lisible (XML invalide)") from None
+    transfers = [e for e in root.iter() if _tag(e) == "CdtTrfTxInf"]
+    if not transfers:
+        raise OrgError("Aucun virement dans ce fichier : un fichier SEPA « pain.001 » est attendu")
+    if len(transfers) > MAX_AUDIT_LINES:
+        raise OrgError(f"Trop de virements dans ce fichier ({MAX_AUDIT_LINES} au plus)")
+
+    now = int(time.time())
+    payees = [dict(p) for p in db.query_all("SELECT * FROM payees WHERE org_id = ?;", (org_id,), db_path=db_path)]
+    by_iban = {p["iban"]: p for p in payees}
+    names = {inbox._plain(sepa_text(p["name"], 70)): p for p in payees}
+    paid = {(r["payee_id"], r["amount_cents"]) for r in db.query_all(
+        "SELECT payee_id, amount_cents FROM invoice_checks WHERE org_id = ? AND verdict = 'ok';", (org_id,), db_path=db_path)}
+    seen: set[tuple[str, int | None, str]] = set()
+    lines = []
+    for position, tx in enumerate(transfers, 1):
+        name = re.sub(r"\s+", " ", _find(tx, "Cdtr", "Nm"))[:70]
+        iban = re.sub(r"\s", "", _find(tx, "CdtrAcct", "IBAN")).upper()[:34]
+        amount = next((e for e in tx.iter() if _tag(e) == "InstdAmt"), None)
+        cents = inbox._cents((amount.text or "").strip()) if amount is not None else None
+        currency = (amount.get("Ccy", "") if amount is not None else "").upper()[:5]
+        reference = _find(tx, "RmtInf", "Ustrd") or _find(tx, "EndToEndId")
+        plain = inbox._plain(name)
+        payee = by_iban.get(iban)
+        named = next((p for n, p in names.items() if len(n) >= 3 and (n in plain or (len(plain) >= 3 and plain in n))), None)
+        level, why = "ok", "Compte enregistré pour ce fournisseur."
+        if not inbox.iban_valid(iban):
+            level, why = "refused", "Le compte du bénéficiaire est mal formé (IBAN invalide)."
+        elif payee is None:
+            twin = fraud.lookalike(plain, list(names)) if not named else ""
+            owner = named or names.get(twin)
+            if owner:
+                level, why = "refused", (f"Ce n'est pas le compte enregistré pour {owner['name']} (carnet : compte finissant par "
+                                         f"{owner['iban'][-4:]} ; fichier : {iban[-4:]}, {fraud.bank_hint(iban)}). "
+                                         "Appelez le fournisseur à son numéro habituel avant d'envoyer ce fichier.")
+            else:
+                level, why = "review", f"Bénéficiaire absent de votre carnet (compte {fraud.bank_hint(iban)})."
+            if inbox.reported_elsewhere(org_id, [iban], db_path=db_path):
+                why += " Attention : ce compte a déjà été refusé pour fraude par une autre entreprise."
+        elif named is not None and named["id"] != payee["id"]:
+            level, why = "review", f"Ce compte est celui de {payee['name']}, pas du bénéficiaire indiqué."
+        elif named is None and plain:
+            level, why = "review", f"Ce compte est celui de {payee['name']} : le nom du bénéficiaire ne correspond pas."
+        elif payee["active_after"] > now:
+            level, why = "review", f"{payee['name']} vient d'être ajouté à votre carnet : délai de sécurité en cours."
+        if level == "ok" and (cents is None or currency != "EUR"):
+            level, why = "review", "Montant illisible ou devise autre que l'euro."
+        key = (iban, cents, reference)
+        if level == "ok" and key in seen:
+            level, why = "review", "Virement en double dans ce fichier (même compte, même montant, même référence)."
+        seen.add(key)
+        lines.append({"position": position, "name": name, "iban_tail": iban[-4:] if iban else "", "amount_cents": cents,
+                      "currency": currency, "level": level, "why": why,
+                      "invoice_checked": bool(payee and (payee["id"], cents) in paid)})
+    counts = {k: sum(1 for line in lines if line["level"] == k) for k in ("ok", "review", "refused")}
+    verdict = "refused" if counts["refused"] else "review" if counts["review"] else "ok"
+    digest = hashlib.sha256(content.encode("utf-8", "replace")).hexdigest()
+    auth.log_audit("transfer.audit", org_id=org_id, user_id=user_id,
+                   details={"file_sha256": digest, "verdict": verdict, **counts}, ip=ip, db_path=db_path)
+    return {"verdict": verdict, "file_sha256": digest, "counts": counts, "lines": lines,
+            "total_cents": sum(line["amount_cents"] or 0 for line in lines)}
 
 
 def _items(batch_id: str, org_id: str, db_path: str | None) -> list[dict[str, Any]]:

@@ -1,0 +1,28 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=direction@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: direction@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: avis de paiement registre
+Message-ID: <r14@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+REGISTRE NATIONAL DES SOCIETES ET ENTREPRISES
+Service des inscriptions — avis de paiement
+TVA intracommunautaire FR80000047779
+Facture n° RNS-889213 — 10/10/2026
+Destinataire : Transports Martin
+
+Inscription au registre et publication de vos données       1 x 289,00
+
+Total HT : 289,00 €
+TVA 20 % : 57,80 €
+Total à payer : 346,80 €
+
+Règlement sous 8 jours pour éviter la radiation.
+IBAN : ES91 2100 0418 4502 0005 1332
+
+Ce document est une offre commerciale et non une facture.

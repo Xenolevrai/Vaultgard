@@ -45,6 +45,7 @@ except ImportError:
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 DASHBOARD = DASHBOARD_DIR / "index.html"
 MAX_BODY = 16 * 1024
+MAX_AUDIT_BODY = 320 * 1024
 SESSION_TTL = 2 * 3600
 MAX_SESSIONS = 500
 CSV_DANGEROUS = ("=", "+", "-", "@", "\t", "\r")
@@ -281,7 +282,7 @@ class Handler(BaseHTTPRequestHandler):
         if name not in CFG.allowed_hosts:
             raise ApiError(403, "Origine refusée")
 
-    def _body(self) -> dict:
+    def _body(self, limit: int = MAX_BODY) -> dict:
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "application/json":
             raise ApiError(415, "Content-Type application/json requis")
@@ -290,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             n = int(raw_len)
         except (TypeError, ValueError):
             raise ApiError(411, "Content-Length requis") from None
-        if n < 0 or n > MAX_BODY:
+        if n < 0 or n > limit:
             raise ApiError(413, "Requête trop volumineuse")
         try:
             data = json.loads(self.rfile.read(n) or b"{}", parse_constant=lambda c: None)
@@ -568,7 +569,23 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/app/inbox":
                 import inbox
                 user, org, _ = self._app_context("viewer")
-                return self._json(inbox.get_inbox(org["id"]))
+                import einvoice
+                box = inbox.get_inbox(org["id"])
+                box["platform"] = einvoice.received_index(org["id"])
+                return self._json(box)
+            if path == "/api/app/einvoices":
+                import einvoice
+                user, org, _ = self._app_context("viewer")
+                return self._json(einvoice.overview(org["id"]))
+            if path.startswith("/api/app/einvoices/") and path.endswith(".pdf"):
+                import einvoice
+                user, org, _ = self._app_context("viewer")
+                ref = path[len("/api/app/einvoices/"):-4]
+                if ref.startswith("received/"):
+                    name, data = einvoice.received_file(org["id"], ref[len("received/"):])
+                else:
+                    name, data = einvoice.issued_file(org["id"], ref)
+                return self._send(200, data, "application/pdf", {"Content-Disposition": f'attachment; filename="{name}"'})
             if path.startswith("/api/app/transfers/") and path.endswith(".xml"):
                 import transfers
                 user, org, _ = self._app_context("approver")
@@ -858,7 +875,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(e.code, e.message)
 
         self._require_csrf(s)
-        b = self._body()
+        # Seule route qui reçoit un fichier (de virements, à contrôler) : limite propre, jeton CSRF déjà vérifié.
+        b = self._body(MAX_AUDIT_BODY if path == "/api/app/transfers/audit" else MAX_BODY)
 
         if path == "/api/logout":
             SESSIONS.drop(sid)
@@ -975,6 +993,29 @@ class Handler(BaseHTTPRequestHandler):
                     canary_address=b.get("canary_address"),
                     ip=self._ip()
                 ))
+            if path.startswith("/api/app/einvoices"):
+                import einvoice
+                if path == "/api/app/einvoices/profile":
+                    user, org, _ = self._app_context("admin")
+                    siren, address = b.get("siren"), b.get("address", "")
+                    if not isinstance(siren, str) or not isinstance(address, str) or len(siren) > 20 or len(address) > 200:
+                        raise ApiError(400, "Champs requis : siren, address")
+                    return self._json(einvoice.set_profile(org["id"], user["id"], siren, address, ip=self._ip()))
+                if path == "/api/app/einvoices/lookup":
+                    user, org, _ = self._app_context("viewer")
+                    siren = b.get("siren")
+                    if not isinstance(siren, str) or len(siren) > 20:
+                        raise ApiError(400, "Champ requis : siren")
+                    found = einvoice.find_company(siren)
+                    return self._json({"found": bool(found), "name": found["name"] if found else ""})
+                if path == "/api/app/einvoices":
+                    user, org, _ = self._app_context("approver")
+                    siren, name = b.get("buyer_siren"), b.get("buyer_name", "")
+                    if not isinstance(siren, str) or not isinstance(name, str) or len(siren) > 20 or len(name) > 200:
+                        raise ApiError(400, "Champs requis : buyer_siren, lines")
+                    return self._json(einvoice.create_invoice(org["id"], user["id"], siren, b.get("lines"), buyer_name=name,
+                                                              ip=self._ip()), code=201)
+                raise ApiError(404, "Introuvable")
             if path.startswith(("/api/app/inbox/", "/api/app/payees", "/api/app/transfers")):
                 import inbox
                 import transfers
@@ -1025,6 +1066,12 @@ class Handler(BaseHTTPRequestHandler):
                     user, org, _ = self._app_context("approver")
                     batch = transfers.create_batch(org["id"], user["id"], ip=self._ip())
                     return self._json(seal(org["id"], user["id"], batch["id"]), code=201)
+                if path == "/api/app/transfers/audit":
+                    user, org, _ = self._app_context("approver")
+                    content = b.get("content")
+                    if not isinstance(content, str):
+                        raise ApiError(400, "Champ requis : content")
+                    return self._json(transfers.audit_file(org["id"], user["id"], content, ip=self._ip()))
                 if path == "/api/app/transfers/seal":
                     user, org, _ = self._app_context("approver")
                     return self._json(seal(org["id"], user["id"], text("id")))

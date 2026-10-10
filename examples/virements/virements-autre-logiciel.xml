@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
+ <CstmrCdtTrfInitn>
+  <GrpHdr><MsgId>COMPTA-2026-10-11</MsgId><CreDtTm>2026-10-11T08:00:00</CreDtTm><NbOfTxs>4</NbOfTxs><CtrlSum>3120.00</CtrlSum><InitgPty><Nm>Transports Martin</Nm></InitgPty></GrpHdr>
+  <PmtInf>
+   <PmtInfId>COMPTA-2026-10-11</PmtInfId><PmtMtd>TRF</PmtMtd>
+   <Dbtr><Nm>Transports Martin</Nm></Dbtr><DbtrAcct><Id><IBAN>FR8830003034950005012345678</IBAN></Id></DbtrAcct>
+   <CdtTrfTxInf>
+    <PmtId><EndToEndId>GD-2026-3001</EndToEndId></PmtId>
+    <Amt><InstdAmt Ccy="EUR">234.00</InstdAmt></Amt>
+    <Cdtr><Nm>Garage Dupont</Nm></Cdtr>
+    <CdtrAcct><Id><IBAN>FR7630006000011234567890189</IBAN></Id></CdtrAcct>
+    <RmtInf><Ustrd>Facture GD-2026-3001</Ustrd></RmtInf>
+   </CdtTrfTxInf>
+   <CdtTrfTxInf>
+    <PmtId><EndToEndId>LCE-7781</EndToEndId></PmtId>
+    <Amt><InstdAmt Ccy="EUR">2400.00</InstdAmt></Amt>
+    <Cdtr><Nm>Loueur Camions Express</Nm></Cdtr>
+    <CdtrAcct><Id><IBAN>LT553250018764529381</IBAN></Id></CdtrAcct>
+    <RmtInf><Ustrd>Facture LCE-7781</Ustrd></RmtInf>
+   </CdtTrfTxInf>
+   <CdtTrfTxInf>
+    <PmtId><EndToEndId>EP-3310</EndToEndId></PmtId>
+    <Amt><InstdAmt Ccy="EUR">126.00</InstdAmt></Amt>
+    <Cdtr><Nm>Epicerie Pro</Nm></Cdtr>
+    <CdtrAcct><Id><IBAN>FR9310278060410002054870149</IBAN></Id></CdtrAcct>
+    <RmtInf><Ustrd>Facture EP-3310</Ustrd></RmtInf>
+   </CdtTrfTxInf>
+   <CdtTrfTxInf>
+    <PmtId><EndToEndId>NE-0456</EndToEndId></PmtId>
+    <Amt><InstdAmt Ccy="EUR">360.00</InstdAmt></Amt>
+    <Cdtr><Nm>Nettoyage Express 95</Nm></Cdtr>
+    <CdtrAcct><Id><IBAN>FR2517569000704593867824K55</IBAN></Id></CdtrAcct>
+    <RmtInf><Ustrd>Facture NE-0456</Ustrd></RmtInf>
+   </CdtTrfTxInf>
+  </PmtInf>
+ </CstmrCdtTrfInitn>
+</Document>

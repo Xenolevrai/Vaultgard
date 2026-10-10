@@ -23,25 +23,28 @@
           <a href="#inbox" class="nav-link" data-section="inbox">2. Factures reçues</a>
         </li>
         <li class="nav-item">
-          <a href="#payments" class="nav-link" data-section="payments">3. Paiements</a>
+          <a href="#einvoices" class="nav-link" data-section="einvoices">3. Factures émises</a>
         </li>
         <li class="nav-item">
-          <a href="#api-keys" class="nav-link" data-section="api-keys">4. Assistants et clés d'accès</a>
+          <a href="#payments" class="nav-link" data-section="payments">4. Paiements</a>
         </li>
         <li class="nav-item">
-          <a href="#suppliers" class="nav-link" data-section="suppliers">5. Fournisseurs</a>
+          <a href="#api-keys" class="nav-link" data-section="api-keys">5. Assistants et clés d'accès</a>
         </li>
         <li class="nav-item">
-          <a href="#policy" class="nav-link" data-section="policy">6. Règles de paiement</a>
+          <a href="#suppliers" class="nav-link" data-section="suppliers">6. Fournisseurs</a>
         </li>
         <li class="nav-item">
-          <a href="#audit" class="nav-link" data-section="audit">7. Historique et preuves</a>
+          <a href="#policy" class="nav-link" data-section="policy">7. Règles de paiement</a>
         </li>
         <li class="nav-item">
-          <a href="#team" class="nav-link" data-section="team">8. Équipe</a>
+          <a href="#audit" class="nav-link" data-section="audit">8. Historique et preuves</a>
         </li>
         <li class="nav-item">
-          <a href="#settings" class="nav-link" data-section="settings">9. Paramètres</a>
+          <a href="#team" class="nav-link" data-section="team">9. Équipe</a>
+        </li>
+        <li class="nav-item">
+          <a href="#settings" class="nav-link" data-section="settings">10. Paramètres</a>
         </li>
       </ul>
 
@@ -157,9 +160,10 @@
         <!-- SECTION : Factures reçues par mail -->
         <section id="sec-inbox" class="app-section">
           <div class="section-header">
-            <h1 class="section-title">Vos factures reçues par mail</h1>
-            <p class="section-desc">Transférez une facture à l'adresse ci-dessous. VaultGuard la contrôle et vous répond :
-              bonne à payer, à vérifier par vous, ou refusée. Aucun paiement ne part d'ici, et la facture n'est pas conservée.</p>
+            <h1 class="section-title">Vos factures reçues</h1>
+            <p class="section-desc">Les factures arrivent ici par la plateforme (émises par vos fournisseurs) ou par mail
+              (transférées à l'adresse ci-dessous). VaultGuard contrôle chacune et répond : bonne à payer, à vérifier
+              par vous, ou refusée. Aucun paiement ne part d'ici.</p>
           </div>
 
           <div class="card inbox-card">
@@ -192,6 +196,23 @@
               jamais votre argent. L'empreinte de chaque fichier est scellée sur Avalanche : c'est la preuve de ce qui a
               été préparé, et quand.</div>
             <div class="inbox-list" id="transfer-batches"></div>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Dernier contrôle avant la banque</div>
+            </div>
+            <div class="form-help inbox-pad">Votre fichier de virements vient d'un autre logiciel (comptabilité,
+              paie, gestion) ? Déposez-le ici avant de l'envoyer à votre banque. Chaque virement est comparé à votre
+              liste de fournisseurs : un compte bancaire remplacé se voit tout de suite, quelle que soit la façon dont
+              il est arrivé dans le fichier. Le fichier n'est pas conservé.</div>
+            <div class="inbox-pad">
+              <label class="form-label" for="audit-file">Fichier de virements SEPA (.xml)</label>
+              <input class="form-input" type="file" id="audit-file" accept=".xml,application/xml,text/xml">
+              <span class="text-muted-sm" id="audit-msg" role="status"></span>
+            </div>
+            <div class="inbox-pad" id="audit-summary"></div>
+            <div class="inbox-list" id="audit-lines"></div>
           </div>
 
           <div class="table-container">
@@ -289,6 +310,78 @@
               <button type="submit" class="btn btn-primary" id="btn-save-threshold">Enregistrer</button>
               <span class="text-muted-sm" id="inbox-threshold-msg" role="status"></span>
             </form>
+          </div>
+        </section>
+
+        <!-- SECTION : Factures émises (plateforme de facturation) -->
+        <section id="sec-einvoices" class="app-section">
+          <div class="section-header">
+            <h1 class="section-title">Vos factures émises</h1>
+            <p class="section-desc">Créez une facture électronique et envoyez-la à votre client par son numéro SIREN.
+              S'il est sur la plateforme, il la reçoit aussitôt, déjà contrôlée, et vous suivez ici ce qu'elle devient.</p>
+          </div>
+
+          <div class="card inbox-card">
+            <div class="card-label">Votre entreprise</div>
+            <form id="einv-profile-form" class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="einv-siren">Votre numéro SIREN (9 chiffres)</label>
+                <input class="form-input mono" type="text" id="einv-siren" inputmode="numeric" maxlength="11" required>
+              </div>
+              <div class="form-group supplier-addr-field">
+                <label class="form-label" for="einv-address">Adresse (facultatif)</label>
+                <input class="form-input" type="text" id="einv-address" maxlength="120">
+              </div>
+              <button type="submit" class="btn btn-primary" id="btn-save-profile">Enregistrer</button>
+              <span class="text-muted-sm" id="einv-profile-msg" role="status"></span>
+            </form>
+            <div class="form-help" id="einv-bank-help"></div>
+          </div>
+
+          <div class="card inbox-card" id="einv-create-card">
+            <div class="card-label">Nouvelle facture</div>
+            <form id="einv-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="einv-buyer-siren">SIREN de votre client</label>
+                  <input class="form-input mono" type="text" id="einv-buyer-siren" inputmode="numeric" maxlength="11" required>
+                </div>
+                <div class="form-group supplier-name-field">
+                  <label class="form-label" for="einv-buyer-name">Nom de votre client</label>
+                  <input class="form-input" type="text" id="einv-buyer-name" maxlength="80">
+                </div>
+              </div>
+              <div class="form-help" id="einv-buyer-status" role="status">Saisissez le SIREN : le nom s'affiche si votre client est sur la plateforme.</div>
+              <div id="einv-lines"></div>
+              <div class="form-row">
+                <button type="button" class="btn btn-secondary" id="btn-einv-add-line">Ajouter une ligne</button>
+                <span class="mono" id="einv-total"></span>
+              </div>
+              <div class="form-row">
+                <button type="submit" class="btn btn-primary" id="btn-einv-send">Créer et envoyer la facture</button>
+                <span class="text-muted-sm" id="einv-msg" role="status"></span>
+              </div>
+            </form>
+            <div class="form-help">Vous ne saisissez ni numéro de facture ni compte bancaire : le numéro est attribué à la
+              suite, et le compte est celui de votre entreprise. La page et les données de la facture sont produites
+              ensemble : elles ne peuvent pas se contredire.</div>
+          </div>
+
+          <div class="table-container">
+            <div class="table-header-bar">
+              <div class="table-title">Factures émises</div>
+              <button id="btn-refresh-einv" class="btn btn-secondary">Actualiser</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Émise le</th><th>Numéro</th><th>Client</th><th>Montant TTC</th><th>Où en est-elle</th><th></th></tr>
+                </thead>
+                <tbody id="einv-tbody">
+                  <tr><td class="table-empty-cell" colspan="6">Chargement...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 

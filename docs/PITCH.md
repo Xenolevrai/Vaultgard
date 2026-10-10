@@ -1,4 +1,33 @@
-# Pitch VaultGuard (3 min + 2 min Q&A)
+# Pitch VaultGuard (5 min + 2 min de questions au round 1)
+
+## Direction du 10 oct au soir : la fraude à la facture électronique (à pitcher en premier)
+Retour des juges : « votre solution existe déjà, démarquez-vous ». Réponse : **on ne pitche plus le paiement de
+factures, on pitche la détection des fraudes que les autres ne voient pas.** Détail, preuves et sources :
+`DETECTION-FRAUDE.md`.
+
+| Temps | Contenu |
+|---|---|
+| 0:00–0:40 | **Accroche.** « Le 17 juin et le 9 septembre 2026, la Cour de cassation a jugé deux fraudes au faux RIB : 103 000 € et 365 000 € partis sur le compte d'un escroc. Dans les deux cas, la facture avait l'air vraie. » |
+| 0:40–1:30 | **Le problème nouveau.** Depuis le 1er septembre 2026, toute entreprise reçoit des factures électroniques. Une facture électronique, c'est deux documents en un : la page que l'humain regarde, et les données que le logiciel paie. Personne ne vérifie qu'ils disent la même chose. Image : un chèque dont les chiffres et les lettres diffèrent. |
+| 1:30–3:30 | **Démo** : `ENVOYER-FRAUDES-DEMO.bat` (facture normale payée ; compte différent dans les données → refusée ; PDF retouché ; nom sosie ; doublon maquillé), puis le fichier de virements d'un autre logiciel → « N'envoyez pas ce fichier ». |
+| 3:30–4:20 | **Les chiffres.** 25 fraudes reconstruites à partir de cas publiés : notre propre version d'hier en laissait payer 7 sur 17 ; aujourd'hui 0, sans fausse alerte sur les factures honnêtes piégeuses. 70 mails au total, ~20 ms par mail. Dire que c'est notre jeu d'essai. |
+| 4:20–5:00 | **Pourquoi nous.** Les autres vérifient « ce compte appartient-il à cette société ? ». Nous vérifions « ce document dit-il la même chose à l'humain et à la machine ? », nous contrôlons le fichier juste avant la banque, et un compte refusé chez un client prévient les autres. Preuve de chaque lot scellée sur Avalanche. |
+
+Questions probables sur cette direction :
+- *« Pennylane ne le fait pas déjà ? »* — D'après ce qu'ils publient, ils lisent et paient ; les vérificateurs d'IBAN
+  (Trustpair, Sis ID) répondent à « ce compte est-il à cette société ». Aucun ne compare la page et les données
+  d'une même facture, à notre connaissance. On ne les remplace pas : on se place devant eux, et on contrôle leur
+  fichier de virements.
+- *« Vos chiffres sont sur vos propres données ? »* — Oui, et on le dit : il n'existe pas de base publique de vraies
+  factures frauduleuses. Chaque cas reproduit une fraude publiée, source à l'appui. Le chiffre honnête est le
+  « avant / après » sur notre propre outil.
+- *« Et si un client signale un compte honnête ? »* — Un signalement ne produit qu'une demande de vérification, jamais
+  un refus, et jamais sur un compte déjà dans le carnet de l'entreprise.
+- *« Où est Avalanche ? »* — Registre de preuves : l'empreinte de chaque fichier de virements est scellée sur notre
+  contrat Fuji. Elle prouve ce qui a été contrôlé et quand, sans que nous puissions la réécrire.
+
+Le reste de ce document décrit le pitch précédent (pare-feu d'agents IA, coffre Avalanche) : à garder en réserve
+pour les questions, pas pour le déroulé.
 
 ## Positionnement (à dire tôt, avant que le jury le pense à notre place)
 Des outils comme Pennylane, Libeo ou Spendesk paient déjà des factures automatiquement. Nous ne sommes pas un

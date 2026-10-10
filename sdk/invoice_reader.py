@@ -18,6 +18,7 @@ découpe le texte en morceaux qui se recouvrent.
 """
 from __future__ import annotations
 
+import bisect
 import email
 import email.policy
 import hashlib
@@ -82,6 +83,13 @@ class Invoice:
     lines: list[dict[str, str]] = field(default_factory=list)
     file_sha256: str = ""
     attachments: list[dict[str, str]] = field(default_factory=list)  # mail : [{sha256, total}] par pièce jointe
+    # Facture hybride (PDF + XML embarqué) : ce que la PAGE montre à un humain. Les autres champs viennent du XML,
+    # que lisent les logiciels. Rien n'oblige les deux à dire la même chose : c'est à l'appelant de les comparer.
+    shown: str = ""
+    seen: dict[str, str] = field(default_factory=dict)               # {number, total, currency} lus sur la page
+    # PDF retouché : texte des versions remplacées, encore présentes dans le fichier, et indices de retouche.
+    previous: str = ""
+    traces: list[str] = field(default_factory=list)
 
     def documents(self) -> list[dict[str, str]]:
         """Le texte complet, découpé pour l'API : [{source, content, file_sha256}]."""
@@ -262,7 +270,12 @@ def _pdf_page_text(stream: bytes) -> str:
 def _pdf(data: bytes, name: str) -> Invoice:
     """Texte des pages (visible ou non) et XML embarqué d'un Factur-X. Extraction simple : les PDF chiffrés ou
     à polices exotiques ne donnent rien et partent à un humain."""
-    texts, embedded, budget = [], "", MAX_INFLATED
+    embedded, budget = "", MAX_INFLATED
+    # Un éditeur de PDF ne réécrit pas le fichier : il ajoute à la fin une nouvelle version des objets modifiés.
+    # La dernière définition d'un objet est celle qui s'affiche ; les précédentes restent lisibles dans le fichier.
+    starts = [(m.start(), int(m.group(1))) for m in re.finditer(rb"(?<![0-9])(\d{1,7})[ \t]+\d{1,5}[ \t]+obj\b", data)]
+    positions = [s for s, _ in starts]
+    pages: list[tuple[int, str]] = []                                # (numéro d'objet, texte), dans l'ordre du fichier
     for m in re.finditer(rb"(?<!end)stream\r?\n", data):
         end = data.find(b"endstream", m.end())
         if end < 0 or budget <= 0:
@@ -272,15 +285,45 @@ def _pdf(data: bytes, name: str) -> Invoice:
         if b"CrossIndustryInvoice" in stream or (b"Invoice" in stream and b"urn:oasis:names:specification:ubl" in stream):
             embedded = stream[stream.find(b"<"):].decode("utf-8", "replace").lstrip("﻿")
         elif b"BT" in stream and (b"Tj" in stream or b"TJ" in stream):
-            texts.append(_pdf_page_text(stream))
-    text = "\n".join(t for t in texts if t.strip())
+            owner = bisect.bisect_right(positions, m.start()) - 1
+            pages.append((starts[owner][1] if owner >= 0 else -len(pages) - 1, _pdf_page_text(stream)))
+    last = {number: i for i, (number, _) in enumerate(pages)}
+    text = "\n".join(t for i, (n, t) in enumerate(pages) if last[n] == i and t.strip())
+    previous = "\n".join(t for i, (n, t) in enumerate(pages) if last[n] != i and t.strip())
+    traces = _pdf_traces(data)
+    if previous and re.sub(r"\s+", " ", previous).strip() != re.sub(r"\s+", " ", text).strip():
+        traces.append("rewritten")
     if embedded:
         inv = _xml(embedded, name)
-        inv.fmt, inv.text = "facturx", embedded + "\n" + text
-        return inv
-    if sum(c.isalnum() for c in text) < 20:
+        inv.fmt, inv.text, inv.shown = "facturx", "\n".join([embedded, text, previous]), text
+        page = _from_text(Invoice(fmt="pdf"), text)
+        inv.seen = {"number": page.number, "total": page.total, "currency": page.currency}
+    elif sum(c.isalnum() for c in text) < 20:
         return _ocr(data, name, ".pdf")
-    return _from_text(Invoice(fmt="pdf", name=name, text=text), text)
+    else:
+        inv = _from_text(Invoice(fmt="pdf", name=name, text=text + ("\n" + previous if previous else "")), text)
+    inv.previous, inv.traces = previous, traces
+    return inv
+
+
+# Logiciels qui servent à retoucher un PDF existant, pas à produire une facture.
+_PDF_EDITORS = re.compile(rb"ilovepdf|sejda|smallpdf|pdfescape|pdf-?xchange|foxit|phantompdf|nitro|pdfelement|"
+                          rb"wondershare|soda ?pdf|pdffiller|dochub|pdf24|inkscape|illustrator|photoshop|gimp|"
+                          rb"libreoffice draw|master pdf|xodo|pdf ?candy|canva", re.I)
+
+
+def _pdf_traces(data: bytes) -> list[str]:
+    """Indices de retouche lisibles sans dépendance : mise à jour ajoutée après coup, logiciel de retouche,
+    logiciel de fin différent du logiciel d'origine. Aucun n'est une preuve seul ; ils appuient les autres contrôles."""
+    traces = []
+    producers = [re.sub(rb"\s+", b" ", p).strip().lower() for p in re.findall(rb"/Producer\s*\(((?:\\.|[^\\()]){0,200})\)", data)]
+    if data.count(b"%%EOF") > 1:
+        traces.append("updated")
+        if len(set(producers)) > 1:
+            traces.append("other_tool")
+    if any(_PDF_EDITORS.search(p) for p in producers):
+        traces.append("editor")
+    return traces
 
 
 # ------------------------------------------------------------------ Bureautique, images, mails
@@ -350,9 +393,11 @@ def _mail(data: bytes, name: str) -> Invoice:
                   attachments=[{"sha256": a.file_sha256, "total": a.total} for a in attached])
     best = next((a for a in attached if a.total), None)
     if best:
-        for attr in ("number", "supplier", "currency", "total", "tax", "pay_to", "lines"):
+        for attr in ("number", "supplier", "currency", "total", "tax", "pay_to", "lines", "shown", "seen"):
             setattr(inv, attr, getattr(best, attr))
         inv.fmt = f"mail+{best.fmt}"
+    inv.previous = "\n".join(a.previous for a in attached if a.previous)
+    inv.traces = sorted({t for a in attached for t in a.traces})
     # Un mail porte souvent le même contenu deux fois (texte et HTML) : les champs sont lus dans une seule
     # version, celle qu'affiche une messagerie, sinon chaque ligne compterait double. `inv.text` garde tout.
     visible = shown["text/html"] or shown["text/plain"]

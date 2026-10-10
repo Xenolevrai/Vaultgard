@@ -11,29 +11,36 @@
 - Le dashboard tourne sur http://localhost:8000 et peut être vérifié avec Claude in Chrome.
 - Ozgun utilise aussi **Antigravity** sur ce projet : relire `git log` / l'état dans AGENTS.md §6 en début de session, et mettre §6 à jour en fin de tâche.
 - Économie de tokens : lire seulement les parties utiles, pas de sous-agents sauf demande.
-- **Hackathon en cours (10-11 oct).** Contrat déployé sur Fuji et vérifié le 10 oct. En début de session : lire
-  `docs/HACKATHON.md` (règles officielles, livrables à rendre dim. 12h00, grille Track 1), puis AGENTS.md §8 et §6.
-  Reste : vidéo, deck, fiche de défense, playbook, slide conformité, métriques (pas de tâche de fond entre sessions).
-- **10 oct soir** : demandes de l'équipe traitées (zéro conservation, lecteur multi-formats, prix, boîte dédiée) —
-  AGENTS.md §6, `docs/CONFIANCE-ARGENT-LEGAL.md` (blockchain, argent réel, légalité, marché) et `docs/ESSAYER.md`
-  (parcours d'essai d'Ozgun), `docs/INSTALLATION-CLIENT.md`, `docs/EXPLIQUER-SIMPLEMENT.md`. Règles à tenir : aucun
-  texte de facture ni de consigne en base, seulement des empreintes ; interface `/app` en langage simple (utilisateurs
-  non informaticiens : pas de jargon, une phrase claire, technique repliée). Ozgun a du mal à expliquer le projet :
-  lui répondre avec des images simples (le stagiaire au chéquier, le contrôleur, le coffre à règles fixes).
-  L'équipe veut rester centrée Track 1 / Avalanche ; les factures restent en euros (AVAX = jeton de démo, EURC en réel).
-- **10 oct, fin de journée — direction actuelle : la boîte de dépôt des factures** (`docs/BOITE-FACTURES.md`, à lire
-  en premier ; AGENTS.md §6). Une adresse mail par entreprise, expéditeurs de confiance, verdict « bonne à payer / à
-  vérifier / refusée », en euros avec IBAN ; paiement = fichier de virements SEPA validé par
-  l'entreprise dans sa banque, empreinte scellée sur Avalanche (`agent/transfers.py`) ; mentions légales SIREN/TVA
-  et annuaire public en option (`agent/registry.py`). Code : `agent/inbox.py`,
-  `agent/mail_agent.py`, `agent/test_inbox.py`, `examples/boite_demo.py`. Démo : `ENVOYER-FACTURES-DEMO.bat`.
-  Chiffres : `python3 ../scripts/detection-metrics.py --write` (depuis `agent/`).
-  Toujours lancer les tests avec `CHAIN=` ou `CHAIN=mock` : `agent/.env` contient `CHAIN=web3` et un test qui
-  l'oublie parle au vrai contrat Fuji. Dans le navigateur, neutraliser `window.alert` avant de tester un formulaire
-  (une alerte bloque l'onglet piloté).
-- **Positionnement du pitch (10 oct soir)** : VaultGuard n'est pas présenté comme un concurrent de Pennylane/Libeo
-  (paiement de factures = marché bouché, `docs/CONFIANCE-ARGENT-LEGAL.md` §8) mais comme la couche de contrôle qui
-  se place devant leur paiement. Voir `docs/PITCH.md` (section Positionnement) avant de retoucher le pitch ou le deck.
+- **Hackathon en cours (10-11 oct), gel dim. 12h00.** En début de session : lire `docs/HACKATHON.md` (règles
+  officielles, livrables, grille Track 1), puis la direction actuelle ci-dessous, puis AGENTS.md §6 si besoin de
+  détail. Reste : vidéo, deck, fiche de défense, playbook, slide conformité (métriques faites).
+- Règles qui tiennent depuis le 10 oct, quelle que soit la direction du pitch : zéro conservation du texte des
+  factures (seulement des empreintes SHA-256) ; `/app` en langage simple, sans jargon (utilisateurs non
+  informaticiens) ; rester centré Track 1 / Avalanche ; factures en euros (AVAX = jeton de démo). Détails :
+  `docs/CONFIANCE-ARGENT-LEGAL.md`, `docs/EXPLIQUER-SIMPLEMENT.md`, `docs/INSTALLATION-CLIENT.md`.
+- **Direction actuelle (10 oct, tard) : détection de fraude à la facture, positionnée comme module anti-fraude
+  branché sur Pennylane (add-on), pas comme concurrent.** Historique complet (boîte mail → fraude électronique →
+  mini-plateforme de facturation → add-on Pennylane) dans AGENTS.md §6 ; ne pas le relire en entier, juste la fin.
+  **Lire en premier `docs/DETECTION-FRAUDE.md`**, puis `docs/PITCH.md` (déroulé en tête, remplace l'ancien).
+  - Contrôles anti-fraude : `agent/fraud.py`, `agent/test_fraud.py`, `examples/fraudes_reelles.py` (25 cas sourcés :
+    2 arrêts Cour de cassation 2026, La Banque Postale, DGCCRF, Supervizor, DAF Magazine), `transfers.audit_file`
+    (contrôle d'un fichier de virements venu de n'importe quel logiciel). Démo : `ENVOYER-FRAUDES-DEMO.bat`.
+  - Mini-plateforme de facturation (`agent/einvoice.py`, menu « 3. Factures émises », 11 tests) : émettre une
+    facture électronique vers une autre entreprise par son SIREN, remise déjà contrôlée. Démo :
+    `PREPARER-PLATEFORME-DEMO.bat`. Passée au second plan derrière l'angle « add-on Pennylane », gardée comme
+    démonstration du principe « page + données produites ensemble ».
+  - **Connecteur Pennylane non construit.** Vérifié dans leur doc API v2 (officielle, pas testée en vrai) :
+    `GET /supplier_invoices` renvoie `public_file_url` (PDF) et `e_invoicing.source_file_url` (XML d'origine) —
+    exactement ce que `fraud.layers` compare ; `GET /suppliers` donne `iban`/`reg_no`/`vat_number` ;
+    `PUT .../e_invoice_status` (`approved`/`disputed`/`refused` + motif) permet d'écrire notre verdict dans
+    Pennylane. Jeton : compte Essential+, rôle admin, bac à sable via « Test environment » ; intégration publique
+    = OAuth 2.0 via integrations@pennylane.com. **Demander à l'équipe si quelqu'un a un compte Pennylane avant de
+    construire le connecteur** ; sinon il ne peut être testé que contre un simulateur écrit d'après la doc.
+  - Toute nouvelle règle de fraude : un cas dans `fraudes_reelles.corpus()` avec sa source, et une facture honnête
+    qui lui ressemble. Ne jamais annoncer « 100 % » sans dire que le jeu d'essai est le nôtre ; le chiffre à citer
+    est l'avant/après (7 fraudes payées sur 17 → 0, `docs/METRIQUES.md`).
+  - Reste ouvert : la Track 1 ne cite explicitement que les axes 3 et 4 dans nos notes ; vérifier qu'un axe couvre
+    bien la fraude aux paiements (pas trouvé de liste complète des axes dans le dossier).
 - Le site tournant en local (`LANCER-DASHBOARD.bat`) utilise `CHAIN=web3` : un clic sur « Préparer le fichier de
   virements » ou « Sceller sur Avalanche » envoie une vraie transaction de test sur Fuji. Prévenir avant d'y toucher.
 - Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre

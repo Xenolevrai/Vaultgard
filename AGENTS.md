@@ -350,6 +350,59 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   (qui a demandé ce paiement, pourquoi, preuve infalsifiable, zéro conservation) — branchable derrière leur outil
   ou autonome comme dans cette démo. Grille Track 1 (détection 30 %) et tableau des livrables de `docs/HACKATHON.md`
   mis à jour avec les chiffres de `docs/METRIQUES.md` (45 mails, 33/33, 12/12).
+- [x] **Détection de fraude à la facture électronique (10 oct soir, nouvelle direction — lire `docs/DETECTION-FRAUDE.md`)**.
+  Les juges ont dit « votre solution existe déjà, démarquez-vous » : l'équipe se concentre sur **une seule chose,
+  détecter les fraudes que les autres ne voient pas**, en particulier celles nées de la facture électronique
+  obligatoire (réception au 1er sept. 2026). Angle : une facture hybride = la page PDF (lue par l'humain) + le XML
+  (lu par les logiciels), que personne ne compare.
+  - `agent/fraud.py` (calcul pur) : `layers` (page contre XML : IBAN, montant, numéro, nom du vendeur),
+    `lookalike` (Dupond / Dupont), `scam` (faux registre / annuaire, DGCCRF), `same_invoice` (O pour 0, suffixe
+    -BIS), `bank_hint` (pays et banque en ligne, dans l'explication seulement).
+  - `sdk/invoice_reader.py` : `Invoice.shown` / `seen` (ce que la page montre), `previous` (anciennes versions
+    restées dans un PDF retouché : seule la dernière définition d'un objet sert aux champs, sinon les lignes
+    comptaient double), `traces` (`updated`, `other_tool`, `editor`, `rewritten`).
+  - `inbox.judge` : nouvelles raisons `layer_mismatch` (refus), `pdf_edited`, `supplier_lookalike` (refus),
+    `known_scam` (refus), `iban_foreign` (SIREN français + compte étranger, sauf numéro de TVA du pays du compte),
+    `split_threshold` (factures ≥ 1/4 du seuil en 24 h), `account_reported`, doublon à numéro maquillé ; IBAN lus
+    aussi avec `-`, `.`, `/`.
+  - **Alerte partagée** : table `reported_accounts` (empreinte SHA-256, jamais l'IBAN). Un refus `iban_changed` /
+    `supplier_lookalike` / `known_scam` y inscrit le compte ; une autre entreprise qui le reçoit est avertie
+    (niveau `review` seulement : un signalement ne vaut jamais refus, et ne touche pas un compte du carnet).
+    `add_payee` retire le signalement de l'entreprise qui adopte le compte.
+  - **Dernier contrôle avant la banque** : `transfers.audit_file` + `POST /api/app/transfers/audit` (rôle approver,
+    seule route à 320 Ko, DOCTYPE refusé) + bloc dans `/app` « 2. Factures reçues ». Compare chaque ligne d'un
+    pain.001 venu de n'importe quel logiciel au carnet. Rien n'est conservé (empreinte au journal).
+  - Jeu d'essai `examples/fraudes_reelles.py` : 25 mails reconstruits depuis des cas publiés (2 arrêts de la Cour
+    de cassation de 2026, La Banque Postale, DGCCRF, Supervizor, DAF Magazine), source par cas. **Avant : 7 fraudes
+    payées sur 17 et 2 fausses alertes sur 8 ; maintenant 0 et 0** (`docs/METRIQUES.md`, 70 mails au total).
+    Il n'existe pas de base publique de vraies factures frauduleuses : le dire au jury.
+  - Démo : `ENVOYER-FRAUDES-DEMO.bat` (7 mails `examples/boite/2*.eml`) puis
+    `examples/virements/virements-autre-logiciel.xml` dans le bloc « Dernier contrôle avant la banque ».
+    Vérifié dans Chrome sur une instance jetable. Pitch réécrit en tête de `docs/PITCH.md`.
+  - 220 tests Python (`test_fraud.py` : 18), `test-all.sh --full` vert, audit 29/29. **Non commité** (à faire sur
+    demande d'Ozgun). Le site d'Ozgun doit être relancé pour prendre le nouveau code.
+  - Suite possible : sceller la liste des comptes signalés sur Avalanche ; vérification du titulaire du compte par
+    un service bancaire ; OCR des factures scannées.
+- [x] **Plateforme de facturation (10 oct, tard)** — Ozgun a remarqué que la réforme fait passer les factures par des
+  plateformes agréées, plus par mail. Vérifié : réception par plateforme obligatoire pour tous depuis le 1er sept.
+  2026, mais les PME/micro peuvent émettre en PDF par mail jusqu'au 1er sept. 2027, et les fournisseurs étrangers
+  restent hors champ. Construit : `agent/einvoice.py` (SIREN de l'entreprise, émission d'une facture hybride PDF + XML
+  CII produite d'une seule saisie, numéro attribué à la suite, IBAN = compte enregistré, remise au destinataire par
+  SIREN avec `inbox.judge`, statut suivi par l'émetteur), routes `/api/app/einvoices*`, menu « 3. Factures émises »
+  de `/app` (**les menus suivants ont pris +1** : Paiements = 4 … Paramètres = 10), `PREPARER-PLATEFORME-DEMO.bat`
+  (inscrit Transports Martin et Garage Dupont, même compte, on change par le menu « Organisation »).
+  `test_einvoice.py` : 11 tests ; 231 tests Python verts. Pas une plateforme agréée : SIREN déclaré non vérifié,
+  PDF non certifié PDF/A-3, rien n'est transmis à l'administration, pas d'échange avec les autres plateformes.
+- [ ] **Piste retenue par Ozgun ensuite : être un module anti-fraude branché sur Pennylane (add-on).** Vérifié dans
+  la doc officielle (pennylane.readme.io, API v2) : `GET /api/external/v2/supplier_invoices` renvoie pour chaque
+  facture fournisseur `public_file_url` (PDF, lien valable ~30 min) et `e_invoicing.source_file_url` (fichier
+  électronique d'origine) — exactement la page et les données que nous comparons ; `GET /suppliers` donne `iban`,
+  `reg_no` (SIREN), `vat_number` ; `GET /changelogs/{supplier_invoices|suppliers}` pour suivre les nouveautés (pas
+  de webhooks) ; écriture possible : `PUT …/supplier_invoices/{id}/e_invoice_status` (`approved` / `disputed` /
+  `refused` avec motif) et `…/payment_status`. Jeton d'entreprise : compte Pennylane offre Essential ou plus, rôle
+  admin ; bac à sable depuis le profil (« Test environment ») ; intégration publique = OAuth 2.0 via
+  integrations@pennylane.com ; 5 requêtes/s. **Connecteur non construit** ; sans compte Pennylane, il ne peut être
+  testé que contre un simulateur écrit d'après la doc.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
   1 page, playbook de réponse, accès du jury au dépôt. (Métriques de détection : fait, `docs/METRIQUES.md`.
   README « limites connues » : fait.)
