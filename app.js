@@ -192,14 +192,6 @@
   function initSelectors() {
     loadSavedViewsFromStorage();
 
-    const userSel = document.getElementById('select-user');
-    userSel.innerHTML = state.users
-      .map(
-        (u) =>
-          `<option value="${esc(u.id)}" ${u.id === state.currentUser.id ? 'selected' : ''}>${esc(u.name)} [${esc(u.role.toUpperCase())}]</option>`
-      )
-      .join('');
-
     const statusSel = document.getElementById('f-status');
     statusSel.innerHTML =
       `<option value="all">All Statuses (10)</option>` +
@@ -1209,10 +1201,6 @@
   }
 
   function renderAll() {
-    const lang = state.settings.language || 'en';
-    document.getElementById('app-title').textContent = I18N[lang].title;
-    document.getElementById('app-subtitle').textContent = I18N[lang].subtitle;
-
     syncDynamicFilterOptions();
     renderOverview();
     renderInvoicesTable();
@@ -1232,25 +1220,6 @@
     });
 
     // Header Controls
-    document.getElementById('select-user').addEventListener('change', (e) => {
-      const found = state.users.find((u) => u.id === e.target.value);
-      if (found) {
-        state.currentUser = found;
-        showToast(`Switched active actor to ${found.name} (${found.role.toUpperCase()})`);
-        renderAll();
-      }
-    });
-
-    document.getElementById('select-currency').addEventListener('change', (e) => {
-      state.settings.baseCurrency = e.target.value;
-      renderAll();
-    });
-
-    document.getElementById('select-lang').addEventListener('change', (e) => {
-      state.settings.language = e.target.value;
-      renderAll();
-    });
-
     document.getElementById('btn-theme-toggle').addEventListener('click', () => {
       const html = document.documentElement;
       const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
