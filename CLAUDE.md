@@ -31,6 +31,11 @@
   Toujours lancer les tests avec `CHAIN=` ou `CHAIN=mock` : `agent/.env` contient `CHAIN=web3` et un test qui
   l'oublie parle au vrai contrat Fuji. Dans le navigateur, neutraliser `window.alert` avant de tester un formulaire
   (une alerte bloque l'onglet piloté).
+- **Positionnement du pitch (10 oct soir)** : VaultGuard n'est pas présenté comme un concurrent de Pennylane/Libeo
+  (paiement de factures = marché bouché, `docs/CONFIANCE-ARGENT-LEGAL.md` §8) mais comme la couche de contrôle qui
+  se place devant leur paiement. Voir `docs/PITCH.md` (section Positionnement) avant de retoucher le pitch ou le deck.
+- Le site tournant en local (`LANCER-DASHBOARD.bat`) utilise `CHAIN=web3` : un clic sur « Préparer le fichier de
+  virements » ou « Sceller sur Avalanche » envoie une vraie transaction de test sur Fuji. Prévenir avant d'y toucher.
 - Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre
   en compte. Tester l'agent de factures sur une instance isolée (`DB_PATH` temporaire, autre `PORT`) : chaque refus
   compte pour le disjoncteur de la base de démo (clé en quarantaine à 5 refus en 1 h). Recréer la base de démo

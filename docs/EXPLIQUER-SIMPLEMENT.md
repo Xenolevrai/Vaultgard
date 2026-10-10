@@ -15,6 +15,11 @@ VaultGuard, c'est deux choses autour de ce stagiaire :
 
 Trois issues possibles, et pas une de plus : **payé**, **à valider par un humain**, **bloqué**.
 
+## Ce que VaultGuard n'est pas
+Des outils comme Pennylane ou Libeo paient déjà des factures automatiquement : ce marché est occupé. VaultGuard
+n'y entre pas en concurrent — c'est le contrôleur du paragraphe ci-dessus, qui peut se placer devant n'importe lequel
+de ces outils, ou fonctionner seul comme dans cette démo.
+
 ## Les mots à remplacer
 | Ne dis pas | Dis |
 |---|---|
@@ -52,11 +57,15 @@ vérification de la chaîne d'autorité. Ce que le sujet demande, et ce que Vaul
 | Validation humaine des actions sensibles | « À faire » : Accepter ou Refuser |
 | Contrat surveillé sur Avalanche Fuji (axe 4) | coffre déployé sur Fuji, refus enregistrés, pause |
 
-## Les trois questions à préparer
+## Les quatre questions à préparer
 - **« Si votre système se trompe, qui est responsable ? »** La perte maximale est fixée par le contrat de
   l'entreprise, et tout montant sensible passe par un humain. Nous ne détenons jamais les fonds.
-- **« Le fournisseur veut des euros sur son compte. »** Aujourd'hui la cible est l'entreprise qui règle déjà en
-  euro numérique ; ensuite un partenaire de paiement agréé reverse un virement. Ce n'est pas construit.
+- **« Le fournisseur veut des euros sur son compte. »** C'est construit : VaultGuard prépare un fichier de
+  virements (format bancaire standard) que l'entreprise importe dans sa banque et valide une seule fois pour
+  toutes les factures du jour. Le fournisseur reçoit un virement ordinaire. Nous ne touchons jamais l'argent.
+- **« Pennylane/Libeo font déjà ça. »** Eux paient les factures ; nous sommes le contrôle de sécurité placé devant
+  le paiement, pour détecter quand un agent IA a été manipulé. On se branche derrière leur outil, on ne les
+  remplace pas.
 - **« Qu'avez-vous fait pendant le hackathon ? »** Dire honnêtement ce qui existait avant et ce qui a été ajouté
-  (déploiement Fuji, parcours factures et mail, zéro conservation, contrôle des prix, preuve de paiement,
-  tableau de bord en langage simple).
+  (déploiement Fuji, boîte de dépôt des factures par mail, zéro conservation, contrôle des prix et des mentions
+  légales, fichier de virements avec preuve sur Avalanche, tableau de bord en langage simple).

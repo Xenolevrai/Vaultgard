@@ -141,6 +141,11 @@ d'où vient l'ordre de payer, elle borne la perte par un contrat que personne ne
 pas les données. Une grande entreprise pourrait le construire ; l'avantage est d'être spécialisé, neutre (ni la
 banque ni l'éditeur de l'agent) et vérifiable par un tiers.
 
+Le parcours de démonstration (boîte mail, verdict, fichier de virements) ressemble en surface à Pennylane ou Libeo :
+c'est volontaire, pour montrer un scénario complet et vérifiable, pas pour concurrencer leur produit. La différence
+qui compte au pitch : eux optimisent pour payer vite, nous optimisons pour détecter quand l'ordre de payer a été
+manipulé, avec zéro conservation des documents et une preuve que même nous ne pouvons pas falsifier après coup.
+
 ## 9. Limites connues
 
 - Lecture des PDF sans dépendance : les PDF scannés, chiffrés ou à polices exotiques ne sont pas lus et partent à
@@ -148,8 +153,8 @@ banque ni l'éditeur de l'agent) et vérifiable par un tiers.
 - Le contrôle des prix compare à une liste tenue par le client et envoyée par son agent : il attrape les erreurs,
   pas un agent entièrement compromis. Les bornes dures restent celles du contrat.
 - Les factures de démo donnent l'adresse de paiement du fournisseur dans le champ du compte bancaire.
-- Pas de connecteur vers une plateforme de facturation agréée, pas de règlement en EURC dans la démo, pas de
-  conversion vers un virement SEPA.
+- Pas de connecteur vers une plateforme de facturation agréée, pas de règlement en EURC dans la démo. Le fichier de
+  virements SEPA est construit et testé mais jamais importé dans une vraie banque (voir `docs/BOITE-FACTURES.md`).
 - Contrat non audité par un tiers, réseau de test uniquement.
 
 ## Sources

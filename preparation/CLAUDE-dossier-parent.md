@@ -42,6 +42,18 @@ reçues » de `/app`, `vaultguard/ENVOYER-FACTURES-DEMO.bat`. **Lire `vaultguard
 Le projet précédent (coffre Avalanche, API `/v1`) est conservé. Restent à faire par Ozgun : brancher une boîte Gmail
 de test, **dégeler le coffre Fuji** (gelé, voir AGENTS.md §6) s'il veut montrer le parcours Avalanche.
 
+**10 oct soir — positionnement face à la concurrence.** Ozgun a demandé si Pennylane fait « exactement la même
+chose » : oui pour le parcours boîte mail + paiement (marché du paiement de factures déjà noté « bouché »). Position
+retenue pour le pitch : VaultGuard n'est pas un concurrent de Pennylane/Libeo/Spendesk, c'est **le contrôleur de
+sécurité qui se place devant le paiement** (vérifie qui a demandé le paiement et pourquoi, preuve infalsifiable sur
+Avalanche, zéro conservation), branchable derrière leur outil ou autonome comme dans la démo. Répercuté dans
+`vaultguard/docs/PITCH.md`, `EXPLIQUER-SIMPLEMENT.md`, `CONFIANCE-ARGENT-LEGAL.md`, et la grille Track 1 de
+`HACKATHON.md` (métriques désormais chiffrées : 45 mails, 33 fraudes arrêtées sur 33, 0 fausse alerte sur 12
+factures honnêtes). Ozgun envisage d'héberger sur **o2switch** (mutualisé cPanel) : pas compatible tel quel
+(serveur autonome, état en mémoire, relève mail en tâche de fond) ; options discutées = rien avant le gel de
+dim. 12h (recommandé), Docker/VPS (déjà documenté dans `MISE_EN_PRODUCTION.md`), ou adaptateur WSGI + cron à écrire.
+Pas encore tranché.
+
 **Gel des livrables : dimanche 11 oct 12h00.** Restent : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche
 de défense 1 page, playbook de réponse, accès du jury au dépôt, métriques chiffrées, et
 demander à un organisateur comment s'applique la règle « cœur du projet développé pendant l'événement » (VaultGuard

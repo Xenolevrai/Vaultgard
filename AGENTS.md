@@ -342,9 +342,22 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     12 factures honnêtes passées sur 12. Reste à faire par Ozgun : brancher une vraie boîte Gmail de test
     (`docs/BOITE-FACTURES.md`), jamais essayé avec de vrais identifiants.
 - [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
+- [x] **Positionnement face à la concurrence (10 oct soir)** — Ozgun a demandé si Pennylane fait « exactement la
+  même chose » : oui pour le parcours boîte mail + paiement, et c'est assumé (`docs/CONFIANCE-ARGENT-LEGAL.md` §8
+  le disait déjà : marché du paiement de factures bouché). Positionnement retenu, répercuté dans `docs/PITCH.md`,
+  `docs/EXPLIQUER-SIMPLEMENT.md`, `docs/CONFIANCE-ARGENT-LEGAL.md` §8 : VaultGuard n'est pas un concurrent de
+  Pennylane/Libeo/Spendesk (ils paient vite), c'est **la couche de contrôle qui se place devant le paiement**
+  (qui a demandé ce paiement, pourquoi, preuve infalsifiable, zéro conservation) — branchable derrière leur outil
+  ou autonome comme dans cette démo. Grille Track 1 (détection 30 %) et tableau des livrables de `docs/HACKATHON.md`
+  mis à jour avec les chiffres de `docs/METRIQUES.md` (45 mails, 33/33, 12/12).
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
-  1 page, playbook de réponse, accès du jury au dépôt, métriques de détection chiffrées. (README « limites connues » : fait.)
+  1 page, playbook de réponse, accès du jury au dépôt. (Métriques de détection : fait, `docs/METRIQUES.md`.
+  README « limites connues » : fait.)
 - [ ] Demander à un organisateur comment s'applique la règle « cœur du projet développé entre sam. 11h30 et dim. 12h ».
+- [ ] **Hébergement** : Ozgun envisage o2switch (mutualisé cPanel, Passenger/WSGI) — non compatible tel quel
+  (serveur autonome, état en mémoire, relève mail en tâche de fond) ; options proposées : rien avant dim. 12h
+  (recommandé), Docker/VPS (`docs/MISE_EN_PRODUCTION.md`, prêt), ou adaptateur WSGI + cron à écrire pour o2switch.
+  Pas tranché.
 - [ ] Mode `--llm` testé avec une vraie clé API
 - [ ] Backlog jour J : voir `docs/PLAN.md`
 

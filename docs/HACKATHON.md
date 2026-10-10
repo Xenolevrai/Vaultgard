@@ -29,7 +29,7 @@ Value », lus le 10 oct 2026. Emails organisateurs (Fuji, AWS) et `../AWS Partic
 | Vidéo de démo 2 à 3 min | à faire |
 | Pitch deck, 8 slides max (problème, cible, solution, démo, business model, équipe) | à faire |
 | Fiche de défense, 1 page (scénario, fonctions NIST CSF, techniques ATT&CK/ATLAS/OWASP, métriques, limites) | à faire |
-| Track 1 : PoC de bout en bout, de la détection à la réponse | fait (`examples/agent_factures.py`, `/app`, contrat Fuji) |
+| Track 1 : PoC de bout en bout, de la détection à la réponse | fait (boîte mail → verdict → fichier de virements scellé sur Fuji, `/app` menu « Factures reçues » ; aussi `examples/agent_factures.py`) |
 | Track 1 : playbook de réponse (qui est alerté, quoi est automatique, quoi reste humain, comment c'est documenté) | à écrire |
 | Track 1 : slide « conformité » (DORA, LCB-FT, MiCA, AI Act ; comment un auditeur vérifie) | à faire |
 | Adresse du contrat dans le dépôt (demande Avalanche) | fait (README) |
@@ -37,7 +37,7 @@ Value », lus le 10 oct 2026. Emails organisateurs (Fuji, AWS) et `../AWS Partic
 ## Grille d'évaluation Track 1
 | Critère | Poids | Ce que VaultGuard montre |
 |---|---|---|
-| Efficacité de détection (précision, faux positifs, délai) | 30 % | 5 factures de démo : 3 attaques bloquées, 0 faux positif ; **chiffres à produire sur un jeu plus large** |
+| Efficacité de détection (précision, faux positifs, délai) | 30 % | Jeu d'essai de 45 mails (`docs/METRIQUES.md`, reproductible) : 33 fraudes/anomalies arrêtées sur 33 (0 passée), 12 factures honnêtes sur 12 sans fausse alerte, décision en 21 ms en médiane. C'est notre propre jeu d'essai, pas du trafic réel : à dire au jury. |
 | Qualité de la réponse (proportionnée, actionnable) | 20 % | réponse graduée : payer / attente humaine / blocage / quarantaine de la clé / gel du coffre |
 | Faisabilité et intégration | 20 % | API `/v1` + SDK, contrat déployé sur Fuji, 148 tests |
 | Conformité et explicabilité | 15 % | raisons en clair avec référence OWASP, journal chaîné, rapport scellé on-chain, export CSV |
