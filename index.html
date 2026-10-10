@@ -1,342 +1,419 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vaultgard — Invoice Audit &amp; Payment Dashboard</title>
+  <title>Vaultgard — Invoice Audit &amp; Payment</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <div class="brand-shield" aria-hidden="true">VG</div>
-      <div>
-        <h1 id="app-title">Vaultgard Invoice Audit &amp; Payment</h1>
-        <div class="brand-subtitle" id="app-subtitle">Fraud Detection • 3-Way Match • Segregation of Duties • SEPA Execution</div>
+  <div class="app-shell">
+    <!-- Top Chrome Bar (matches reference window bar) -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <span class="window-dots" aria-hidden="true">
+          <i class="dot dot-red"></i>
+          <i class="dot dot-yellow"></i>
+          <i class="dot dot-green"></i>
+        </span>
+        <button class="icon-btn" id="btn-toggle-sidebar" type="button" aria-label="Toggle sidebar">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-focus-search" type="button" aria-label="Focus search">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </button>
       </div>
+
+      <div class="top-bar-tabs">
+        <div class="top-tab-pill active-pill">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <h1 id="app-title">Vaultgard Invoice Audit &amp; Payment</h1>
+        </div>
+        <div class="top-tab-pill muted-pill">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h6"/></svg>
+          <span id="app-subtitle">Fraud Detection • 3-Way Match • Segregation of Duties • SEPA Execution</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="control-group">
+          <label for="select-user">Role</label>
+          <select id="select-user" aria-label="Select active user and role"></select>
+        </div>
+
+        <div class="control-group">
+          <label for="select-currency">Ccy</label>
+          <select id="select-currency" aria-label="Select base currency">
+            <option value="EUR">EUR (€)</option>
+            <option value="USD">USD ($)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="CHF">CHF</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="select-lang">Lang</label>
+          <select id="select-lang" aria-label="Select language">
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+          </select>
+        </div>
+
+        <button class="btn" id="btn-theme-toggle" type="button" aria-label="Toggle dark or light mode">Theme</button>
+        <button class="btn btn-primary" id="btn-open-ingest" type="button">+ New invoice</button>
+      </div>
+    </header>
+
+    <div class="workspace-body">
+      <!-- Left Monotone Sidebar (Reference Design) -->
+      <aside class="sidebar" id="app-sidebar" aria-label="Main navigation">
+        <div class="sidebar-back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+          <span>Vaultgard Workspace</span>
+        </div>
+
+        <nav class="nav-tabs" role="tablist" aria-label="Dashboard sections">
+          <div class="sidebar-group-label">Audit &amp; Queue</div>
+
+          <button class="nav-tab active" role="tab" aria-selected="true" data-tab="overview">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>Overview</span>
+            </span>
+          </button>
+
+          <button class="nav-tab" role="tab" aria-selected="false" data-tab="invoices">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
+              <span>Invoices &amp; Audit</span>
+            </span>
+            <span class="tab-badge" id="badge-invoices-count">10</span>
+          </button>
+
+          <button class="nav-tab" role="tab" aria-selected="false" data-tab="alerts">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span>Alerts &amp; SLA</span>
+            </span>
+            <span class="tab-badge" id="badge-alerts-count">0</span>
+          </button>
+
+          <div class="sidebar-divider"></div>
+          <div class="sidebar-group-label">Payments &amp; Vendors</div>
+
+          <button class="nav-tab" role="tab" aria-selected="false" data-tab="payments">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              <span>Payments &amp; SEPA</span>
+            </span>
+            <span class="tab-badge" id="badge-payable-count">0</span>
+          </button>
+
+          <button class="nav-tab" role="tab" aria-selected="false" data-tab="suppliers">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Suppliers</span>
+            </span>
+          </button>
+
+          <div class="sidebar-divider"></div>
+          <div class="sidebar-group-label">Compliance &amp; Admin</div>
+
+          <button class="nav-tab" role="tab" aria-selected="false" data-tab="governance">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+              <span>Audit Trail &amp; Settings</span>
+            </span>
+          </button>
+        </nav>
+      </aside>
+
+      <!-- Main White Sheet Workspace -->
+      <main class="main-container">
+        <!-- TAB 1: OVERVIEW & KPIs -->
+        <section class="tab-panel active" id="panel-overview" role="tabpanel">
+          <div class="section-header">
+            <h2>Overview</h2>
+            <p>Real-time summary of invoice audit status, payment readiness, and fraud exposure.</p>
+          </div>
+
+          <div class="kpi-grid" id="kpi-top-cards"></div>
+
+          <div class="card" style="margin-bottom: 1.25rem;">
+            <div class="card-title">Status Breakdown — Click any status to filter queue</div>
+            <div class="status-grid" id="kpi-status-grid"></div>
+          </div>
+
+          <div class="chart-row">
+            <div class="card">
+              <div class="card-title">Monthly Volume (Verified vs Paid vs Flagged)</div>
+              <div class="bar-chart" id="chart-monthly-trends"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">Volume &amp; Risk by Supplier</div>
+              <div class="bar-chart" id="chart-supplier-trends"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: INVOICE LIST, SEARCH, FILTERS & BULK ACTIONS -->
+        <section class="tab-panel" id="panel-invoices" role="tabpanel">
+          <div class="section-header">
+            <h2>Invoices &amp; Audit Queue</h2>
+            <p>Search, filter, inspect 9-point fraud checks, and run bulk workflow actions.</p>
+          </div>
+
+          <div class="saved-views-bar" id="saved-views-bar"></div>
+
+          <div class="filters-grid">
+            <div class="filter-field" style="grid-column: span 2;">
+              <label for="f-search">Search (Invoice #, Supplier, Amount, PO #)</label>
+              <input type="text" id="f-search" placeholder="Search invoice number, supplier, PO, amount..." />
+            </div>
+            <div class="filter-field">
+              <label for="f-status">Status</label>
+              <select id="f-status"></select>
+            </div>
+            <div class="filter-field">
+              <label for="f-supplier">Supplier</label>
+              <select id="f-supplier"></select>
+            </div>
+            <div class="filter-field">
+              <label for="f-risk">Risk Level</label>
+              <select id="f-risk">
+                <option value="all">All Risk Levels</option>
+                <option value="low">Low Risk</option>
+                <option value="medium">Medium Risk</option>
+                <option value="high">High Risk</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="f-dept">Department</label>
+              <select id="f-dept">
+                <option value="all">All Departments</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Security">Security</option>
+                <option value="Logistics">Logistics</option>
+                <option value="Operations">Operations</option>
+                <option value="Finance">Finance</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="f-assignee">Assignee</label>
+              <select id="f-assignee">
+                <option value="all">All Assignees</option>
+                <option value="Unassigned">Unassigned</option>
+                <option value="Sophie Mercier">Sophie Mercier</option>
+                <option value="Elena Rostova">Elena Rostova</option>
+                <option value="Fraud & Risk Committee">Fraud &amp; Risk Committee</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="f-method">Payment Method</label>
+              <select id="f-method">
+                <option value="all">All Methods</option>
+                <option value="SEPA">SEPA</option>
+                <option value="Wire">Wire</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="f-date-from">Due Date From</label>
+              <input type="date" id="f-date-from" />
+            </div>
+            <div class="filter-field">
+              <label for="f-date-to">Due Date To</label>
+              <input type="date" id="f-date-to" />
+            </div>
+            <div class="filter-field">
+              <label for="f-amt-min">Min Amount</label>
+              <input type="number" id="f-amt-min" placeholder="0" />
+            </div>
+            <div class="filter-field">
+              <label for="f-amt-max">Max Amount</label>
+              <input type="number" id="f-amt-max" placeholder="100000" />
+            </div>
+          </div>
+
+          <div class="toolbar-row">
+            <div class="bulk-actions">
+              <span id="selected-count-label" style="font-size: 0.8rem; color: var(--text-muted); margin-right: 0.35rem;">0 selected</span>
+              <button class="btn btn-sm" id="btn-bulk-checks" type="button">Run Checks</button>
+              <button class="btn btn-sm" id="btn-bulk-assign" type="button">Assign</button>
+              <button class="btn btn-sm" id="btn-bulk-approve" type="button">Approve</button>
+              <button class="btn btn-sm" id="btn-bulk-hold" type="button">Hold</button>
+              <button class="btn btn-sm" id="btn-bulk-flag" type="button">Flag</button>
+              <button class="btn btn-sm" id="btn-save-view" type="button">+ Save View</button>
+              <button class="btn btn-sm" id="btn-reset-filters" type="button">Reset</button>
+            </div>
+            <div class="export-actions">
+              <button class="btn btn-sm" id="btn-export-csv" type="button">CSV</button>
+              <button class="btn btn-sm" id="btn-export-xls" type="button">Excel</button>
+              <button class="btn btn-sm" id="btn-export-pdf" type="button">Print / PDF</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="invoices-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="chk-select-all" aria-label="Select all invoices" /></th>
+                  <th class="sortable" data-sort="invoiceNumber">Invoice</th>
+                  <th class="sortable" data-sort="supplierName">Supplier</th>
+                  <th class="sortable" data-sort="amount">Amount</th>
+                  <th class="sortable" data-sort="issueDate">Issued</th>
+                  <th class="sortable" data-sort="dueDate">Due</th>
+                  <th class="sortable" data-sort="status">Status</th>
+                  <th class="sortable" data-sort="riskScore">Risk</th>
+                  <th>PO</th>
+                  <th class="sortable" data-sort="assignee">Assignee</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="invoices-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- TAB 3: PAYMENTS & CASH FLOW -->
+        <section class="tab-panel" id="panel-payments" role="tabpanel">
+          <div class="section-header" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <h2>Payments &amp; SEPA</h2>
+              <p>Only audited &amp; approved invoices appear here. Segregation of Duties blocks approvers from paying their own approvals.</p>
+            </div>
+            <button class="btn btn-primary" id="btn-create-sepa-batch" type="button">Generate SEPA XML Batch</button>
+          </div>
+
+          <div class="kpi-grid" id="cashflow-cards"></div>
+
+          <div class="table-wrapper" style="margin-bottom: 1.25rem;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Supplier &amp; IBAN</th>
+                  <th>Status</th>
+                  <th>Due / Scheduled</th>
+                  <th>Balance</th>
+                  <th>Early Discount</th>
+                  <th>Approved By</th>
+                  <th>Eligibility (SoD)</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="payable-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-title">SEPA Payment Batches</div>
+            <div id="batches-container"></div>
+          </div>
+        </section>
+
+        <!-- TAB 4: SUPPLIERS -->
+        <section class="tab-panel" id="panel-suppliers" role="tabpanel">
+          <div class="section-header">
+            <h2>Suppliers</h2>
+            <p>Vendor verification status, IBAN change history, and whitelist/blacklist controls.</p>
+          </div>
+          <div class="two-col" id="suppliers-grid"></div>
+        </section>
+
+        <!-- TAB 5: ALERTS & SLA -->
+        <section class="tab-panel" id="panel-alerts" role="tabpanel">
+          <div class="section-header">
+            <h2>Alerts &amp; SLA</h2>
+            <p>High-risk detections, verification SLA breaches, overdue invoices, and unverified bank changes.</p>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-title">Active Alerts</div>
+              <div id="alerts-list" class="checklist-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">Notification Channels &amp; Digest</div>
+              <div id="digest-preview-box"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 6: ANALYTICS, AUDIT TRAIL, INTEGRATIONS & SETTINGS -->
+        <section class="tab-panel" id="panel-governance" role="tabpanel">
+          <div class="section-header">
+            <h2>Audit Trail, Analytics &amp; Settings</h2>
+            <p>Compliance logs, fraud analytics, ERP integrations, and approval matrix configuration.</p>
+          </div>
+
+          <div class="two-col" style="margin-bottom: 1.25rem;">
+            <div class="card">
+              <div class="card-title">Reporting &amp; Analytics</div>
+              <div id="analytics-summary"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">ERP, Bank &amp; VIES Integrations</div>
+              <div id="integrations-box"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom: 1.25rem;">
+            <div class="card-title">Risk Thresholds, Approval Matrix &amp; GDPR Settings</div>
+            <div id="settings-box"></div>
+          </div>
+
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div class="card-title" style="margin-bottom:0;">Immutable Audit Trail</div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-sm" id="btn-verify-audit-chain" type="button">Verify Hash Chain</button>
+                <button class="btn btn-sm" id="btn-export-compliance" type="button">Export JSON</button>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Summary</th>
+                    <th>Hash</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-log-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
+  </div>
 
-    <div class="header-controls">
-      <button class="btn btn-primary" id="btn-open-ingest" type="button">+ Ingest / Upload Invoice</button>
-
-      <div class="control-group">
-        <label for="select-user">Active Actor / Role:</label>
-        <select id="select-user" aria-label="Select active user and role"></select>
-      </div>
-
-      <div class="control-group">
-        <label for="select-currency">Currency:</label>
-        <select id="select-currency" aria-label="Select base currency">
-          <option value="EUR">EUR (€)</option>
-          <option value="USD">USD ($)</option>
-          <option value="GBP">GBP (£)</option>
-          <option value="CHF">CHF</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <label for="select-lang">Lang:</label>
-        <select id="select-lang" aria-label="Select language">
-          <option value="en">EN</option>
-          <option value="fr">FR</option>
-        </select>
-      </div>
-
-      <button class="btn" id="btn-theme-toggle" type="button" aria-label="Toggle dark or light mode">☀/☾ Theme</button>
-    </div>
-  </header>
-
-  <nav class="nav-tabs" role="tablist" aria-label="Dashboard sections">
-    <button class="nav-tab active" role="tab" aria-selected="true" data-tab="overview">
-      <span>1. Overview &amp; KPIs</span>
-    </button>
-    <button class="nav-tab" role="tab" aria-selected="false" data-tab="invoices">
-      <span>2. Invoice Queue &amp; Audit</span>
-      <span class="tab-badge" id="badge-invoices-count">10</span>
-    </button>
-    <button class="nav-tab" role="tab" aria-selected="false" data-tab="payments">
-      <span>3. Payments &amp; SEPA</span>
-      <span class="tab-badge" id="badge-payable-count">0</span>
-    </button>
-    <button class="nav-tab" role="tab" aria-selected="false" data-tab="suppliers">
-      <span>4. Suppliers &amp; Bank Log</span>
-    </button>
-    <button class="nav-tab" role="tab" aria-selected="false" data-tab="alerts">
-      <span>5. Alerts &amp; SLA</span>
-      <span class="tab-badge" id="badge-alerts-count">0</span>
-    </button>
-    <button class="nav-tab" role="tab" aria-selected="false" data-tab="governance">
-      <span>6. Analytics, Audit Trail &amp; Admin</span>
-    </button>
-  </nav>
-
-  <main class="main-container">
-    <!-- TAB 1: OVERVIEW & KPIs -->
-    <section class="tab-panel active" id="panel-overview" role="tabpanel">
-      <div class="kpi-grid" id="kpi-top-cards"></div>
-
-      <div class="card" style="margin-bottom: 1.25rem;">
-        <div class="card-title">Invoice Status Model — Count &amp; Total Amount per Status (Click any status to filter queue)</div>
-        <div class="status-grid" id="kpi-status-grid"></div>
-      </div>
-
-      <div class="chart-row">
-        <div class="card">
-          <div class="card-title">Trend Over Time (Monthly Verified vs Paid vs Flagged Volume)</div>
-          <div class="bar-chart" id="chart-monthly-trends"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Supplier Volume &amp; Risk Breakdown</div>
-          <div class="bar-chart" id="chart-supplier-trends"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 2: INVOICE LIST, SEARCH, FILTERS & BULK ACTIONS -->
-    <section class="tab-panel" id="panel-invoices" role="tabpanel">
-      <div class="saved-views-bar" id="saved-views-bar"></div>
-
-      <div class="filters-grid">
-        <div class="filter-field" style="grid-column: span 2;">
-          <label for="f-search">Search (Invoice #, Supplier, Amount, PO #)</label>
-          <input type="text" id="f-search" placeholder="e.g. INV-1004, CloudScale, PO-2026-412, 9850..." />
-        </div>
-        <div class="filter-field">
-          <label for="f-status">Status</label>
-          <select id="f-status"></select>
-        </div>
-        <div class="filter-field">
-          <label for="f-supplier">Supplier</label>
-          <select id="f-supplier"></select>
-        </div>
-        <div class="filter-field">
-          <label for="f-risk">Risk Level</label>
-          <select id="f-risk">
-            <option value="all">All Risk Levels</option>
-            <option value="low">Low Risk</option>
-            <option value="medium">Medium Risk</option>
-            <option value="high">High Risk</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="f-dept">Department</label>
-          <select id="f-dept">
-            <option value="all">All Departments</option>
-            <option value="Engineering">Engineering</option>
-            <option value="Security">Security</option>
-            <option value="Logistics">Logistics</option>
-            <option value="Operations">Operations</option>
-            <option value="Finance">Finance</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="f-assignee">Assignee</label>
-          <select id="f-assignee">
-            <option value="all">All Assignees</option>
-            <option value="Unassigned">Unassigned</option>
-            <option value="Sophie Mercier">Sophie Mercier</option>
-            <option value="Elena Rostova">Elena Rostova</option>
-            <option value="Fraud & Risk Committee">Fraud &amp; Risk Committee</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="f-method">Payment Method</label>
-          <select id="f-method">
-            <option value="all">All Methods</option>
-            <option value="SEPA">SEPA</option>
-            <option value="Wire">Wire</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="f-date-from">Due Date From</label>
-          <input type="date" id="f-date-from" />
-        </div>
-        <div class="filter-field">
-          <label for="f-date-to">Due Date To</label>
-          <input type="date" id="f-date-to" />
-        </div>
-        <div class="filter-field">
-          <label for="f-amt-min">Min Amount</label>
-          <input type="number" id="f-amt-min" placeholder="0" />
-        </div>
-        <div class="filter-field">
-          <label for="f-amt-max">Max Amount</label>
-          <input type="number" id="f-amt-max" placeholder="100000" />
-        </div>
-      </div>
-
-      <div class="toolbar-row">
-        <div class="bulk-actions">
-          <span id="selected-count-label" style="font-size: 0.8rem; color: var(--text-muted); margin-right: 0.35rem;">0 selected</span>
-          <button class="btn btn-sm" id="btn-bulk-checks" type="button">Run Audit Checks</button>
-          <button class="btn btn-sm" id="btn-bulk-assign" type="button">Assign to Auditor</button>
-          <button class="btn btn-sm btn-success" id="btn-bulk-approve" type="button">Bulk Approve</button>
-          <button class="btn btn-sm btn-warning" id="btn-bulk-hold" type="button">Put On Hold</button>
-          <button class="btn btn-sm btn-danger" id="btn-bulk-flag" type="button">Bulk Flag</button>
-          <button class="btn btn-sm" id="btn-save-view" type="button">+ Save Current Filter View</button>
-          <button class="btn btn-sm" id="btn-reset-filters" type="button">Reset Filters</button>
-        </div>
-        <div class="export-actions">
-          <button class="btn btn-sm" id="btn-export-csv" type="button">Export CSV</button>
-          <button class="btn btn-sm" id="btn-export-xls" type="button">Export Excel (.xls)</button>
-          <button class="btn btn-sm" id="btn-export-pdf" type="button">Print / PDF</button>
-        </div>
-      </div>
-
-      <div class="table-wrapper">
-        <table id="invoices-table">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="chk-select-all" aria-label="Select all invoices" /></th>
-              <th class="sortable" data-sort="invoiceNumber">Invoice # ↕</th>
-              <th class="sortable" data-sort="supplierName">Supplier ↕</th>
-              <th class="sortable" data-sort="amount">Amount ↕</th>
-              <th class="sortable" data-sort="issueDate">Issue Date ↕</th>
-              <th class="sortable" data-sort="dueDate">Due Date ↕</th>
-              <th class="sortable" data-sort="status">Status ↕</th>
-              <th class="sortable" data-sort="riskScore">Risk Score ↕</th>
-              <th>PO / 3-Way</th>
-              <th class="sortable" data-sort="assignee">Assignee ↕</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="invoices-tbody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- TAB 3: PAYMENTS & CASH FLOW -->
-    <section class="tab-panel" id="panel-payments" role="tabpanel">
-      <div class="kpi-grid" id="cashflow-cards"></div>
-
-      <div class="card" style="margin-bottom: 1.25rem; border-left: 4px solid var(--accent);">
-        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
-          <div>
-            <div class="card-title">Payment Blocking &amp; Segregation of Duties (SoD) Guardrails Active</div>
-            <p style="font-size: 0.83rem; color: var(--text-muted);">
-              • Only audited &amp; approved invoices (<strong>Verified &amp; approved</strong>, <strong>Ready to pay</strong>, <strong>Scheduled</strong>) enter this queue. Flagged, unverified, rejected, blacklisted, or duplicate invoices are strictly blocked.<br/>
-              • <strong>Segregation of Duties:</strong> The user who approved an invoice is blocked from executing or batching its payment. Switch active role to <strong>Thomas Bernard (Payer)</strong> to execute payments on invoices approved by Claire Dubois or Henri Vance.
-            </p>
-          </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-primary" id="btn-create-sepa-batch" type="button">Generate SEPA XML Batch (All Eligible)</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="table-wrapper" style="margin-bottom: 1.25rem;">
-        <table>
-          <thead>
-            <tr>
-              <th>Invoice #</th>
-              <th>Supplier &amp; IBAN</th>
-              <th>Status</th>
-              <th>Due / Scheduled</th>
-              <th>Total / Remaining</th>
-              <th>Early Discount</th>
-              <th>Approved By</th>
-              <th>SoD &amp; Eligibility</th>
-              <th>Payment Actions</th>
-            </tr>
-          </thead>
-          <tbody id="payable-tbody"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <div class="card-title">SEPA Payment Batches &amp; Bank Reconciliation History</div>
-        <div id="batches-container"></div>
-      </div>
-    </section>
-
-    <!-- TAB 4: SUPPLIERS -->
-    <section class="tab-panel" id="panel-suppliers" role="tabpanel">
-      <div class="two-col" id="suppliers-grid"></div>
-    </section>
-
-    <!-- TAB 5: ALERTS & SLA -->
-    <section class="tab-panel" id="panel-alerts" role="tabpanel">
-      <div class="two-col" style="margin-bottom: 1.25rem;">
-        <div class="card">
-          <div class="card-title">Active Fraud, SLA &amp; Payment Alerts</div>
-          <div id="alerts-list" class="checklist-list"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Notification Channels &amp; Automated Digest</div>
-          <div id="digest-preview-box"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 6: ANALYTICS, AUDIT TRAIL, INTEGRATIONS & SETTINGS -->
-    <section class="tab-panel" id="panel-governance" role="tabpanel">
-      <div class="two-col" style="margin-bottom: 1.25rem;">
-        <div class="card">
-          <div class="card-title">12. Reporting &amp; Analytics (Fraud Caught, Turnaround, Payment Performance)</div>
-          <div id="analytics-summary"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">13. ERP, Bank &amp; Registry Integrations + VAT Lookup</div>
-          <div id="integrations-box"></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom: 1.25rem;">
-        <div class="card-title">14. Configurable Risk Rules, Approval Matrices &amp; GDPR Settings</div>
-        <div id="settings-box"></div>
-      </div>
-
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <div class="card-title">11. Immutable Cryptographic Audit Trail &amp; Compliance Log</div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-sm" id="btn-verify-audit-chain" type="button">Verify Hash Chain Integrity</button>
-            <button class="btn btn-sm" id="btn-export-compliance" type="button">Export Compliance JSON</button>
-          </div>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Log ID</th>
-                <th>Timestamp</th>
-                <th>Actor &amp; Role</th>
-                <th>Action</th>
-                <th>Target</th>
-                <th>Summary</th>
-                <th>Chain Hash</th>
-              </tr>
-            </thead>
-            <tbody id="audit-log-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- INVOICE DETAIL DIALOG (Sections 4, 5, 6) -->
+  <!-- INVOICE DETAIL DIALOG -->
   <dialog id="dialog-invoice-detail" aria-labelledby="detail-dialog-title">
     <div class="dialog-header">
       <div>
-        <h2 id="detail-dialog-title" style="font-size: 1.05rem;">Invoice Detail</h2>
-        <div id="detail-dialog-subtitle" style="font-size: 0.78rem; color: var(--text-muted);"></div>
+        <h2 id="detail-dialog-title" style="font-size: 1rem; font-weight: 600;">Invoice Detail</h2>
+        <div id="detail-dialog-subtitle" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"></div>
       </div>
-      <button class="btn btn-sm" id="btn-close-detail" type="button">✕ Close</button>
+      <button class="btn btn-sm" id="btn-close-detail" type="button">Close</button>
     </div>
     <div class="dialog-body" id="detail-dialog-body"></div>
   </dialog>
 
-  <!-- INGESTION / OCR UPLOAD DIALOG (Section 13) -->
+  <!-- INGESTION / OCR UPLOAD DIALOG -->
   <dialog id="dialog-ingest" aria-labelledby="ingest-dialog-title">
     <div class="dialog-header">
-      <h2 id="ingest-dialog-title" style="font-size: 1.05rem;">Ingest Invoice (OCR / Email Inbox / Manual Upload)</h2>
-      <button class="btn btn-sm" id="btn-close-ingest" type="button">✕ Close</button>
+      <h2 id="ingest-dialog-title" style="font-size: 1rem; font-weight: 600;">Ingest Invoice (OCR / Upload)</h2>
+      <button class="btn btn-sm" id="btn-close-ingest" type="button">Close</button>
     </div>
     <div class="dialog-body">
       <div class="two-col">
         <div>
-          <label for="ocr-raw-input" style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 0.35rem;">
-            Paste Raw Invoice Text / Email Payload for Instant OCR Extraction:
+          <label for="ocr-raw-input" style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">
+            Raw Invoice Text / Email Payload (OCR):
           </label>
           <textarea id="ocr-raw-input" rows="9" style="width: 100%; font-family: var(--mono);">Invoice Number: CS-2026-109
 Supplier: CloudScale Infrastructure GmbH
@@ -349,8 +426,8 @@ Issue Date: 2026-10-10
 Due Date: 2026-10-25
 Email: billing@cloudscale.de</textarea>
           <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-            <button class="btn btn-sm" id="btn-parse-ocr" type="button">Run OCR Field Extractor</button>
-            <button class="btn btn-sm btn-warning" id="btn-load-scam-preset" type="button">Load Spoofed Scam Preset</button>
+            <button class="btn btn-sm" id="btn-parse-ocr" type="button">Extract Fields</button>
+            <button class="btn btn-sm" id="btn-load-scam-preset" type="button">Load Spoofed Scam Sample</button>
           </div>
         </div>
         <form id="form-ingest-invoice" style="display: flex; flex-direction: column; gap: 0.55rem;">
@@ -398,7 +475,7 @@ Email: billing@cloudscale.de</textarea>
             <label for="ing-email">Sender Email</label>
             <input type="email" id="ing-email" value="billing@cloudscale.de" />
           </div>
-          <button class="btn btn-primary" type="submit" style="margin-top: 0.4rem;">Ingest &amp; Run 9-Point Fraud Check</button>
+          <button class="btn btn-primary" type="submit" style="margin-top: 0.4rem;">Ingest &amp; Run Audit Checks</button>
         </form>
       </div>
     </div>

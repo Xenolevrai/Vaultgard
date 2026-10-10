@@ -87,8 +87,16 @@ function createServer(initialState) {
 
       // Static files
       const safeFile = pathname === '/' ? '/index.html' : pathname;
+      const rootWithSep = __dirname.endsWith(path.sep) ? __dirname : __dirname + path.sep;
       const resolvedPath = path.resolve(__dirname, '.' + safeFile);
-      if (!resolvedPath.startsWith(__dirname) || !fs.existsSync(resolvedPath) || fs.statSync(resolvedPath).isDirectory()) {
+      const relPath = path.relative(__dirname, resolvedPath);
+      const isHiddenPath = relPath.split(path.sep).some((part) => part.startsWith('.'));
+      if (
+        !resolvedPath.startsWith(rootWithSep) ||
+        isHiddenPath ||
+        !fs.existsSync(resolvedPath) ||
+        fs.statSync(resolvedPath).isDirectory()
+      ) {
         return sendJson(res, 404, { error: 'Not found' });
       }
       const ext = path.extname(resolvedPath);

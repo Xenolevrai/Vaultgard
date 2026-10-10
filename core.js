@@ -26,13 +26,85 @@
     ON_HOLD: 'on_hold'
   });
 
+  const BADGE_DESIGN_SPEC = Object.freeze([
+    {
+      id: 'queued',
+      label: 'Queued',
+      icon: 'clock',
+      textColor: '#A855F7',
+      backgroundColor: '#F3E8FF',
+      mappedStatuses: ['pending_verification']
+    },
+    {
+      id: 'scheduled',
+      label: 'Scheduled',
+      icon: 'calendar-days',
+      textColor: '#3B82F6',
+      backgroundColor: '#EFF6FF',
+      mappedStatuses: ['scheduled']
+    },
+    {
+      id: 'in-progress',
+      label: 'In progress',
+      icon: 'pie-chart',
+      textColor: '#F59E0B',
+      backgroundColor: '#FEF3C7',
+      mappedStatuses: ['verified_approved']
+    },
+    {
+      id: 'high-priority',
+      label: 'High Priority',
+      icon: 'flame',
+      textColor: '#EF4444',
+      backgroundColor: '#FEE2E2',
+      mappedStatuses: ['flagged', 'rejected']
+    },
+    {
+      id: 'ready',
+      label: 'Ready',
+      icon: 'badge-check',
+      textColor: '#14B8A6',
+      backgroundColor: '#CCFBF1',
+      mappedStatuses: ['ready_to_pay', 'paid']
+    },
+    {
+      id: 'waiting',
+      label: 'Waiting',
+      icon: 'timer',
+      textColor: '#D946EF',
+      backgroundColor: '#FAE8FF',
+      mappedStatuses: ['received']
+    },
+    {
+      id: 'paused',
+      label: 'Paused',
+      icon: 'pause-octagon',
+      textColor: '#D97706',
+      backgroundColor: '#FEF3C7',
+      mappedStatuses: ['on_hold']
+    },
+    {
+      id: 'reviewing',
+      label: 'Reviewing',
+      icon: 'file-search',
+      textColor: '#06B6D4',
+      backgroundColor: '#CFFAFE',
+      mappedStatuses: ['under_review']
+    }
+  ]);
+
   const STATUS_META = Object.freeze({
     received: {
       id: 'received',
       label: 'Received / New',
       labelFr: 'Reçue / Nouvelle',
       description: 'Just ingested, no checks run yet',
-      color: 'slate',
+      color: 'waiting',
+      badgeId: 'waiting',
+      badgeLabel: 'Waiting',
+      icon: 'timer',
+      textColor: '#D946EF',
+      backgroundColor: '#FAE8FF',
       payable: false
     },
     pending_verification: {
@@ -40,7 +112,12 @@
       label: 'Pending verification',
       labelFr: 'En attente de vérification',
       description: 'In the audit queue',
-      color: 'amber',
+      color: 'queued',
+      badgeId: 'queued',
+      badgeLabel: 'Queued',
+      icon: 'clock',
+      textColor: '#A855F7',
+      backgroundColor: '#F3E8FF',
       payable: false
     },
     under_review: {
@@ -48,7 +125,12 @@
       label: 'Under review',
       labelFr: 'En cours d’audit',
       description: 'Assigned to an auditor',
-      color: 'blue',
+      color: 'reviewing',
+      badgeId: 'reviewing',
+      badgeLabel: 'Reviewing',
+      icon: 'file-search',
+      textColor: '#06B6D4',
+      backgroundColor: '#CFFAFE',
       payable: false
     },
     flagged: {
@@ -56,7 +138,12 @@
       label: 'Flagged / Suspicious',
       labelFr: 'Signalée / Suspecte',
       description: 'Fraud indicators detected',
-      color: 'orange',
+      color: 'high-priority',
+      badgeId: 'high-priority',
+      badgeLabel: 'High Priority',
+      icon: 'flame',
+      textColor: '#EF4444',
+      backgroundColor: '#FEE2E2',
       payable: false
     },
     rejected: {
@@ -64,7 +151,12 @@
       label: 'Rejected / Confirmed scam',
       labelFr: 'Rejetée / Fraude confirmée',
       description: 'Blocked, cannot be paid',
-      color: 'red',
+      color: 'high-priority',
+      badgeId: 'high-priority',
+      badgeLabel: 'High Priority',
+      icon: 'flame',
+      textColor: '#EF4444',
+      backgroundColor: '#FEE2E2',
       payable: false
     },
     verified_approved: {
@@ -72,7 +164,12 @@
       label: 'Verified & approved',
       labelFr: 'Vérifiée & approuvée',
       description: 'Audited and clean',
-      color: 'emerald',
+      color: 'in-progress',
+      badgeId: 'in-progress',
+      badgeLabel: 'In progress',
+      icon: 'pie-chart',
+      textColor: '#F59E0B',
+      backgroundColor: '#FEF3C7',
       payable: true
     },
     ready_to_pay: {
@@ -80,7 +177,12 @@
       label: 'Ready to pay',
       labelFr: 'Prête à payer',
       description: 'Approved, due date reached or approaching',
-      color: 'teal',
+      color: 'ready',
+      badgeId: 'ready',
+      badgeLabel: 'Ready',
+      icon: 'badge-check',
+      textColor: '#14B8A6',
+      backgroundColor: '#CCFBF1',
       payable: true
     },
     scheduled: {
@@ -88,7 +190,12 @@
       label: 'Scheduled',
       labelFr: 'Paiement planifié',
       description: 'Payment date set',
-      color: 'indigo',
+      color: 'scheduled',
+      badgeId: 'scheduled',
+      badgeLabel: 'Scheduled',
+      icon: 'calendar-days',
+      textColor: '#3B82F6',
+      backgroundColor: '#EFF6FF',
       payable: true
     },
     paid: {
@@ -96,7 +203,12 @@
       label: 'Paid',
       labelFr: 'Payée',
       description: 'With payment reference',
-      color: 'green',
+      color: 'ready',
+      badgeId: 'ready',
+      badgeLabel: 'Ready',
+      icon: 'badge-check',
+      textColor: '#14B8A6',
+      backgroundColor: '#CCFBF1',
       payable: false
     },
     on_hold: {
@@ -104,7 +216,12 @@
       label: 'On hold / Disputed',
       labelFr: 'En suspens / Litige',
       description: 'Waiting on supplier or internal clarification',
-      color: 'purple',
+      color: 'paused',
+      badgeId: 'paused',
+      badgeLabel: 'Paused',
+      icon: 'pause-octagon',
+      textColor: '#D97706',
+      backgroundColor: '#FEF3C7',
       payable: false
     }
   });
@@ -229,7 +346,7 @@
     return Boolean(perms && perms.has(permission));
   }
 
-  function checkDepartmentAndAmountAccess(actor, invoice, settings) {
+  function checkDepartmentAndAmountAccess(actor, invoice, settings, options = {}) {
     if (!actor) return { allowed: false, reason: 'Missing actor context' };
     if (actor.role === ROLES.ADMIN) return { allowed: true };
     if (actor.departments && actor.departments.length > 0 && !actor.departments.includes('ALL')) {
@@ -248,12 +365,22 @@
         };
       }
     }
-    if (typeof actor.maxApprovalAmount === 'number') {
+    const checkApproval = options.checkApprovalAmount !== false;
+    if (checkApproval && typeof actor.maxApprovalAmount === 'number') {
       const amountEur = convertCurrency(invoice.amount, invoice.currency, 'EUR');
       if (amountEur > actor.maxApprovalAmount) {
         return {
           allowed: false,
           reason: `Amount (${formatMoney(amountEur, 'EUR')}) exceeds actor approval limit (${formatMoney(actor.maxApprovalAmount, 'EUR')})`
+        };
+      }
+    }
+    if (options.checkPaymentAmount && typeof actor.maxPaymentAmount === 'number' && actor.maxPaymentAmount > 0) {
+      const amountEur = convertCurrency(getRemainingAmount(invoice), invoice.currency, 'EUR');
+      if (amountEur > actor.maxPaymentAmount) {
+        return {
+          allowed: false,
+          reason: `Payment amount (${formatMoney(amountEur, 'EUR')}) exceeds actor payment limit (${formatMoney(actor.maxPaymentAmount, 'EUR')})`
         };
       }
     }
@@ -385,6 +512,26 @@
     return 1;
   }
 
+  function createPendingChecklist() {
+    const defs = [
+      ['supplier_validation', 'Supplier validation'],
+      ['bank_details', 'Bank details check'],
+      ['duplicate_detection', 'Duplicate detection'],
+      ['three_way_match', 'Three-way match (PO / GRN)'],
+      ['amount_checks', 'Amount checks'],
+      ['document_checks', 'Document & metadata checks'],
+      ['email_sender', 'Email / sender check'],
+      ['anomaly_detection', 'Historical anomaly detection'],
+      ['sanctions_screening', 'Sanctions & blacklist screening']
+    ];
+    return defs.map(([id, label]) => ({
+      id,
+      label,
+      status: 'pending',
+      reason: 'Awaiting initial audit check execution'
+    }));
+  }
+
   function runAuditChecks(invoice, state) {
     const suppliers = (state && state.suppliers) || [];
     const invoices = (state && state.invoices) || [];
@@ -446,7 +593,10 @@
     }
 
     // 2. Bank details check
-    if (!invoice.iban || invoice.iban.trim().length < 14) {
+    const cleanIban = String(invoice.iban || '').replace(/\s+/g, '').toUpperCase();
+    const supIban = supplier && supplier.iban ? String(supplier.iban).replace(/\s+/g, '').toUpperCase() : '';
+    const ibanFormatOk = /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(cleanIban);
+    if (!cleanIban || !ibanFormatOk) {
       checks.push({
         id: 'bank_details',
         label: 'Bank details check',
@@ -455,20 +605,20 @@
       });
       reasons.push('Missing or malformed IBAN');
       score += 25;
-    } else if (supplier && supplier.iban && invoice.iban !== supplier.iban) {
+    } else if (supplier && supIban && cleanIban !== supIban) {
       if (invoice.callbackVerified) {
         checks.push({
           id: 'bank_details',
           label: 'Bank details check',
           status: 'passed',
-          reason: `IBAN change (${invoice.iban}) verified via phone callback: ${invoice.callbackNotes || 'Confirmed'}`
+          reason: `IBAN change (${cleanIban}) verified via phone callback: ${invoice.callbackNotes || 'Confirmed'}`
         });
       } else {
         checks.push({
           id: 'bank_details',
           label: 'Bank details check',
           status: 'failed',
-          reason: `IBAN (${invoice.iban}) does not match IBAN on file (${supplier.iban})`
+          reason: `IBAN (${cleanIban}) does not match IBAN on file (${supIban})`
         });
         reasons.push('Bank account (IBAN) mismatch with vendor master file');
         score += 35;
@@ -487,19 +637,30 @@
         id: 'bank_details',
         label: 'Bank details check',
         status: 'passed',
-        reason: `IBAN ${invoice.iban} matches verified bank account on file`
+        reason: `IBAN ${cleanIban} matches verified bank account on file`
       });
     }
 
     // 3. Duplicate detection
+    const thisSupKey =
+      invoice.supplierId && invoice.supplierId !== 'SUP-UNKNOWN'
+        ? invoice.supplierId
+        : String(invoice.supplierName || '').trim().toLowerCase();
     const duplicates = invoices.filter((other) => {
       if (other.id === invoice.id) return false;
+      const otherSupKey =
+        other.supplierId && other.supplierId !== 'SUP-UNKNOWN'
+          ? other.supplierId
+          : String(other.supplierName || '').trim().toLowerCase();
+      const sameSupplier = Boolean(thisSupKey && otherSupKey === thisSupKey);
       const sameNumAndSup =
-        other.invoiceNumber.toLowerCase() === invoice.invoiceNumber.toLowerCase() &&
-        other.supplierId === invoice.supplierId;
+        Boolean(invoice.invoiceNumber) &&
+        String(other.invoiceNumber || '').toLowerCase() === String(invoice.invoiceNumber || '').toLowerCase() &&
+        sameSupplier;
       const sameSupAmtDate =
-        other.supplierId === invoice.supplierId &&
+        sameSupplier &&
         Number(other.amount) === Number(invoice.amount) &&
+        Boolean(invoice.issueDate) &&
         other.issueDate === invoice.issueDate;
       return sameNumAndSup || sameSupAmtDate;
     });
@@ -647,8 +808,12 @@
     }
 
     // 7. Email / sender check (spoofed domain, lookalike addresses)
-    const senderEmail = String(invoice.senderEmail || '');
-    const senderDomain = senderEmail.includes('@') ? senderEmail.split('@')[1].toLowerCase() : '';
+    const rawEmail = String(invoice.senderEmail || '').trim();
+    const angleMatch = rawEmail.match(/<([^>]+)>/);
+    const senderEmail = (angleMatch ? angleMatch[1] : rawEmail).trim();
+    const atParts = senderEmail.split('@');
+    const hasMultipleAt = atParts.length > 2;
+    const senderDomain = atParts.length >= 2 ? atParts[atParts.length - 1].toLowerCase().replace(/[^a-z0-9.-]/g, '') : '';
     const officialDomain = supplier && supplier.officialDomain ? supplier.officialDomain.toLowerCase() : '';
     if (!senderDomain) {
       checks.push({
@@ -657,6 +822,15 @@
         status: 'pending',
         reason: 'No sender email metadata (manual upload)'
       });
+    } else if (hasMultipleAt) {
+      checks.push({
+        id: 'email_sender',
+        label: 'Email / sender check',
+        status: 'failed',
+        reason: `Malformed / spoofed sender header with multiple @ symbols (${rawEmail})`
+      });
+      reasons.push('Malformed / spoofed sender email address');
+      score += 40;
     } else if (officialDomain && senderDomain !== officialDomain) {
       const dist = levenshtein(senderDomain, officialDomain);
       const isHomoglyph =
@@ -753,6 +927,22 @@
     };
   }
 
+  function refreshInvoicesAuditState(state) {
+    for (const inv of state.invoices || []) {
+      if (inv.status === STATUSES.RECEIVED) {
+        const amtEur = convertCurrency(inv.amount, inv.currency, 'EUR');
+        inv.requiredApprovalLevels = getRequiredApprovalLevels(amtEur, state.settings);
+        continue;
+      }
+      const res = runAuditChecks(inv, state);
+      inv.checklist = res.checklist;
+      inv.riskScore = res.riskScore;
+      inv.riskLevel = res.riskLevel;
+      inv.riskReasons = res.riskReasons;
+      inv.requiredApprovalLevels = res.requiredApprovalLevels;
+    }
+  }
+
   // ===========================================================================
   // 2. MAIN OVERVIEW KPI ENGINE
   // ===========================================================================
@@ -811,13 +1001,17 @@
         inv.status === STATUSES.SCHEDULED
       ) {
         readyCount += 1;
-        if (inv.dueDate <= todayStr) {
+        const targetDate =
+          inv.scheduledPaymentDate && inv.scheduledPaymentDate < inv.dueDate
+            ? inv.scheduledPaymentDate
+            : inv.dueDate;
+        if (targetDate <= todayStr) {
           readyToday = Number((readyToday + remBase).toFixed(2));
         }
-        if (inv.dueDate <= weekEnd) {
+        if (targetDate <= weekEnd) {
           readyThisWeek = Number((readyThisWeek + remBase).toFixed(2));
         }
-        if (inv.dueDate <= monthEnd) {
+        if (targetDate <= monthEnd) {
           readyThisMonth = Number((readyThisMonth + remBase).toFixed(2));
         }
       }
@@ -1015,11 +1209,13 @@
       if (query.dateTo && dateField > query.dateTo) return false;
 
       // Filter by amount range (in EUR or invoice currency)
-      if (query.amountMin !== undefined && query.amountMin !== '' && query.amountMin !== null) {
-        if (Number(inv.amount) < Number(query.amountMin)) return false;
+      const minStr = String(query.amountMin ?? '').trim();
+      if (minStr !== '' && !Number.isNaN(Number(minStr))) {
+        if (Number(inv.amount) < Number(minStr)) return false;
       }
-      if (query.amountMax !== undefined && query.amountMax !== '' && query.amountMax !== null) {
-        if (Number(inv.amount) > Number(query.amountMax)) return false;
+      const maxStr = String(query.amountMax ?? '').trim();
+      if (maxStr !== '' && !Number.isNaN(Number(maxStr))) {
+        if (Number(inv.amount) > Number(maxStr)) return false;
       }
 
       // Filter by risk level
@@ -1048,7 +1244,11 @@
           inv.status === STATUSES.READY_TO_PAY ||
           inv.status === STATUSES.VERIFIED_APPROVED ||
           inv.status === STATUSES.SCHEDULED;
-        if (!isPayable || inv.dueDate > weekEndStr) return false;
+        const targetDue =
+          inv.scheduledPaymentDate && inv.scheduledPaymentDate < inv.dueDate
+            ? inv.scheduledPaymentDate
+            : inv.dueDate;
+        if (!isPayable || targetDue > weekEndStr) return false;
       } else if (query.preset === 'overdue') {
         if (
           !inv.dueDate ||
@@ -1194,12 +1394,13 @@
       throw new Error(`Permission denied: Role "${user ? user.role : 'none'}" cannot perform "${action}"`);
     }
 
-    // Check department/entity/amount scope for approval actions
-    if (action === 'approve' || action === 'approve_and_schedule' || action === 'reject') {
-      const scopeCheck = checkDepartmentAndAmountAccess(user, inv, state.settings);
-      if (!scopeCheck.allowed) {
-        throw new Error(scopeCheck.reason);
-      }
+    // Check department/entity scope for all workflow actions, and approval amount limit only for approval actions
+    const isApprovalAction = action === 'approve' || action === 'approve_and_schedule';
+    const scopeCheck = checkDepartmentAndAmountAccess(user, inv, state.settings, {
+      checkApprovalAmount: isApprovalAction
+    });
+    if (!scopeCheck.allowed) {
+      throw new Error(scopeCheck.reason);
     }
 
     if (action === 'run_checks') {
@@ -1371,13 +1572,20 @@
       if (inv.status === STATUSES.REJECTED || inv.status === STATUSES.PAID) {
         throw new Error(`Cannot approve invoice in "${inv.status}" status`);
       }
+      if (!(Number(inv.amount) > 0)) {
+        throw new Error(`Cannot approve invoice with non-positive amount (${inv.amount})`);
+      }
       // Block approving blacklisted/sanctioned invoices
       const supplier = (state.suppliers || []).find((s) => s.id === inv.supplierId);
       if (supplier && (supplier.status === 'blacklisted' || supplier.sanctionsHit)) {
         throw new Error(`Cannot approve invoice from blacklisted/sanctioned supplier "${supplier.name}"`);
       }
-      // Ensure audit checks have run at least once
-      if (!inv.checklist || inv.checklist.length === 0) {
+      // Ensure audit checks have run at least once (or if still in initial pending state)
+      if (
+        !inv.checklist ||
+        inv.checklist.length === 0 ||
+        inv.checklist.every((c) => c.status === 'pending')
+      ) {
         const res = runAuditChecks(inv, state);
         inv.checklist = res.checklist;
         inv.riskScore = res.riskScore;
@@ -1531,24 +1739,30 @@
   function computeEarlyDiscount(invoice, scheduledDateStr) {
     const pct = Number(invoice.earlyDiscountPercent) || 0;
     const deadline = invoice.earlyDiscountDeadline || '';
-    if (pct <= 0 || !deadline || !scheduledDateStr) {
-      return { eligible: false, discountAmount: 0, netAmount: getRemainingAmount(invoice) };
-    }
     const remaining = getRemainingAmount(invoice);
-    if (scheduledDateStr <= deadline) {
-      const discountAmount = Number(((remaining * pct) / 100).toFixed(2));
+    const alreadyApplied = (Number(invoice.appliedDiscountAmount) || 0) > 0;
+    if (pct <= 0 || !deadline || !scheduledDateStr) {
+      return { eligible: false, alreadyApplied, discountAmount: 0, netAmount: remaining };
+    }
+    const total = Number(invoice.amount) || 0;
+    const credit = Number(invoice.creditNoteAmount) || 0;
+    const paid = Number(invoice.paidAmount) || 0;
+    const netFace = Math.max(0, Number((total - credit).toFixed(2)));
+    if (scheduledDateStr <= deadline && netFace > 0) {
+      const discountAmount = Number(((netFace * pct) / 100).toFixed(2));
       return {
         eligible: true,
+        alreadyApplied,
         discountPercent: pct,
         discountDeadline: deadline,
         discountAmount,
-        netAmount: Number((remaining - discountAmount).toFixed(2))
+        netAmount: Math.max(0, Number((netFace - discountAmount - paid).toFixed(2)))
       };
     }
-    return { eligible: false, discountAmount: 0, netAmount: remaining };
+    return { eligible: false, alreadyApplied, discountAmount: 0, netAmount: remaining };
   }
 
-  function canPayInvoice(state, invoice, actor = null) {
+  function canPayInvoice(state, invoice, actor = null, options = {}) {
     const user = actor || state.currentUser;
     if (!invoice) return { allowed: false, reason: 'Invoice not found' };
 
@@ -1569,6 +1783,14 @@
     const remaining = getRemainingAmount(invoice);
     if (remaining <= 0) {
       return { allowed: false, reason: 'Payment blocked: Invoice remaining balance is 0.00' };
+    }
+
+    // 2b. Prevent duplicate SEPA batch assignment
+    if (options.forBatch && invoice.batchId) {
+      return {
+        allowed: false,
+        reason: `Payment blocked: Invoice is already assigned to SEPA batch ${invoice.batchId}`
+      };
     }
 
     // 3. Supplier blacklist / sanctions check
@@ -1607,17 +1829,25 @@
       };
     }
 
-    // 6. Role permission check
-    if (
-      user &&
-      !hasPermission(user, 'mark_paid') &&
-      !hasPermission(user, 'schedule_payment') &&
-      !hasPermission(user, 'create_batch')
-    ) {
-      return {
-        allowed: false,
-        reason: `Permission denied: Role "${user.role}" is not authorized to execute payments`
-      };
+    // 6. Role permission & department/entity/payment-amount scope check
+    if (user) {
+      if (
+        !hasPermission(user, 'mark_paid') &&
+        !hasPermission(user, 'schedule_payment') &&
+        !hasPermission(user, 'create_batch')
+      ) {
+        return {
+          allowed: false,
+          reason: `Permission denied: Role "${user.role}" is not authorized to execute payments`
+        };
+      }
+      const scopeCheck = checkDepartmentAndAmountAccess(user, invoice, state.settings, {
+        checkApprovalAmount: false,
+        checkPaymentAmount: true
+      });
+      if (!scopeCheck.allowed) {
+        return scopeCheck;
+      }
     }
 
     return { allowed: true, payableAmount: remaining };
@@ -1642,6 +1872,8 @@
     const discountInfo = computeEarlyDiscount(inv, scheduledDate);
     if (options.useEarlyDiscount && discountInfo.eligible) {
       inv.appliedDiscountAmount = discountInfo.discountAmount;
+    } else if (inv.earlyDiscountDeadline && scheduledDate > inv.earlyDiscountDeadline) {
+      inv.appliedDiscountAmount = 0;
     }
 
     inv.status = STATUSES.SCHEDULED;
@@ -1665,16 +1897,25 @@
     return { invoice: inv, discountInfo };
   }
 
+  function escapeXml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
   function generateSepaXml(batch, invoices) {
     const createdIso = batch.createdAt || new Date().toISOString();
     const txs = invoices
       .map(
         (inv) => `      <CdtTrfTxInf>
-        <PmtId><EndToEndId>${inv.id}-${inv.invoiceNumber}</EndToEndId></PmtId>
-        <Amt><InstdAmt Ccy="${inv.currency}">${getRemainingAmount(inv).toFixed(2)}</InstdAmt></Amt>
-        <Cdtr><Nm>${inv.supplierName.replace(/[<>&]/g, '')}</Nm></Cdtr>
-        <CdtrAcct><Id><IBAN>${inv.iban}</IBAN></Id></CdtrAcct>
-        <RmtInf><Ustrd>Invoice ${inv.invoiceNumber}</Ustrd></RmtInf>
+        <PmtId><EndToEndId>${escapeXml(inv.id)}-${escapeXml(inv.invoiceNumber)}</EndToEndId></PmtId>
+        <Amt><InstdAmt Ccy="${escapeXml(inv.currency)}">${getRemainingAmount(inv).toFixed(2)}</InstdAmt></Amt>
+        <Cdtr><Nm>${escapeXml(inv.supplierName)}</Nm></Cdtr>
+        <CdtrAcct><Id><IBAN>${escapeXml(String(inv.iban || '').replace(/\s+/g, ''))}</IBAN></Id></CdtrAcct>
+        <RmtInf><Ustrd>Invoice ${escapeXml(inv.invoiceNumber)}</Ustrd></RmtInf>
       </CdtTrfTxInf>`
       )
       .join('\n');
@@ -1683,15 +1924,15 @@
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
   <CstmrCdtTrfInitn>
     <GrpHdr>
-      <MsgId>${batch.id}</MsgId>
-      <CreDtTm>${createdIso}</CreDtTm>
+      <MsgId>${escapeXml(batch.id)}</MsgId>
+      <CreDtTm>${escapeXml(createdIso)}</CreDtTm>
       <NbOfTxs>${invoices.length}</NbOfTxs>
       <CtrlSum>${batch.totalAmountEur.toFixed(2)}</CtrlSum>
     </GrpHdr>
     <PmtInf>
-      <PmtInfId>${batch.id}-PMT</PmtInfId>
+      <PmtInfId>${escapeXml(batch.id)}-PMT</PmtInfId>
       <PmtMtd>TRF</PmtMtd>
-      <ReqdExctnDt>${batch.executionDate}</ReqdExctnDt>
+      <ReqdExctnDt>${escapeXml(batch.executionDate)}</ReqdExctnDt>
 ${txs}
     </PmtInf>
   </CstmrCdtTrfInitn>
@@ -1703,14 +1944,15 @@ ${txs}
     if (!hasPermission(user, 'create_batch')) {
       throw new Error(`Permission denied: Role "${user ? user.role : 'none'}" cannot create payment batches`);
     }
-    if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    const uniqueIds = Array.isArray(invoiceIds) ? Array.from(new Set(invoiceIds)) : [];
+    if (uniqueIds.length === 0) {
       throw new Error('Select at least one invoice to create a payment batch');
     }
 
     const selected = [];
-    for (const id of invoiceIds) {
+    for (const id of uniqueIds) {
       const inv = (state.invoices || []).find((i) => i.id === id);
-      const check = canPayInvoice(state, inv, user);
+      const check = canPayInvoice(state, inv, user, { forBatch: true });
       if (!check.allowed) {
         throw new Error(`Cannot include ${inv ? inv.invoiceNumber : id} in batch: ${check.reason}`);
       }
@@ -1750,6 +1992,7 @@ ${txs}
         inv.paymentReference = `${batch.paymentReference}-${inv.invoiceNumber}`;
         inv.paidAt = new Date().toISOString();
         inv.paidBy = user.id;
+        inv.reconciled = true;
         addTimelineEvent(inv, `Paid in batch ${batchId} (Ref: ${inv.paymentReference})`, user);
       } else {
         inv.status = STATUSES.SCHEDULED;
@@ -1772,6 +2015,50 @@ ${txs}
     return batch;
   }
 
+  function reconcilePaymentBatch(state, batchId, actor = null) {
+    const user = actor || state.currentUser;
+    if (!hasPermission(user, 'reconcile_bank') && !hasPermission(user, 'mark_paid')) {
+      throw new Error(`Permission denied: Role "${user ? user.role : 'none'}" cannot reconcile payment batches`);
+    }
+    const batch = (state.paymentBatches || []).find((b) => b.id === batchId);
+    if (!batch) throw new Error(`Payment batch ${batchId} not found`);
+
+    for (const id of batch.invoiceIds || []) {
+      const inv = (state.invoices || []).find((i) => i.id === id);
+      if (!inv || inv.status === STATUSES.PAID) continue;
+      const check = canPayInvoice(state, inv, user, { ignoreBatchId: true });
+      if (!check.allowed) {
+        throw new Error(`Cannot execute payment for ${inv.invoiceNumber} in ${batchId}: ${check.reason}`);
+      }
+      const rem = getRemainingAmount(inv);
+      inv.paidAmount = Number(((inv.paidAmount || 0) + rem).toFixed(2));
+      inv.status = STATUSES.PAID;
+      inv.paymentReference = `${batch.paymentReference}-${inv.invoiceNumber}`;
+      inv.paidAt = new Date().toISOString();
+      inv.paidBy = user.id;
+      inv.reconciled = true;
+      addTimelineEvent(
+        inv,
+        `Batch ${batchId} executed & bank-reconciled (Ref: ${inv.paymentReference})`,
+        user
+      );
+      recordInvoiceVersion(inv, user, `Reconciled batch ${batchId}`);
+    }
+
+    batch.status = 'reconciled';
+    batch.reconciledAt = new Date().toISOString();
+    appendAuditLog(state, {
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      action: 'RECONCILE_PAYMENT_BATCH',
+      entityType: 'batch',
+      entityId: batch.id,
+      summary: `Executed and bank-reconciled SEPA batch ${batch.id}`
+    });
+    return batch;
+  }
+
   function recordPaymentOrCredit(state, invoiceId, options = {}, actor = null) {
     const user = actor || state.currentUser;
     const inv = (state.invoices || []).find((i) => i.id === invoiceId);
@@ -1781,6 +2068,19 @@ ${txs}
       if (!hasPermission(user, 'apply_credit_note')) {
         throw new Error('Permission denied: Cannot apply credit notes');
       }
+      if (
+        inv.status === STATUSES.REJECTED ||
+        inv.status === STATUSES.FLAGGED ||
+        inv.status === STATUSES.PAID
+      ) {
+        throw new Error(`Cannot apply credit note to invoice in "${inv.status}" status`);
+      }
+      const scopeCheck = checkDepartmentAndAmountAccess(user, inv, state.settings, {
+        checkApprovalAmount: false
+      });
+      if (!scopeCheck.allowed) {
+        throw new Error(scopeCheck.reason);
+      }
       const creditAmt = Number(options.amount) || 0;
       const rem = getRemainingAmount(inv);
       if (creditAmt <= 0 || creditAmt > rem) {
@@ -1788,9 +2088,17 @@ ${txs}
       }
       inv.creditNoteAmount = Number(((inv.creditNoteAmount || 0) + creditAmt).toFixed(2));
       inv.creditNoteRef = options.reference || `CN-${inv.invoiceNumber}`;
+      if ((Number(inv.appliedDiscountAmount) || 0) > 0 && (Number(inv.earlyDiscountPercent) || 0) > 0) {
+        const netFace = Math.max(0, Number(((Number(inv.amount) || 0) - inv.creditNoteAmount).toFixed(2)));
+        const recalcDisc = Number(((netFace * Number(inv.earlyDiscountPercent)) / 100).toFixed(2));
+        const maxPossibleDisc = Math.max(0, Number((netFace - (Number(inv.paidAmount) || 0)).toFixed(2)));
+        inv.appliedDiscountAmount = Math.min(recalcDisc, maxPossibleDisc);
+      }
       if (getRemainingAmount(inv) === 0) {
         inv.status = STATUSES.PAID;
         inv.paymentReference = inv.creditNoteRef;
+        inv.paidAt = inv.paidAt || new Date().toISOString();
+        inv.paidBy = user.id;
       }
       addTimelineEvent(
         inv,
@@ -1890,7 +2198,7 @@ ${txs}
       }
 
       const disc = computeEarlyDiscount(inv, todayStr);
-      if (disc.eligible) {
+      if (disc.eligible && !disc.alreadyApplied) {
         const discBase = convertCurrency(disc.discountAmount, inv.currency, baseCurrency);
         forecast.potentialEarlyDiscountSavings = Number(
           (forecast.potentialEarlyDiscountSavings + discBase).toFixed(2)
@@ -1918,6 +2226,8 @@ ${txs}
     } else if (newStatus === 'verified') {
       sup.riskRating = 'low';
     }
+
+    refreshInvoicesAuditState(state);
 
     appendAuditLog(state, {
       actorId: user.id,
@@ -1947,6 +2257,8 @@ ${txs}
     });
     sup.iban = newIban;
     sup.bankChangedRecently = !verified;
+
+    refreshInvoicesAuditState(state);
 
     appendAuditLog(state, {
       actorId: user ? user.id : 'system',
@@ -2067,8 +2379,9 @@ ${txs}
     const kpis = computeKPIs(state, nowInput);
     const invoices = state.invoices || [];
 
-    // Turnaround time by auditor
+    // Turnaround time by auditor & by supplier
     const auditorMap = new Map();
+    const supplierTurnaroundMap = new Map();
     let paidOnTime = 0;
     let paidLate = 0;
 
@@ -2079,11 +2392,30 @@ ${txs}
       }
       const aStat = auditorMap.get(auditor);
       aStat.count += 1;
+
+      const supKey = inv.supplierId || inv.supplierName;
+      if (!supplierTurnaroundMap.has(supKey)) {
+        supplierTurnaroundMap.set(supKey, {
+          supplierId: inv.supplierId,
+          supplierName: inv.supplierName,
+          count: 0,
+          verifiedCount: 0,
+          totalHours: 0,
+          avgHours: 0
+        });
+      }
+      const sStat = supplierTurnaroundMap.get(supKey);
+      sStat.count += 1;
+
       if (inv.receivedAt && inv.verifiedAt) {
         const h = Math.max(0, (new Date(inv.verifiedAt).getTime() - new Date(inv.receivedAt).getTime()) / 3600000);
         aStat.verifiedCount += 1;
         aStat.totalHours += h;
         aStat.avgHours = Number((aStat.totalHours / aStat.verifiedCount).toFixed(1));
+
+        sStat.verifiedCount += 1;
+        sStat.totalHours += h;
+        sStat.avgHours = Number((sStat.totalHours / sStat.verifiedCount).toFixed(1));
       }
 
       if (inv.status === STATUSES.PAID) {
@@ -2097,10 +2429,14 @@ ${txs}
     }
 
     const totalPaid = paidOnTime + paidLate;
+    const moneySavedEur = Number(convertCurrency(kpis.flagged.moneySaved, kpis.baseCurrency, 'EUR').toFixed(2));
     return {
+      baseCurrency: kpis.baseCurrency,
       fraudCaughtCount: kpis.flagged.count + kpis.flagged.rejectedCount,
-      moneySavedEur: kpis.flagged.moneySaved,
+      moneySaved: kpis.flagged.moneySaved,
+      moneySavedEur,
       turnaroundByAuditor: Array.from(auditorMap.values()),
+      turnaroundBySupplier: Array.from(supplierTurnaroundMap.values()),
       paymentPerformance: {
         paidOnTime,
         paidLate,
@@ -2117,24 +2453,64 @@ ${txs}
   // ===========================================================================
   // 13. INTEGRATIONS, OCR EXTRACTION & INGESTION
   // ===========================================================================
+  function parseOcrAmount(raw) {
+    const cleaned = String(raw || '').trim();
+    if (!cleaned) return 1250;
+    // Handle thousand separators: e.g. "12,450.50" or "12.450,50" or "9950.00" or "1250,50"
+    let normalized = cleaned;
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+      if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
+        // European format: 12.450,50
+        normalized = cleaned.replace(/\./g, '').replace(',', '.');
+      } else {
+        // US/UK format: 12,450.50
+        normalized = cleaned.replace(/,/g, '');
+      }
+    } else if (cleaned.includes(',')) {
+      const parts = cleaned.split(',');
+      if (parts.length === 2 && parts[1].length <= 2) {
+        normalized = cleaned.replace(',', '.');
+      } else {
+        normalized = cleaned.replace(/,/g, '');
+      }
+    }
+    const val = Number(normalized);
+    return Number.isFinite(val) && val > 0 ? val : 1250;
+  }
+
   function parseOcrText(rawText) {
     const text = String(rawText || '');
     const pick = (regex, fallback = '') => {
       const m = text.match(regex);
-      return m ? m[1].trim() : fallback;
+      return m && m[1] !== undefined ? m[1].trim() : fallback;
     };
 
-    const invoiceNumber = pick(/(?:Invoice\s*(?:No|Number|#)?\s*[:=-]?\s*)([A-Z0-9-]{3,30})/i, `INV-${Date.now().toString().slice(-4)}`);
-    const supplierName = pick(/(?:Supplier|Vendor|From)\s*[:=-]?\s*([^\n\r]+)/i, 'Unknown Vendor Ltd');
-    const vatNumber = pick(/(?:VAT|Tax\s*ID)\s*[:=-]?\s*([A-Z]{2}[A-Z0-9]{6,14})/i, 'FR12345678901');
-    const iban = pick(/(?:IBAN)\s*[:=-]?\s*([A-Z]{2}[0-9A-Z\s]{12,32})/i, 'FR7630006000011234567890189').replace(/\s+/g, '');
-    const amountRaw = pick(/(?:Total|Amount\s*Due|Amount)\s*[:=-]?\s*[$€£]?\s*([0-9]+(?:[.,][0-9]{1,2})?)/i, '1250.00');
-    const amount = Number(amountRaw.replace(',', '.')) || 1250;
-    const currency = pick(/(?:Currency)\s*[:=-]?\s*(EUR|USD|GBP|CHF)/i, text.includes('$') ? 'USD' : text.includes('£') ? 'GBP' : 'EUR');
-    const poNumber = pick(/(?:PO|Purchase\s*Order)\s*[:=-]?\s*([A-Z0-9-]{3,25})/i, '');
-    const issueDate = pick(/(?:Issue\s*Date|Date)\s*[:=-]?\s*(\d{4}-\d{2}-\d{2})/i, '2026-10-10');
-    const dueDate = pick(/(?:Due\s*Date|Due)\s*[:=-]?\s*(\d{4}-\d{2}-\d{2})/i, '2026-10-25');
-    const senderEmail = pick(/(?:Email|From\s*Email)\s*[:=-]?\s*([^\s@\n]+@[^\s@\n]+)/i, '');
+    const invoiceNumber = pick(
+      /(?:Invoice[ \t]*(?:No|Number|#)?[ \t]*[:=-]?[ \t]*)([A-Z0-9-]{3,30})/i,
+      `INV-${Date.now().toString().slice(-4)}`
+    );
+    const supplierName = pick(/(?:Supplier|Vendor|From)[ \t]*[:=-]?[ \t]*([^\n\r]+)/i, 'Unknown Vendor Ltd');
+    const vatNumber = pick(/(?:VAT|Tax[ \t]*ID)[ \t]*[:=-]?[ \t]*([A-Z]{2}[A-Z0-9]{6,14})/i, 'FR12345678901');
+    const iban = pick(/(?:IBAN)[ \t]*[:=-]?[ \t]*([A-Z]{2}[0-9A-Z \t]{12,32})/i, 'FR7630006000011234567890189').replace(
+      /\s+/g,
+      ''
+    );
+    const amountRaw = pick(
+      /(?:Total|Amount[ \t]*Due|Amount)[ \t]*[:=-]?[ \t]*[$€£]?[ \t]*([0-9][0-9.,]*)/i,
+      '1250.00'
+    );
+    const amount = parseOcrAmount(amountRaw);
+    const currency = pick(
+      /(?:Currency)[ \t]*[:=-]?[ \t]*(EUR|USD|GBP|CHF)/i,
+      text.includes('$') ? 'USD' : text.includes('£') ? 'GBP' : 'EUR'
+    );
+    const poNumber = pick(/(?:PO|Purchase[ \t]*Order)[ \t]*[:=-]?[ \t]*([A-Z0-9-]{3,25})?[ \t]*(?:\r?\n|$)/i, '');
+    const dueDate = pick(/(?:Due[ \t]*Date|Due)[ \t]*[:=-]?[ \t]*(\d{4}-\d{2}-\d{2})/i, '2026-10-25');
+    const issueDate = pick(
+      /(?:Issue[ \t]*Date|(?<!Due[ \t])Date)[ \t]*[:=-]?[ \t]*(\d{4}-\d{2}-\d{2})/i,
+      '2026-10-10'
+    );
+    const senderEmail = pick(/(?:Email|From[ \t]*Email)[ \t]*[:=-]?[ \t]*([^\s@\n]+@[^\s@\n]+)/i, '');
 
     return {
       invoiceNumber,
@@ -2160,7 +2536,12 @@ ${txs}
         s.name.toLowerCase() === String(parsed.supplierName || '').toLowerCase()
     );
 
-    const newId = `INV-${String((state.invoices || []).length + 1001)}`;
+    const existingNums = (state.invoices || []).map((i) => {
+      const m = String(i.id || '').match(/^INV-(\d+)$/);
+      return m ? Number(m[1]) : 1000;
+    });
+    const nextNum = Math.max(1000, ...existingNums) + 1;
+    const newId = `INV-${String(nextNum)}`;
     const nowIso = new Date(state.referenceDate || new Date().toISOString()).toISOString();
 
     const invoice = {
@@ -2171,6 +2552,9 @@ ${txs}
       vatNumber: parsed.vatNumber || (existingSupplier ? existingSupplier.vatNumber : ''),
       iban: parsed.iban || (existingSupplier ? existingSupplier.iban : ''),
       amount: Number(parsed.amount) || 0,
+      paidAmount: 0,
+      creditNoteAmount: 0,
+      appliedDiscountAmount: 0,
       currency: parsed.currency || 'EUR',
       issueDate: parsed.issueDate || nowIso.slice(0, 10),
       dueDate: parsed.dueDate || nowIso.slice(0, 10),
@@ -2187,10 +2571,14 @@ ${txs}
       senderEmail: parsed.senderEmail || '',
       ingestionSource: source,
       documentMeta: parsed.documentMeta || { tampered: false, fontMismatch: false, modifiedAfterIssue: false },
-      checklist: [],
+      checklist: createPendingChecklist(),
       riskScore: 0,
       riskLevel: 'low',
       riskReasons: [],
+      requiredApprovalLevels: getRequiredApprovalLevels(
+        convertCurrency(Number(parsed.amount) || 0, parsed.currency || 'EUR', 'EUR'),
+        state.settings
+      ),
       approvals: [],
       comments: [],
       attachments: [],
@@ -2716,15 +3104,24 @@ ${txs}
       versionHistory: []
     }));
 
-    // Run audit checks on all seeded invoices (except keep RECEIVED with empty or initial preview)
+    // Run audit checks on seeded invoices (keep RECEIVED in pending-check state until audited)
     for (const inv of state.invoices) {
-      const res = runAuditChecks(inv, state);
-      inv.checklist = res.checklist;
-      inv.riskScore = res.riskScore;
-      inv.riskLevel = res.riskLevel;
-      inv.riskReasons = res.riskReasons;
-      inv.requiredApprovalLevels = res.requiredApprovalLevels;
-      if (inv.status !== STATUSES.RECEIVED) {
+      if (inv.status === STATUSES.RECEIVED) {
+        inv.checklist = createPendingChecklist();
+        inv.riskScore = 0;
+        inv.riskLevel = 'low';
+        inv.riskReasons = [];
+        inv.requiredApprovalLevels = getRequiredApprovalLevels(
+          convertCurrency(inv.amount, inv.currency, 'EUR'),
+          state.settings
+        );
+      } else {
+        const res = runAuditChecks(inv, state);
+        inv.checklist = res.checklist;
+        inv.riskScore = res.riskScore;
+        inv.riskLevel = res.riskLevel;
+        inv.riskReasons = res.riskReasons;
+        inv.requiredApprovalLevels = res.requiredApprovalLevels;
         inv.timeline.push({
           id: `TL-${inv.timeline.length + 1}`,
           timestamp: inv.verifiedAt || inv.receivedAt,
@@ -2752,6 +3149,7 @@ ${txs}
 
   return {
     STATUSES,
+    BADGE_DESIGN_SPEC,
     STATUS_META,
     ALL_STATUS_KEYS,
     ROLES,
@@ -2765,6 +3163,8 @@ ${txs}
     appendAuditLog,
     verifyAuditLogIntegrity,
     recordInvoiceVersion,
+    createPendingChecklist,
+    refreshInvoicesAuditState,
     runAuditChecks,
     getRequiredApprovalLevels,
     computeKPIs,
@@ -2777,6 +3177,7 @@ ${txs}
     scheduleInvoicePayment,
     generateSepaXml,
     createPaymentBatch,
+    reconcilePaymentBatch,
     recordPaymentOrCredit,
     computeCashFlowForecast,
     setSupplierStatus,

@@ -74,21 +74,124 @@
     URL.revokeObjectURL(url);
   }
 
+  const BADGE_ICONS = {
+    clock: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    'calendar-days': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>`,
+    'pie-chart': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`,
+    flame: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+    'badge-check': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>`,
+    timer: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>`,
+    'pause-octagon': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 15V9"/><path d="M14 15V9"/><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/></svg>`,
+    'file-search': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3"/><path d="m9 18-1.5-1.5"/><circle cx="5" cy="14" r="3"/></svg>`
+  };
+
+  function renderDesignBadgePill(badgeSpec) {
+    const iconSvg = BADGE_ICONS[badgeSpec.icon] || '';
+    return `<span class="badge badge-${esc(badgeSpec.id)}" data-badge-id="${esc(badgeSpec.id)}" style="color: ${esc(badgeSpec.textColor)}; background-color: ${esc(badgeSpec.backgroundColor)};">${iconSvg}<span>${esc(badgeSpec.label)}</span></span>`;
+  }
+
   function renderStatusBadge(statusKey) {
-    const meta = VG.STATUS_META[statusKey] || { label: statusKey, color: 'slate' };
+    const meta = VG.STATUS_META[statusKey] || {
+      label: statusKey,
+      badgeId: 'queued',
+      badgeLabel: statusKey,
+      icon: 'clock',
+      textColor: '#A855F7',
+      backgroundColor: '#F3E8FF',
+      color: 'queued'
+    };
     const label = state.settings.language === 'fr' ? meta.labelFr : meta.label;
-    return `<span class="badge badge-${esc(meta.color)}">${esc(label)}</span>`;
+    const iconSvg = BADGE_ICONS[meta.icon] || '';
+    return `<span class="badge badge-${esc(meta.color)}" data-badge-id="${esc(meta.badgeId || meta.color)}" style="color: ${esc(meta.textColor || '#A855F7')}; background-color: ${esc(meta.backgroundColor || '#F3E8FF')};" title="${esc(label)}">${iconSvg}<span>${esc(meta.badgeLabel || label)}</span><span class="badge-sublabel">· ${esc(label)}</span></span>`;
   }
 
   function renderRiskBadge(level, score) {
     const lvl = level || 'low';
-    return `<span class="badge risk-${esc(lvl)}">${esc(lvl.toUpperCase())} (${Number(score) || 0})</span>`;
+    const map = {
+      high: { icon: 'flame', textColor: '#EF4444', backgroundColor: '#FEE2E2', label: 'High Priority' },
+      medium: { icon: 'pie-chart', textColor: '#F59E0B', backgroundColor: '#FEF3C7', label: 'In progress' },
+      low: { icon: 'badge-check', textColor: '#14B8A6', backgroundColor: '#CCFBF1', label: 'Ready' }
+    };
+    const cfg = map[lvl] || map.low;
+    const iconSvg = BADGE_ICONS[cfg.icon] || '';
+    return `<span class="badge risk-${esc(lvl)}" style="color: ${cfg.textColor}; background-color: ${cfg.backgroundColor};">${iconSvg}<span>${esc(lvl.toUpperCase())} (${Number(score) || 0})</span></span>`;
+  }
+
+  function getStorage() {
+    try {
+      if (window.vgStorage) return window.vgStorage;
+      if (typeof Storage !== 'undefined' && window.localStorage) return window.localStorage;
+    } catch (_) {
+      // Ignore storage access errors
+    }
+    return null;
+  }
+
+  function loadSavedViewsFromStorage() {
+    try {
+      const store = getStorage();
+      const raw = store && store.getItem('vaultgard_saved_views');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          state.savedViews = parsed;
+        }
+      }
+    } catch (_) {
+      // Ignore storage access errors in restricted environments
+    }
+  }
+
+  function saveViewsToStorage() {
+    try {
+      const store = getStorage();
+      if (store) {
+        store.setItem('vaultgard_saved_views', JSON.stringify(state.savedViews));
+      }
+    } catch (_) {
+      // Ignore storage access errors
+    }
+  }
+
+  function syncDynamicFilterOptions() {
+    const supSel = document.getElementById('f-supplier');
+    if (supSel) {
+      const curSup = ui.query.supplierId || 'all';
+      const supOptions = new Map();
+      state.suppliers.forEach((s) => supOptions.set(s.id, s.name));
+      state.invoices.forEach((i) => {
+        if (i.supplierId && !supOptions.has(i.supplierId)) {
+          supOptions.set(i.supplierId, i.supplierName || i.supplierId);
+        }
+      });
+      supSel.innerHTML =
+        `<option value="all">All Suppliers</option>` +
+        Array.from(supOptions.entries())
+          .map(([id, name]) => `<option value="${esc(id)}" ${id === curSup ? 'selected' : ''}>${esc(name)}</option>`)
+          .join('');
+    }
+
+    const assSel = document.getElementById('f-assignee');
+    if (assSel) {
+      const curAss = ui.query.assignee || 'all';
+      const assignees = new Set(['Sophie Mercier', 'Elena Rostova', 'Claire Dubois', 'Unassigned']);
+      state.invoices.forEach((i) => {
+        if (i.assignee) assignees.add(i.assignee);
+      });
+      assSel.innerHTML =
+        `<option value="all">All Assignees</option>` +
+        Array.from(assignees)
+          .map((a) => `<option value="${esc(a)}" ${a === curAss ? 'selected' : ''}>${esc(a)}</option>`)
+          .join('');
+    }
   }
 
   // ===========================================================================
   // RENDER HEADER & FILTERS INIT
   // ===========================================================================
   function initSelectors() {
+    loadSavedViewsFromStorage();
+
     const userSel = document.getElementById('select-user');
     userSel.innerHTML = state.users
       .map(
@@ -102,10 +205,7 @@
       `<option value="all">All Statuses (10)</option>` +
       VG.ALL_STATUS_KEYS.map((k) => `<option value="${esc(k)}">${esc(VG.STATUS_META[k].label)}</option>`).join('');
 
-    const supSel = document.getElementById('f-supplier');
-    supSel.innerHTML =
-      `<option value="all">All Suppliers</option>` +
-      state.suppliers.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+    syncDynamicFilterOptions();
   }
 
   // ===========================================================================
@@ -180,12 +280,19 @@
     }).join('');
 
     statusGrid.querySelectorAll('[data-filter-status]').forEach((card) => {
-      card.addEventListener('click', () => {
+      const activateFilter = () => {
         const st = card.getAttribute('data-filter-status');
         resetQueryFilters();
         ui.query.status = st;
         document.getElementById('f-status').value = st;
         switchTab('invoices');
+      };
+      card.addEventListener('click', activateFilter);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activateFilter();
+        }
       });
     });
 
@@ -234,12 +341,21 @@
   // ===========================================================================
   function renderSavedViewsBar() {
     const bar = document.getElementById('saved-views-bar');
-    bar.innerHTML = state.savedViews
+    const viewsHtml = state.savedViews
       .map(
         (v) =>
           `<button type="button" class="view-pill ${ui.activeViewId === v.id ? 'active' : ''}" data-view-id="${esc(v.id)}">${esc(v.name)}</button>`
       )
       .join('');
+
+    const badgesHtml = (VG.BADGE_DESIGN_SPEC || [])
+      .map((b) => {
+        const iconSvg = BADGE_ICONS[b.icon] || '';
+        return `<button type="button" class="badge badge-${esc(b.id)} badge-filter-btn" data-badge-filter="${esc(b.id)}" style="color: ${esc(b.textColor)}; background-color: ${esc(b.backgroundColor)}; border: 1px solid ${esc(b.textColor)}33; cursor: pointer;">${iconSvg}<span>${esc(b.label)}</span></button>`;
+      })
+      .join('');
+
+    bar.innerHTML = `${viewsHtml}<span style="margin: 0 0.25rem; color: var(--border);">|</span>${badgesHtml}`;
 
     bar.querySelectorAll('[data-view-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -250,6 +366,21 @@
         ui.activeViewId = vid;
         Object.assign(ui.query, view.query);
         syncFilterInputsFromQuery();
+        renderAll();
+      });
+    });
+
+    bar.querySelectorAll('[data-badge-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const bid = btn.getAttribute('data-badge-filter');
+        const spec = (VG.BADGE_DESIGN_SPEC || []).find((b) => b.id === bid);
+        if (!spec) return;
+        resetQueryFilters();
+        ui.activeViewId = `badge_${bid}`;
+        ui.query.status = spec.mappedStatuses.length === 1 ? spec.mappedStatuses[0] : spec.mappedStatuses;
+        if (typeof ui.query.status === 'string') {
+          document.getElementById('f-status').value = ui.query.status;
+        }
         renderAll();
       });
     });
@@ -385,31 +516,31 @@
       <div class="detail-split">
         <!-- Left Column: Original Document Viewer & Linked Docs -->
         <div>
-          <div class="card-title">5. Original Document Viewer (PDF / OCR Overlay) &amp; Extracted Fields</div>
+          <div class="card-title">Original Document Viewer (PDF / OCR Overlay) &amp; Extracted Fields</div>
           <div class="doc-preview">
-            <div style="display:flex;justify-content:space-between;border-bottom:1px dashed #334155;padding-bottom:0.5rem;margin-bottom:0.6rem;">
+            <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.6rem;">
               <span><strong>ORIGINAL INVOICE PDF</strong> (${esc(inv.invoiceNumber)}.pdf)</span>
               <span>Source: ${esc(inv.ingestionSource || 'Email / OCR')}</span>
             </div>
             ${
               inv.documentMeta && (inv.documentMeta.tampered || inv.documentMeta.fontMismatch || inv.documentMeta.modifiedAfterIssue)
-                ? `<div style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#fca5a5;padding:0.45rem;border-radius:6px;margin-bottom:0.6rem;">
-                    ⚠ FORENSIC PDF ALERT: Layer tampering / font glyph mismatch detected on IBAN &amp; Total block!
+                ? `<div style="background:#FEE2E2;border:1px solid #FECACA;color:#B91C1C;padding:0.45rem 0.6rem;border-radius:6px;margin-bottom:0.6rem;font-family:var(--font);font-weight:500;">
+                    Forensic PDF Alert: Layer tampering or font glyph mismatch detected on IBAN &amp; Total block.
                    </div>`
-                : `<div style="background:rgba(16,185,129,0.12);border:1px solid #10b981;color:#6ee7b7;padding:0.35rem 0.5rem;border-radius:6px;margin-bottom:0.6rem;">
-                    ✓ Digital Signature &amp; PDF XMP Metadata Verified Clean
+                : `<div style="background:#CCFBF1;border:1px solid #99F6E4;color:#0F766E;padding:0.35rem 0.6rem;border-radius:6px;margin-bottom:0.6rem;font-family:var(--font);font-weight:500;">
+                    Digital signature &amp; PDF XMP metadata verified clean.
                    </div>`
             }
             <div><strong>VENDOR:</strong> ${esc(inv.supplierName)}</div>
             <div><strong>VAT / TAX ID:</strong> ${esc(inv.vatNumber || 'MISSING')}</div>
             <div><strong>SENDER EMAIL:</strong> ${esc(VG.maskPII(inv.senderEmail || 'N/A', mask))}</div>
             <div><strong>BANK IBAN:</strong> ${esc(VG.maskPII(inv.iban, mask))} ${
-              inv.callbackVerified ? '<span class="badge badge-emerald">✓ Callback Verified</span>' : ''
+              inv.callbackVerified ? '<span class="badge badge-ready">Callback Verified</span>' : ''
             }</div>
             <div><strong>INVOICE DATE:</strong> ${esc(inv.issueDate)} | <strong>DUE DATE:</strong> ${esc(inv.dueDate)}</div>
             <div><strong>PO REFERENCE:</strong> ${esc(inv.poNumber || 'NONE')} (PO Amt: ${esc(VG.formatMoney(inv.poAmount || 0, inv.currency))})</div>
             <div><strong>DELIVERY NOTE (GRN):</strong> ${esc(inv.grnNumber || 'NONE')} [${esc(inv.grnStatus || 'missing')}]</div>
-            <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px dashed #334155;font-size:0.95rem;">
+            <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.92rem;">
               <strong>TOTAL AMOUNT: ${esc(VG.formatMoney(inv.amount, inv.currency))}</strong>
               (Remaining: ${esc(VG.formatMoney(VG.getRemainingAmount(inv), inv.currency))})
             </div>
@@ -418,10 +549,10 @@
           <div class="card" style="margin-top: 0.9rem;">
             <div class="card-title">Linked Documents &amp; 3-Way Match Artifacts</div>
             <div style="font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.35rem;">
-              <div>📄 <strong>Purchase Order:</strong> ${inv.poNumber ? `${esc(inv.poNumber)} (${esc(VG.formatMoney(inv.poAmount, inv.currency))})` : 'Missing PO'}</div>
-              <div>📦 <strong>Goods Received / Delivery Note:</strong> ${inv.grnNumber ? `${esc(inv.grnNumber)} (${esc(inv.grnStatus)})` : 'Missing GRN'}</div>
-              <div>🏢 <strong>Supplier Master Record:</strong> ${supplier ? `${esc(supplier.name)} — Status: ${esc(supplier.status.toUpperCase())}, Avg Invoice: ${esc(VG.formatMoney(supplier.avgInvoiceAmount, 'EUR'))}` : 'Not in Approved Vendor List'}</div>
-              <div>📎 <strong>Attachments (${(inv.attachments || []).length}):</strong>
+              <div><strong>Purchase Order:</strong> ${inv.poNumber ? `${esc(inv.poNumber)} (${esc(VG.formatMoney(inv.poAmount, inv.currency))})` : 'Missing PO'}</div>
+              <div><strong>Goods Received / Delivery Note:</strong> ${inv.grnNumber ? `${esc(inv.grnNumber)} (${esc(inv.grnStatus)})` : 'Missing GRN'}</div>
+              <div><strong>Supplier Master Record:</strong> ${supplier ? `${esc(supplier.name)} — Status: ${esc(supplier.status.toUpperCase())}, Avg Invoice: ${esc(VG.formatMoney(supplier.avgInvoiceAmount, 'EUR'))}` : 'Not in Approved Vendor List'}</div>
+              <div><strong>Attachments (${(inv.attachments || []).length}):</strong>
                 ${(inv.attachments || []).map((a) => `<span class="badge badge-slate">${esc(a.name)}</span>`).join(' ')}
                 <button type="button" class="btn btn-sm" id="btn-detail-attach" style="margin-left:0.4rem;">+ Attach Proof</button>
               </div>
@@ -434,7 +565,7 @@
               ${(inv.comments || [])
                 .map((c) => {
                   const formatted = esc(c.text).replace(/(@[a-zA-Z0-9_.-]+)/g, '<span class="mention">$1</span>');
-                  return `<div style="font-size:0.8rem;background:var(--bg-elevated);padding:0.4rem 0.6rem;border-radius:6px;">
+                  return `<div style="font-size:0.8rem;background:var(--bg-subtle);padding:0.45rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
                     <strong>${esc(c.authorName)}</strong> <span style="color:var(--text-muted);font-size:0.72rem;">(${esc(c.timestamp.slice(0, 16).replace('T', ' '))})</span>:
                     <div>${formatted}</div>
                   </div>`;
@@ -451,19 +582,19 @@
         <!-- Right Column: Workflow Actions, 9 Fraud Checks & Timeline -->
         <div>
           <div class="card" style="margin-bottom: 0.9rem;">
-            <div class="card-title">6. Workflow &amp; Audit Actions (Multi-Level Approval: ${curApprovals}/${reqLevels})</div>
+            <div class="card-title">Workflow &amp; Audit Actions (Multi-Level Approval: ${curApprovals}/${reqLevels})</div>
             <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;">
-              <button type="button" class="btn btn-sm" data-wf-action="run_checks">🔍 Re-run 9 Checks</button>
-              <button type="button" class="btn btn-sm" data-wf-action="assign">👤 Assign to Auditor</button>
-              <button type="button" class="btn btn-sm" data-wf-action="verify_callback">📞 Mark Verified by Phone Callback</button>
-              <button type="button" class="btn btn-sm btn-success" data-wf-action="approve">✓ Approve (L${curApprovals + 1}/${reqLevels})</button>
-              <button type="button" class="btn btn-sm btn-primary" data-wf-action="approve_and_schedule">⚡ Approve &amp; Schedule (1-Step)</button>
-              <button type="button" class="btn btn-sm btn-warning" data-wf-action="request_info">❓ Request Supplier Info</button>
-              <button type="button" class="btn btn-sm btn-warning" data-wf-action="hold">⏸ Put On Hold</button>
-              <button type="button" class="btn btn-sm" data-wf-action="release">▶ Release Hold</button>
-              <button type="button" class="btn btn-sm" data-wf-action="escalate">🚨 Escalate to Fraud Team</button>
-              <button type="button" class="btn btn-sm btn-danger" data-wf-action="flag">🚩 Flag Suspicious</button>
-              <button type="button" class="btn btn-sm btn-danger" data-wf-action="reject">⛔ Reject / Confirm Scam</button>
+              <button type="button" class="btn btn-sm" data-wf-action="run_checks">Re-run 9 Checks</button>
+              <button type="button" class="btn btn-sm" data-wf-action="assign">Assign to Auditor</button>
+              <button type="button" class="btn btn-sm" data-wf-action="verify_callback">Verify by Callback</button>
+              <button type="button" class="btn btn-sm btn-primary" data-wf-action="approve">Approve (L${curApprovals + 1}/${reqLevels})</button>
+              <button type="button" class="btn btn-sm" data-wf-action="approve_and_schedule">Approve &amp; Schedule</button>
+              <button type="button" class="btn btn-sm" data-wf-action="request_info">Request Info</button>
+              <button type="button" class="btn btn-sm" data-wf-action="hold">Put On Hold</button>
+              <button type="button" class="btn btn-sm" data-wf-action="release">Release Hold</button>
+              <button type="button" class="btn btn-sm" data-wf-action="escalate">Escalate</button>
+              <button type="button" class="btn btn-sm btn-danger" data-wf-action="flag">Flag Suspicious</button>
+              <button type="button" class="btn btn-sm btn-danger" data-wf-action="reject">Reject Scam</button>
             </div>
             <input type="text" id="input-wf-note" placeholder="Optional action note / callback confirmation note / rejection reason..." style="width: 100%;" />
           </div>
@@ -693,9 +824,17 @@
           <div class="check-item" style="margin-top:0.4rem;">
             <div>
               <strong>${esc(b.id)}</strong> — ${b.invoiceCount} invoices (${esc(VG.formatMoney(b.totalAmountEur, 'EUR'))})
+              <span class="badge ${b.status === 'reconciled' ? 'badge-emerald' : 'badge-amber'}" style="margin-left:0.35rem;">${esc((b.status || 'generated').toUpperCase())}</span>
               <div style="font-size:0.75rem;color:var(--text-muted);">Created by ${esc(b.createdBy)} • Exec Date: ${esc(b.executionDate)} • Ref: ${esc(b.paymentReference)}</div>
             </div>
-            <button type="button" class="btn btn-sm btn-primary" data-dl-batch="${esc(b.id)}">Download SEPA pain.001 XML</button>
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+              ${
+                b.status !== 'reconciled'
+                  ? `<button type="button" class="btn btn-sm btn-success" data-reconcile-batch="${esc(b.id)}">✓ Mark Batch Paid &amp; Reconciled</button>`
+                  : ''
+              }
+              <button type="button" class="btn btn-sm btn-primary" data-dl-batch="${esc(b.id)}">Download SEPA pain.001 XML</button>
+            </div>
           </div>
         `
         )
@@ -708,6 +847,19 @@
           if (batch) {
             downloadFile(`${batch.id}.xml`, batch.sepaXml, 'application/xml');
             showToast(`Downloaded ${batch.id}.xml`);
+          }
+        });
+      });
+
+      batchesBox.querySelectorAll('[data-reconcile-batch]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const bid = btn.getAttribute('data-reconcile-batch');
+          try {
+            VG.reconcilePaymentBatch(state, bid);
+            showToast(`Batch ${bid} marked as Paid & Bank-Reconciled`);
+            renderAll();
+          } catch (err) {
+            showToast(err.message, true);
           }
         });
       });
@@ -741,7 +893,7 @@
 
             <div style="font-size:0.82rem;margin-bottom:0.6rem;">
               <div><strong>Current IBAN:</strong> <span class="mono">${esc(VG.maskPII(s.iban, state.settings.gdprMaskPii))}</span>
-                ${s.bankChangedRecently ? '<span class="badge badge-orange">⚠ Recent Unverified IBAN Change</span>' : ''}
+                ${s.bankChangedRecently ? '<span class="badge badge-orange">Recent Unverified IBAN Change</span>' : ''}
               </div>
               <div><strong>Risk Rating:</strong> ${esc(s.riskRating.toUpperCase())} • <strong>Historical Avg:</strong> ${esc(VG.formatMoney(s.avgInvoiceAmount, 'EUR'))}</div>
               <div><strong>History:</strong> ${supInvoices.length} invoices (${flagCount} flagged/rejected)</div>
@@ -764,9 +916,9 @@
             </div>
 
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
-              <button type="button" class="btn btn-sm btn-success" data-sup-act="whitelist" data-id="${esc(s.id)}">✓ Whitelist / Verify</button>
-              <button type="button" class="btn btn-sm btn-danger" data-sup-act="blacklist" data-id="${esc(s.id)}">⛔ Blacklist Supplier</button>
-              <button type="button" class="btn btn-sm" data-sup-act="change_iban" data-id="${esc(s.id)}">🏦 Simulate IBAN Change</button>
+              <button type="button" class="btn btn-sm btn-success" data-sup-act="whitelist" data-id="${esc(s.id)}">Whitelist / Verify</button>
+              <button type="button" class="btn btn-sm btn-danger" data-sup-act="blacklist" data-id="${esc(s.id)}">Blacklist Supplier</button>
+              <button type="button" class="btn btn-sm" data-sup-act="change_iban" data-id="${esc(s.id)}">Simulate IBAN Change</button>
             </div>
           </div>
         `;
@@ -862,7 +1014,7 @@
         <div style="background:var(--bg-elevated);padding:0.7rem;border-radius:8px;">
           <div class="card-title">Fraud Caught &amp; Money Saved</div>
           <div style="font-size:1.3rem;font-weight:800;color:var(--success);">
-            ${esc(VG.formatMoney(VG.convertCurrency(an.moneySavedEur, 'EUR', cur), cur))}
+            ${esc(VG.formatMoney(an.moneySaved, cur))}
           </div>
           <div style="font-size:0.75rem;color:var(--text-muted);">${an.fraudCaughtCount} fraudulent/suspicious invoices intercepted</div>
         </div>
@@ -873,16 +1025,58 @@
         </div>
       </div>
       <div class="card-title">Verification Turnaround Time by Auditor</div>
-      <div style="font-size:0.8rem;margin-bottom:0.5rem;">
+      <div style="font-size:0.8rem;margin-bottom:0.65rem;">
         ${an.turnaroundByAuditor
           .map(
             (a) =>
-              `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+              `<div style="display:flex;justify-content:space-between;padding:0.22rem 0;border-bottom:1px solid var(--border);">
                 <span>${esc(a.auditor)} (${a.count} assigned)</span>
                 <strong>${a.avgHours}h avg turnaround</strong>
               </div>`
           )
           .join('')}
+      </div>
+      <div class="card-title">Verification Turnaround Time by Supplier</div>
+      <div style="font-size:0.8rem;margin-bottom:0.65rem;">
+        ${(an.turnaroundBySupplier || [])
+          .map(
+            (s) =>
+              `<div style="display:flex;justify-content:space-between;padding:0.22rem 0;border-bottom:1px solid var(--border);">
+                <span>${esc(s.supplierName)} (${s.count} inv)</span>
+                <strong>${s.avgHours}h avg turnaround</strong>
+              </div>`
+          )
+          .join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <div>
+          <div class="card-title">Top Suppliers by Volume</div>
+          <div style="font-size:0.78rem;">
+            ${(an.topSuppliersByVolume || [])
+              .map(
+                (s) =>
+                  `<div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border);">
+                    <span>${esc(s.supplierName)}</span>
+                    <strong class="mono">${esc(VG.formatMoney(s.totalAmount, cur))}</strong>
+                  </div>`
+              )
+              .join('')}
+          </div>
+        </div>
+        <div>
+          <div class="card-title">Top Suppliers by Risk Score</div>
+          <div style="font-size:0.78rem;">
+            ${(an.topSuppliersByRisk || [])
+              .map(
+                (s) =>
+                  `<div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border);">
+                    <span>${esc(s.supplierName)}</span>
+                    <strong class="mono" style="color:${s.maxRiskScore >= 65 ? 'var(--danger)' : 'var(--text)'};">Risk ${s.maxRiskScore} (${s.flaggedCount} flagged)</strong>
+                  </div>`
+              )
+              .join('')}
+          </div>
+        </div>
       </div>
     `;
 
@@ -962,6 +1156,9 @@
       s.highRiskThreshold = Number(document.getElementById('set-high-risk').value) || 65;
       s.enforceSegregationOfDuties = document.getElementById('set-sod').value === 'true';
       s.gdprMaskPii = document.getElementById('set-gdpr').value === 'true';
+      if (typeof VG.refreshInvoicesAuditState === 'function') {
+        VG.refreshInvoicesAuditState(state);
+      }
       VG.appendAuditLog(state, {
         actorId: state.currentUser.id,
         actorName: state.currentUser.name,
@@ -1016,6 +1213,7 @@
     document.getElementById('app-title').textContent = I18N[lang].title;
     document.getElementById('app-subtitle').textContent = I18N[lang].subtitle;
 
+    syncDynamicFilterOptions();
     renderOverview();
     renderInvoicesTable();
     renderPaymentsTab();
@@ -1059,6 +1257,23 @@
       html.setAttribute('data-theme', next);
       state.settings.darkMode = next === 'dark';
     });
+
+    const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener('click', () => {
+        const sb = document.getElementById('app-sidebar');
+        if (sb) sb.classList.toggle('collapsed');
+      });
+    }
+
+    const focusSearchBtn = document.getElementById('btn-focus-search');
+    if (focusSearchBtn) {
+      focusSearchBtn.addEventListener('click', () => {
+        switchTab('invoices');
+        const searchEl = document.getElementById('f-search');
+        if (searchEl && typeof searchEl.focus === 'function') searchEl.focus();
+      });
+    }
 
     // Filter inputs
     const filterBindings = [
@@ -1151,6 +1366,7 @@
       const id = `custom_${Date.now()}`;
       state.savedViews.push({ id, name, query: { ...ui.query } });
       ui.activeViewId = id;
+      saveViewsToStorage();
       showToast(`Saved filter view "${name}"`);
       renderSavedViewsBar();
     });
@@ -1182,7 +1398,7 @@
     // SEPA Batch creation button
     document.getElementById('btn-create-sepa-batch').addEventListener('click', () => {
       const eligibleIds = state.invoices
-        .filter((inv) => VG.canPayInvoice(state, inv).allowed)
+        .filter((inv) => VG.canPayInvoice(state, inv, null, { forBatch: true }).allowed)
         .map((inv) => inv.id);
       try {
         const batch = VG.createPaymentBatch(state, eligibleIds, {

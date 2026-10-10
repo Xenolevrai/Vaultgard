@@ -452,7 +452,16 @@ test('14. Frontend DOM & Controller Integrity — every getElementById in app.js
     elements.set(id, makeEl(id));
   }
 
+  const memStore = new Map();
   globalThis.window = globalThis;
+  globalThis.vgStorage = {
+    getItem(k) {
+      return memStore.get(k) || null;
+    },
+    setItem(k, v) {
+      memStore.set(k, String(v));
+    }
+  };
   globalThis.Vaultgard = VG;
   globalThis.document = {
     documentElement: makeEl('html'),
@@ -480,13 +489,149 @@ test('14. Frontend DOM & Controller Integrity — every getElementById in app.js
   assert.ok(elements.get('suppliers-grid').innerHTML.includes('CloudScale Infrastructure GmbH'));
   assert.ok(elements.get('alerts-list').innerHTML.includes('SLA Breach'));
   assert.ok(elements.get('audit-log-tbody').innerHTML.includes('SYSTEM_INIT'));
+  assert.ok(elements.get('analytics-summary').innerHTML.includes('Verification Turnaround Time by Supplier'));
+  assert.ok(elements.get('analytics-summary').innerHTML.includes('Top Suppliers by Volume'));
 
   // Trigger currency switch to USD and language switch to FR
   elements.get('select-currency').value = 'USD';
   elements.get('select-currency').trigger('change');
   assert.ok(elements.get('kpi-top-cards').innerHTML.includes('Ready to Pay (USD)'));
 
+  // Verify Saved View persistence
+  elements.get('btn-save-view').click();
+  assert.ok(memStore.get('vaultgard_saved_views').includes('Custom View #6'));
+
   elements.get('select-lang').value = 'fr';
   elements.get('select-lang').trigger('change');
   assert.match(elements.get('app-title').textContent, /Audit de Factures/);
 });
+
+test('15. Regression Suite — OCR multiline & thousand-separator parsing, Analytics currency consistency, Discount/CreditNote math, RBAC scope, and Batch deduplication', async () => {
+  // 1. OCR multiline scam preset (IBAN before Total, empty PO before Issue Date, thousand separators)
+  const scamPreset = `Invoice Number: CS-2026-999
+Supplier: CloudScale Infrastructure GmbH
+VAT: DE812345678
+IBAN: DE99000099998888777766
+Total: 12,450.50
+Currency: EUR
+PO: 
+Issue Date: 2026-10-10
+Due Date: 2026-10-12
+Email: urgent@c1oudscale.de`;
+  const parsed = VG.parseOcrText(scamPreset);
+  assert.equal(parsed.iban, 'DE99000099998888777766');
+  assert.equal(parsed.poNumber, '');
+  assert.equal(parsed.amount, 12450.5);
+  assert.equal(parsed.issueDate, '2026-10-10');
+  assert.equal(parsed.dueDate, '2026-10-12');
+
+  // Also test Due Date without Issue Date does not corrupt Issue Date
+  const dueOnly = VG.parseOcrText('Invoice: INV-900\nDue Date: 2026-11-30\nTotal: 1.250,75');
+  assert.equal(dueOnly.dueDate, '2026-11-30');
+  assert.equal(dueOnly.issueDate, '2026-10-10');
+  assert.equal(dueOnly.amount, 1250.75);
+
+  // 2. Seeded RECEIVED invoice (INV-1001) starts with 'pending' checklist items until run_checks
+  const state = VG.createInitialState();
+  const inv1001 = state.invoices.find((i) => i.id === 'INV-1001');
+  assert.equal(inv1001.status, 'received');
+  assert.equal(inv1001.checklist.length, 9);
+  assert.ok(inv1001.checklist.every((c) => c.status === 'pending'));
+
+  // 3. Analytics currency conversion consistency (no double EUR->USD conversion) & supplier turnaround
+  state.settings.baseCurrency = 'USD';
+  const kpisUsd = VG.computeKPIs(state);
+  const anUsd = VG.computeAnalytics(state);
+  assert.equal(anUsd.moneySaved, kpisUsd.flagged.moneySaved);
+  assert.equal(anUsd.moneySavedEur, 59350);
+  assert.ok(Array.isArray(anUsd.turnaroundBySupplier) && anUsd.turnaroundBySupplier.length >= 5);
+  state.settings.baseCurrency = 'EUR';
+
+  // 4. Early discount idempotency & forecast no double-counting
+  const payer = state.users.find((u) => u.id === 'USR-PAYER-1');
+  const forecastBefore = VG.computeCashFlowForecast(state);
+  assert.equal(forecastBefore.potentialEarlyDiscountSavings, 298.75); // 184 on INV-1006 + 114.75 on INV-1007
+
+  VG.scheduleInvoicePayment(state, 'INV-1006', { useEarlyDiscount: true }, payer);
+  const inv1006 = state.invoices.find((i) => i.id === 'INV-1006');
+  assert.equal(inv1006.appliedDiscountAmount, 184);
+  assert.equal(VG.getRemainingAmount(inv1006), 9016);
+
+  // Calling computeEarlyDiscount again still reports 184 on net face value (not 2% of 9016 = 180.32)
+  const reDisc = VG.computeEarlyDiscount(inv1006, '2026-10-10');
+  assert.equal(reDisc.discountAmount, 184);
+  assert.equal(reDisc.alreadyApplied, true);
+
+  // Forecast potentialEarlyDiscountSavings only counts uncaptured discount (114.75 on INV-1007)
+  const forecastAfter = VG.computeCashFlowForecast(state);
+  assert.equal(forecastAfter.potentialEarlyDiscountSavings, 114.75);
+
+  // 5. Credit note blocked on rejected (confirmed scam) and flagged invoices
+  assert.throws(
+    () => VG.recordPaymentOrCredit(state, 'INV-1005', { type: 'credit_note', amount: 1000 }, payer),
+    /Cannot apply credit note/
+  );
+  assert.throws(
+    () => VG.recordPaymentOrCredit(state, 'INV-1004', { type: 'credit_note', amount: 1000 }, payer),
+    /Cannot apply credit note/
+  );
+
+  // 6. RBAC: Approver with low maxApprovalAmount can still REJECT a high-amount scam invoice,
+  //    and department-scoped actors cannot modify or pay out-of-scope invoices
+  const lowLimitApprover = {
+    id: 'USR-APP-LOW',
+    name: 'Junior Approver',
+    role: 'approver',
+    departments: ['Logistics'],
+    entities: ['Vaultgard EU'],
+    maxApprovalAmount: 5000
+  };
+  // Can reject €9,850 flagged invoice in Logistics even though 9850 > maxApprovalAmount (5000)
+  VG.performWorkflowAction(state, 'INV-1004', 'reject', { reason: 'Confirmed lookalike domain scam' }, lowLimitApprover);
+  assert.equal(state.invoices.find((i) => i.id === 'INV-1004').status, 'rejected');
+
+  // Cannot act on Finance department invoice (out of department scope)
+  assert.throws(
+    () => VG.performWorkflowAction(state, 'INV-1005', 'hold', { reason: 'Out of dept' }, lowLimitApprover),
+    /Actor department scope/
+  );
+
+  // Scoped payer cannot pay Engineering invoice if restricted to Operations
+  const opsOnlyPayer = { ...payer, departments: ['Operations'] };
+  assert.equal(VG.canPayInvoice(state, inv1006, opsOnlyPayer).allowed, false);
+
+  // 7. SEPA batch deduplication, blocking re-batching, and batch reconciliation
+  const batch = VG.createPaymentBatch(
+    state,
+    ['INV-1006', 'INV-1006', 'INV-1007'],
+    { executionDate: '2026-10-10' },
+    payer
+  );
+  assert.equal(batch.invoiceCount, 2);
+  assert.equal(VG.canPayInvoice(state, inv1006, payer, { forBatch: true }).allowed, false);
+  assert.match(VG.canPayInvoice(state, inv1006, payer, { forBatch: true }).reason, /already assigned to SEPA batch/);
+  assert.throws(
+    () => VG.createPaymentBatch(state, ['INV-1006'], { executionDate: '2026-10-10' }, payer),
+    /already assigned to SEPA batch/
+  );
+
+  VG.reconcilePaymentBatch(state, batch.id, payer);
+  assert.equal(batch.status, 'reconciled');
+  assert.equal(inv1006.status, 'paid');
+  assert.equal(inv1006.reconciled, true);
+
+  // 8. Static server blocks dot-files
+  const { handleRequest } = createServer(state);
+  let dotStatus = 200;
+  await handleRequest(
+    { method: 'GET', url: '/.git/HEAD', headers: { host: 'localhost' } },
+    {
+      writeHead(code) {
+        dotStatus = code;
+      },
+      end() {}
+    }
+  );
+  assert.equal(dotStatus, 404);
+});
+
