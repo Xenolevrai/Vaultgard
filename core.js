@@ -1359,6 +1359,7 @@
       id: `TL-${invoice.timeline.length + 1}`,
       timestamp: new Date().toISOString(),
       event,
+      action: event,
       actorName: actor ? actor.name : 'System',
       actorRole: actor ? actor.role : 'system',
       note: note || ''
@@ -3096,6 +3097,7 @@ ${txs}
           id: 'TL-1',
           timestamp: inv.receivedAt,
           event: `Invoice received (${inv.invoiceNumber})`,
+          action: `Invoice received (${inv.invoiceNumber})`,
           actorName: 'Ingestion Pipeline',
           actorRole: 'system',
           note: `From ${inv.supplierName}`
@@ -3122,10 +3124,12 @@ ${txs}
         inv.riskLevel = res.riskLevel;
         inv.riskReasons = res.riskReasons;
         inv.requiredApprovalLevels = res.requiredApprovalLevels;
+        const auditEvt = `Audit checks evaluated — Status: ${STATUS_META[inv.status].label}`;
         inv.timeline.push({
           id: `TL-${inv.timeline.length + 1}`,
           timestamp: inv.verifiedAt || inv.receivedAt,
-          event: `Audit checks evaluated — Status: ${STATUS_META[inv.status].label}`,
+          event: auditEvt,
+          action: auditEvt,
           actorName: inv.assignee !== 'Unassigned' ? inv.assignee : 'Vaultgard Engine',
           actorRole: 'auditor',
           note: inv.riskReasons.join('; ') || 'All 9 fraud & compliance checks passed'
@@ -3145,6 +3149,485 @@ ${txs}
     });
 
     return state;
+  }
+
+  // ===========================================================================
+  // 14. SANKEY FLOW ENGINE (M1)
+  // ===========================================================================
+  function escapeXml(unsafe) {
+    if (unsafe == null) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function computeSankeyData(state, options = {}) {
+    const rawMode = (options && options.mode ? String(options.mode) : 'lifecycle').toLowerCase().trim();
+    const mode = rawMode.startsWith('sup') ? 'supplier' : rawMode.startsWith('dep') ? 'department' : 'lifecycle';
+    const metric = (options && options.metric ? String(options.metric) : 'amount').toLowerCase().trim() === 'count' ? 'count' : 'amount';
+    const baseCurrency = (options && options.baseCurrency) || (state && state.settings && state.settings.baseCurrency) || 'EUR';
+    const invoices = Array.isArray(state && state.invoices) ? state.invoices : [];
+
+    const getWeightCents = (inv) => {
+      if (metric === 'count') return 100;
+      const amt = Math.max(0, Number(inv && inv.amount) || 0);
+      const converted = convertCurrency(amt, (inv && inv.currency) || baseCurrency, baseCurrency);
+      return Math.round(converted * 100);
+    };
+
+    const toVal = (cents) => Number((cents / 100).toFixed(2));
+
+    const totalCents = invoices.reduce((sum, inv) => sum + getWeightCents(inv), 0);
+    const total = toVal(totalCents);
+
+    let stages = [];
+    let nodes = [];
+    let links = [];
+
+    const FRAUD_STATUSES = new Set(['flagged', 'rejected']);
+    const REVIEW_STATUSES = new Set(['received', 'pending_verification', 'under_review', 'on_hold']);
+    const APPROVED_STATUSES = new Set(['verified_approved', 'ready_to_pay']);
+    const PAID_STATUSES = new Set(['scheduled', 'paid']);
+
+    const slug = (str) => String(str || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    if (mode === 'lifecycle') {
+      stages = ['Ingested / Received', 'Audit Evaluation', 'Settlement Status'];
+
+      const nodeDefs = [
+        { id: 'ingested', label: 'Ingested / Received', stage: 0, color: 'var(--teal, #14b8a6)' },
+        { id: 'in_audit', label: 'In Audit / Review', stage: 1, color: 'var(--teal, #14b8a6)' },
+        { id: 'flagged_fraud', label: 'Flagged / Blocked', stage: 1, color: 'var(--danger, #dc2626)' },
+        { id: 'in_review_hold', label: 'In Review / On Hold', stage: 2, color: 'var(--warning, #d97706)' },
+        { id: 'approved_ready', label: 'Approved & Ready to Pay', stage: 2, color: 'var(--teal, #14b8a6)' },
+        { id: 'scheduled_paid', label: 'Scheduled / Paid', stage: 2, color: 'var(--success, #0d9488)' },
+        { id: 'blocked_prevented', label: 'Blocked (Fraud Prevented)', stage: 2, color: 'var(--danger, #dc2626)' }
+      ];
+
+      const nodeBuckets = new Map();
+      for (const def of nodeDefs) {
+        nodeBuckets.set(def.id, { ...def, cents: 0, invoiceIds: [] });
+      }
+
+      const linkBuckets = new Map();
+      const addLinkCents = (src, tgt, cents, id) => {
+        const key = src + '->' + tgt;
+        if (!linkBuckets.has(key)) {
+          linkBuckets.set(key, { source: src, target: tgt, cents: 0, invoiceIds: [] });
+        }
+        const item = linkBuckets.get(key);
+        item.cents += cents;
+        if (id && !item.invoiceIds.includes(id)) {
+          item.invoiceIds.push(id);
+        }
+      };
+
+      for (const inv of invoices) {
+        const cents = getWeightCents(inv);
+        const isFraud = FRAUD_STATUSES.has(inv.status);
+
+        // Stage 0
+        const b0 = nodeBuckets.get('ingested');
+        b0.cents += cents;
+        if (inv.id && !b0.invoiceIds.includes(inv.id)) b0.invoiceIds.push(inv.id);
+
+        // Stage 1
+        const stage1Id = isFraud ? 'flagged_fraud' : 'in_audit';
+        const b1 = nodeBuckets.get(stage1Id);
+        b1.cents += cents;
+        if (inv.id && !b1.invoiceIds.includes(inv.id)) b1.invoiceIds.push(inv.id);
+        addLinkCents('ingested', stage1Id, cents, inv.id);
+
+        // Stage 2
+        let stage2Id;
+        if (isFraud) {
+          stage2Id = 'blocked_prevented';
+        } else if (REVIEW_STATUSES.has(inv.status)) {
+          stage2Id = 'in_review_hold';
+        } else if (APPROVED_STATUSES.has(inv.status)) {
+          stage2Id = 'approved_ready';
+        } else if (PAID_STATUSES.has(inv.status)) {
+          stage2Id = 'scheduled_paid';
+        } else {
+          stage2Id = 'in_review_hold';
+        }
+
+        const b2 = nodeBuckets.get(stage2Id);
+        b2.cents += cents;
+        if (inv.id && !b2.invoiceIds.includes(inv.id)) b2.invoiceIds.push(inv.id);
+        addLinkCents(stage1Id, stage2Id, cents, inv.id);
+      }
+
+      nodes = Array.from(nodeBuckets.values()).map(b => ({
+        id: b.id,
+        label: b.label,
+        stage: b.stage,
+        value: toVal(b.cents),
+        count: b.invoiceIds.length,
+        invoiceIds: b.invoiceIds,
+        color: b.color
+      }));
+
+      links = Array.from(linkBuckets.values()).filter(l => l.cents > 0).map(l => ({
+        source: l.source,
+        target: l.target,
+        value: toVal(l.cents),
+        count: l.invoiceIds.length,
+        invoiceIds: l.invoiceIds
+      }));
+    } else {
+      // Supplier or Department mode
+      const isDept = mode === 'department';
+      stages = [isDept ? 'Departments' : 'Suppliers', 'Audit Outcome', 'Financial Destination'];
+
+      const stage0Buckets = new Map();
+      const stage1Defs = [
+        { id: 'audit_approved', label: 'Approved & Verified', stage: 1, color: 'var(--teal, #14b8a6)' },
+        { id: 'audit_review', label: 'In Review / On Hold', stage: 1, color: 'var(--warning, #d97706)' },
+        { id: 'audit_flagged', label: 'Flagged / Blocked', stage: 1, color: 'var(--danger, #dc2626)' }
+      ];
+      const stage2Defs = [
+        { id: 'dest_paid', label: 'Paid / SEPA', stage: 2, color: 'var(--success, #0d9488)' },
+        { id: 'dest_ready', label: 'Approved & Ready', stage: 2, color: 'var(--teal, #14b8a6)' },
+        { id: 'dest_held', label: 'Held / Review Queue', stage: 2, color: 'var(--warning, #d97706)' },
+        { id: 'dest_blocked', label: 'Blocked / Scam Intercepted', stage: 2, color: 'var(--danger, #dc2626)' }
+      ];
+
+      const stage1Buckets = new Map();
+      for (const d of stage1Defs) stage1Buckets.set(d.id, { ...d, cents: 0, invoiceIds: [] });
+
+      const stage2Buckets = new Map();
+      for (const d of stage2Defs) stage2Buckets.set(d.id, { ...d, cents: 0, invoiceIds: [] });
+
+      const linkBuckets = new Map();
+      const addLinkCents = (src, tgt, cents, id) => {
+        const key = src + '->' + tgt;
+        if (!linkBuckets.has(key)) {
+          linkBuckets.set(key, { source: src, target: tgt, cents: 0, invoiceIds: [] });
+        }
+        const item = linkBuckets.get(key);
+        item.cents += cents;
+        if (id && !item.invoiceIds.includes(id)) {
+          item.invoiceIds.push(id);
+        }
+      };
+
+      const PALETTE = ['#0284c7', '#0d9488', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+
+      for (const inv of invoices) {
+        const cents = getWeightCents(inv);
+
+        let s0Id, s0Label;
+        if (isDept) {
+          s0Label = inv.department || 'General';
+          s0Id = 'dept_' + slug(s0Label);
+        } else {
+          s0Label = inv.supplierName || inv.supplierId || 'Unknown Supplier';
+          s0Id = 'sup_' + slug(inv.supplierId || s0Label);
+        }
+
+        if (!stage0Buckets.has(s0Id)) {
+          const colorIdx = stage0Buckets.size % PALETTE.length;
+          stage0Buckets.set(s0Id, {
+            id: s0Id,
+            label: s0Label,
+            stage: 0,
+            color: PALETTE[colorIdx],
+            cents: 0,
+            invoiceIds: []
+          });
+        }
+        const b0 = stage0Buckets.get(s0Id);
+        b0.cents += cents;
+        if (inv.id && !b0.invoiceIds.includes(inv.id)) b0.invoiceIds.push(inv.id);
+
+        // Stage 1
+        let stage1Id;
+        if (FRAUD_STATUSES.has(inv.status)) {
+          stage1Id = 'audit_flagged';
+        } else if (APPROVED_STATUSES.has(inv.status) || PAID_STATUSES.has(inv.status)) {
+          stage1Id = 'audit_approved';
+        } else {
+          stage1Id = 'audit_review';
+        }
+        const b1 = stage1Buckets.get(stage1Id);
+        b1.cents += cents;
+        if (inv.id && !b1.invoiceIds.includes(inv.id)) b1.invoiceIds.push(inv.id);
+        addLinkCents(s0Id, stage1Id, cents, inv.id);
+
+        // Stage 2
+        let stage2Id;
+        if (FRAUD_STATUSES.has(inv.status)) {
+          stage2Id = 'dest_blocked';
+        } else if (PAID_STATUSES.has(inv.status)) {
+          stage2Id = 'dest_paid';
+        } else if (APPROVED_STATUSES.has(inv.status)) {
+          stage2Id = 'dest_ready';
+        } else {
+          stage2Id = 'dest_held';
+        }
+        const b2 = stage2Buckets.get(stage2Id);
+        b2.cents += cents;
+        if (inv.id && !b2.invoiceIds.includes(inv.id)) b2.invoiceIds.push(inv.id);
+        addLinkCents(stage1Id, stage2Id, cents, inv.id);
+      }
+
+      const allBuckets = [
+        ...Array.from(stage0Buckets.values()),
+        ...Array.from(stage1Buckets.values()),
+        ...Array.from(stage2Buckets.values())
+      ];
+
+      nodes = allBuckets.map(b => ({
+        id: b.id,
+        label: b.label,
+        stage: b.stage,
+        value: toVal(b.cents),
+        count: b.invoiceIds.length,
+        invoiceIds: b.invoiceIds,
+        color: b.color
+      }));
+
+      links = Array.from(linkBuckets.values()).filter(l => l.cents > 0).map(l => ({
+        source: l.source,
+        target: l.target,
+        value: toVal(l.cents),
+        count: l.invoiceIds.length,
+        invoiceIds: l.invoiceIds
+      }));
+    }
+
+    return {
+      mode,
+      metric,
+      baseCurrency,
+      total,
+      count: invoices.length,
+      stages,
+      nodes,
+      links
+    };
+  }
+
+  function renderSankeySVG(sankeyData, options = {}) {
+    const width = Math.max(300, Number(options && options.width) || 960);
+    const height = Math.max(200, Number(options && options.height) || 420);
+    const nodeWidth = Math.max(8, Number(options && options.nodeWidth) || 18);
+    const nodePadding = Math.max(6, Number(options && options.nodePadding) || 16);
+    const theme = (options && options.theme) === 'dark' ? 'dark' : 'light';
+    const baseCurrency = (sankeyData && sankeyData.baseCurrency) || 'EUR';
+    const metric = (sankeyData && sankeyData.metric) || 'amount';
+
+    if (!sankeyData || !Array.isArray(sankeyData.nodes) || (Number(sankeyData.total) || 0) <= 0) {
+      return [
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="100%" class="sankey-svg empty" role="img" aria-label="Empty Sankey Diagram">`,
+        `  <rect width="100%" height="100%" fill="none"/>`,
+        `  <text x="${(width / 2).toFixed(1)}" y="${(height / 2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="var(--text-muted, #787774)" font-size="14" font-family="var(--font, sans-serif)">No invoice flow data available</text>`,
+        `</svg>`
+      ].join('\n');
+    }
+
+    const padding = { top: 38, right: 30, bottom: 25, left: 30 };
+    const innerWidth = width - padding.left - padding.right - nodeWidth;
+    const innerHeight = height - padding.top - padding.bottom;
+
+    const activeNodes = sankeyData.nodes.filter(n => (Number(n.value) || 0) > 0);
+    const activeLinks = (sankeyData.links || []).filter(l => (Number(l.value) || 0) > 0);
+
+    if (activeNodes.length === 0) {
+      return [
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="100%" class="sankey-svg empty" role="img" aria-label="Empty Sankey Diagram">`,
+        `  <rect width="100%" height="100%" fill="none"/>`,
+        `  <text x="${(width / 2).toFixed(1)}" y="${(height / 2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="var(--text-muted, #787774)" font-size="14" font-family="var(--font, sans-serif)">No invoice flow data available</text>`,
+        `</svg>`
+      ].join('\n');
+    }
+
+    const stageMap = new Map();
+    for (const n of activeNodes) {
+      const s = n.stage ?? 0;
+      if (!stageMap.has(s)) stageMap.set(s, []);
+      stageMap.get(s).push({ ...n });
+    }
+
+    const stageKeys = Array.from(stageMap.keys()).sort((a, b) => a - b);
+    const numStages = stageKeys.length > 1 ? Math.max(...stageKeys) + 1 : 1;
+
+    let maxGapCount = 0;
+    for (const s of stageKeys) {
+      const count = stageMap.get(s).length;
+      if (count - 1 > maxGapCount) maxGapCount = count - 1;
+    }
+
+    const maxTotalGap = Math.min(innerHeight * 0.45, maxGapCount * nodePadding);
+    const effectiveGap = maxGapCount > 0 ? maxTotalGap / maxGapCount : 0;
+    const heightForNodes = innerHeight - maxTotalGap;
+    const totalVal = Math.max(0.01, Number(sankeyData.total) || 1);
+    const scale = heightForNodes / totalVal;
+
+    const nodeLayout = new Map();
+
+    for (const s of stageKeys) {
+      const stageNodes = stageMap.get(s);
+      const stageTotalNodeHeight = stageNodes.reduce((sum, n) => sum + Math.max(4, n.value * scale), 0);
+      const stageTotalGaps = Math.max(0, stageNodes.length - 1) * effectiveGap;
+      const stageTotalHeight = stageTotalNodeHeight + stageTotalGaps;
+
+      let curY = padding.top + Math.max(0, (innerHeight - stageTotalHeight) / 2);
+      const stageX = padding.left + (numStages > 1 ? (s / (numStages - 1)) * innerWidth : 0);
+
+      for (const node of stageNodes) {
+        const h = Math.max(4, node.value * scale);
+        nodeLayout.set(node.id, {
+          ...node,
+          x: stageX,
+          y: curY,
+          w: nodeWidth,
+          h: h
+        });
+        curY += h + effectiveGap;
+      }
+    }
+
+    const sourceOffsets = new Map();
+    const targetOffsets = new Map();
+    for (const [id] of nodeLayout) {
+      sourceOffsets.set(id, 0);
+      targetOffsets.set(id, 0);
+    }
+
+    const sortedLinks = [...activeLinks].sort((a, b) => {
+      const srcA = nodeLayout.get(a.source);
+      const srcB = nodeLayout.get(b.source);
+      const tgtA = nodeLayout.get(a.target);
+      const tgtB = nodeLayout.get(b.target);
+      if (!srcA || !srcB || !tgtA || !tgtB) return 0;
+      if (srcA.y !== srcB.y) return srcA.y - srcB.y;
+      return tgtA.y - tgtB.y;
+    });
+
+    const ribbonPaths = [];
+    const gradients = [];
+
+    for (const link of sortedLinks) {
+      const src = nodeLayout.get(link.source);
+      const tgt = nodeLayout.get(link.target);
+      if (!src || !tgt) continue;
+
+      const linkThickness = Math.max(1, link.value * scale);
+      const sOffset = sourceOffsets.get(src.id) || 0;
+      const tOffset = targetOffsets.get(tgt.id) || 0;
+
+      const y0Top = src.y + sOffset;
+      const y0Bot = y0Top + linkThickness;
+      sourceOffsets.set(src.id, sOffset + linkThickness);
+
+      const y1Top = tgt.y + tOffset;
+      const y1Bot = y1Top + linkThickness;
+      targetOffsets.set(tgt.id, tOffset + linkThickness);
+
+      const x0 = src.x + src.w;
+      const x1 = tgt.x;
+      const dx = Math.max(1, x1 - x0);
+      const cx = dx * 0.48;
+
+      const d = `M ${x0.toFixed(1)},${y0Top.toFixed(1)} C ${(x0 + cx).toFixed(1)},${y0Top.toFixed(1)} ${(x1 - cx).toFixed(1)},${y1Top.toFixed(1)} ${x1.toFixed(1)},${y1Top.toFixed(1)} L ${x1.toFixed(1)},${y1Bot.toFixed(1)} C ${(x1 - cx).toFixed(1)},${y1Bot.toFixed(1)} ${(x0 + cx).toFixed(1)},${y0Bot.toFixed(1)} ${x0.toFixed(1)},${y0Bot.toFixed(1)} Z`;
+
+      const gradId = `sankey-grad-${src.id}-${tgt.id}`;
+      gradients.push(`    <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${src.color || 'var(--teal, #14b8a6)'}" stop-opacity="0.45"/>
+        <stop offset="100%" stop-color="${tgt.color || 'var(--teal, #14b8a6)'}" stop-opacity="0.45"/>
+      </linearGradient>`);
+
+      const formattedVal = metric === 'count' ? `${link.count} invoices` : formatMoney(link.value, baseCurrency);
+      const titleText = `${escapeXml(src.label)} → ${escapeXml(tgt.label)}: ${formattedVal}`;
+
+      ribbonPaths.push(`    <path class="sankey-link" d="${d}" fill="url(#${gradId})" data-source="${escapeXml(src.id)}" data-target="${escapeXml(tgt.id)}" data-invoice-ids="${escapeXml((link.invoiceIds || []).join(','))}" data-value="${link.value}">
+        <title>${titleText}</title>
+      </path>`);
+    }
+
+    const headerTexts = [];
+    if (Array.isArray(sankeyData.stages)) {
+      for (let s = 0; s < numStages; s++) {
+        const stageName = sankeyData.stages[s] || `Stage ${s + 1}`;
+        const stageX = padding.left + (numStages > 1 ? (s / (numStages - 1)) * innerWidth : 0);
+        const anchor = s === 0 ? 'start' : s === numStages - 1 ? 'end' : 'middle';
+        const hx = s === 0 ? stageX : s === numStages - 1 ? stageX + nodeWidth : stageX + nodeWidth / 2;
+        headerTexts.push(`    <text class="sankey-header" x="${hx.toFixed(1)}" y="20" text-anchor="${anchor}">${escapeXml(stageName)}</text>`);
+      }
+    }
+
+    const nodeRects = [];
+    const nodeLabels = [];
+
+    for (const [id, node] of nodeLayout) {
+      const formattedVal = metric === 'count' ? `${node.count} inv` : formatMoney(node.value, baseCurrency);
+      const titleText = `${escapeXml(node.label)}: ${formattedVal} (${node.count} invoices)`;
+
+      nodeRects.push(`    <g class="sankey-node-group" data-node-id="${escapeXml(node.id)}" data-stage="${node.stage}" data-invoice-ids="${escapeXml((node.invoiceIds || []).join(','))}">
+        <rect class="sankey-node-rect" x="${node.x.toFixed(1)}" y="${node.y.toFixed(1)}" width="${node.w.toFixed(1)}" height="${node.h.toFixed(1)}" fill="${node.color || 'var(--teal, #14b8a6)'}">
+          <title>${titleText}</title>
+        </rect>
+      </g>`);
+
+      const isFirstStage = node.stage === 0;
+      const isLastStage = node.stage === numStages - 1;
+      let lx, lAnchor;
+      if (isFirstStage) {
+        lx = node.x + node.w + 8;
+        lAnchor = 'start';
+      } else if (isLastStage) {
+        lx = node.x - 8;
+        lAnchor = 'end';
+      } else {
+        lx = node.x + node.w / 2;
+        lAnchor = 'middle';
+      }
+
+      const ly = node.y + Math.max(10, node.h / 2);
+
+      nodeLabels.push(`    <text class="sankey-node-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${lAnchor}" dominant-baseline="central">
+        <tspan class="sankey-label-name" font-weight="600">${escapeXml(node.label)}</tspan>
+        <tspan class="sankey-label-val" dx="4" font-size="11" fill="var(--text-secondary, #5c5c59)">(${escapeXml(formattedVal)})</tspan>
+      </text>`);
+    }
+
+    const themeClass = theme === 'dark' ? ' theme-dark' : '';
+
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="100%" class="sankey-svg${themeClass}" role="img" aria-label="Invoice Flow Sankey Diagram">`,
+      `  <style>`,
+      `    .sankey-svg { font-family: var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif); overflow: visible; }`,
+      `    .sankey-header { font-size: 11px; font-weight: 700; fill: var(--text-muted, #787774); text-transform: uppercase; letter-spacing: 0.05em; }`,
+      `    .sankey-node-rect { rx: 4px; ry: 4px; cursor: pointer; transition: opacity 0.15s, stroke 0.15s; }`,
+      `    .sankey-node-rect:hover { opacity: 0.85; stroke: var(--text, #141413); stroke-width: 1.5px; }`,
+      `    .sankey-link { cursor: pointer; transition: fill-opacity 0.2s; }`,
+      `    .sankey-link:hover { fill-opacity: 0.75 !important; }`,
+      `    .sankey-node-label { font-size: 12px; fill: var(--text, #141413); paint-order: stroke fill; stroke: var(--bg-card, var(--bg, #ffffff)); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; user-select: none; }`,
+      `    .sankey-svg.theme-dark .sankey-node-label { stroke: #222220; fill: #f3f3f2; }`,
+      `    .sankey-svg.theme-dark .sankey-header { fill: #8e8d8a; }`,
+      `  </style>`,
+      `  <defs>`,
+      gradients.join('\n'),
+      `  </defs>`,
+      `  <g class="sankey-headers">`,
+      headerTexts.join('\n'),
+      `  </g>`,
+      `  <g class="sankey-links">`,
+      ribbonPaths.join('\n'),
+      `  </g>`,
+      `  <g class="sankey-nodes">`,
+      nodeRects.join('\n'),
+      `  </g>`,
+      `  <g class="sankey-labels">`,
+      nodeLabels.join('\n'),
+      `  </g>`,
+      `</svg>`
+    ].join('\n');
   }
 
   return {
@@ -3187,6 +3670,8 @@ ${txs}
     parseOcrText,
     ingestInvoice,
     maskPII,
-    createInitialState
+    createInitialState,
+    computeSankeyData,
+    renderSankeySVG
   };
 });

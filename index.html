@@ -11,16 +11,34 @@
     <!-- Top Chrome Bar -->
     <header class="top-bar">
       <div class="top-bar-left">
-        <button class="icon-btn sidebar-toggle-btn" id="btn-toggle-sidebar" type="button" aria-label="Hide or show sidebar" aria-expanded="true" title="Masquer / Afficher la sidebar">
+        <button class="icon-btn sidebar-toggle-btn" id="btn-toggle-sidebar" type="button" aria-label="Hide or show sidebar" aria-expanded="true" title="Toggle Sidebar">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
-        <button class="icon-btn" id="btn-focus-search" type="button" aria-label="Search invoices" title="Rechercher">
+        <button class="icon-btn" id="btn-focus-search" type="button" aria-label="Search invoices" title="Quick Search (Invoices)">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </button>
+        <div class="top-brand">
+          <span class="brand-name">Vaultgard</span>
+          <span class="brand-tag">Invoice Audit &amp; Settlement</span>
+        </div>
       </div>
 
       <div class="header-controls">
-        <button class="theme-switch" id="btn-theme-toggle" type="button" aria-label="Toggle day or night theme" title="Thème Jour / Nuit">
+        <button class="btn btn-sm btn-ghost header-drawer-btn" id="btn-open-alerts" type="button" title="View Alerts &amp; SLA" onclick="document.getElementById('dialog-alerts').showModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span>Alerts</span>
+          <span class="tab-badge" id="badge-alerts-count">0</span>
+        </button>
+        <button class="btn btn-sm btn-ghost header-drawer-btn" id="btn-open-suppliers" type="button" title="Suppliers Directory" onclick="document.getElementById('dialog-suppliers').showModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Suppliers</span>
+        </button>
+        <button class="btn btn-sm btn-ghost header-drawer-btn" id="btn-open-governance" type="button" title="Audit Trail &amp; Settings" onclick="document.getElementById('dialog-governance').showModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+          <span>Governance</span>
+        </button>
+        <div class="header-divider"></div>
+        <button class="theme-switch" id="btn-theme-toggle" type="button" aria-label="Toggle day or night theme" title="Toggle Light / Dark Theme">
           <span class="theme-opt theme-opt-light" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
           </span>
@@ -33,11 +51,10 @@
     </header>
 
     <div class="workspace-body">
-      <!-- Left Monotone Sidebar (Reference Design) -->
+      <!-- Left Monotone Sidebar (Exactly 3 primary tabs in .nav-tabs) -->
       <aside class="sidebar" id="app-sidebar" aria-label="Main navigation">
-        <nav class="nav-tabs" role="tablist" aria-label="Dashboard sections">
-          <div class="sidebar-group-label">Audit &amp; Queue</div>
-
+        <div class="sidebar-group-label">Primary Views</div>
+        <nav class="nav-tabs" role="tablist" aria-label="Primary views">
           <button class="nav-tab active" role="tab" aria-selected="true" data-tab="overview">
             <span class="nav-tab-left">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -48,47 +65,43 @@
           <button class="nav-tab" role="tab" aria-selected="false" data-tab="invoices">
             <span class="nav-tab-left">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
-              <span>Invoices &amp; Audit</span>
+              <span>Invoices</span>
             </span>
             <span class="tab-badge" id="badge-invoices-count">10</span>
           </button>
 
-          <button class="nav-tab" role="tab" aria-selected="false" data-tab="alerts">
-            <span class="nav-tab-left">
-              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-              <span>Alerts &amp; SLA</span>
-            </span>
-            <span class="tab-badge" id="badge-alerts-count">0</span>
-          </button>
-
-          <div class="sidebar-divider"></div>
-          <div class="sidebar-group-label">Payments &amp; Vendors</div>
-
           <button class="nav-tab" role="tab" aria-selected="false" data-tab="payments">
             <span class="nav-tab-left">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-              <span>Payments &amp; SEPA</span>
+              <span>Payments</span>
             </span>
             <span class="tab-badge" id="badge-payable-count">0</span>
           </button>
-
-          <button class="nav-tab" role="tab" aria-selected="false" data-tab="suppliers">
-            <span class="nav-tab-left">
-              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span>Suppliers</span>
-            </span>
-          </button>
-
-          <div class="sidebar-divider"></div>
-          <div class="sidebar-group-label">Compliance &amp; Admin</div>
-
-          <button class="nav-tab" role="tab" aria-selected="false" data-tab="governance">
-            <span class="nav-tab-left">
-              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
-              <span>Audit Trail &amp; Settings</span>
-            </span>
-          </button>
         </nav>
+
+        <div class="sidebar-divider"></div>
+
+        <div class="sidebar-secondary">
+          <div class="sidebar-group-label">On-Demand Panels</div>
+          <button class="sidebar-action-btn" id="btn-sidebar-alerts" type="button" onclick="document.getElementById('dialog-alerts').showModal()">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span>Alerts &amp; SLA</span>
+            </span>
+          </button>
+          <button class="sidebar-action-btn" id="btn-sidebar-suppliers" type="button" onclick="document.getElementById('dialog-suppliers').showModal()">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Suppliers Directory</span>
+            </span>
+          </button>
+          <button class="sidebar-action-btn" id="btn-sidebar-governance" type="button" onclick="document.getElementById('dialog-governance').showModal()">
+            <span class="nav-tab-left">
+              <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+              <span>Audit &amp; Governance</span>
+            </span>
+          </button>
+        </div>
       </aside>
 
       <!-- Main White Sheet Workspace -->
@@ -96,34 +109,63 @@
         <!-- TAB 1: OVERVIEW & KPIs -->
         <section class="tab-panel active" id="panel-overview" role="tabpanel">
           <div class="section-header">
-            <h2>Overview</h2>
-            <p>Real-time summary of invoice audit status, payment readiness, and fraud exposure.</p>
+            <div>
+              <h2>Executive Overview</h2>
+              <p>Real-time summary of invoice audit status, payment readiness, and multi-stage financial flow.</p>
+            </div>
           </div>
 
-          <div class="kpi-grid" id="kpi-top-cards"></div>
+          <!-- Top KPI Cards (Max 4 clean spacious cards) -->
+          <div class="kpi-grid kpi-top-cards" id="kpi-top-cards"></div>
 
-          <div class="card" style="margin-bottom: 1.25rem;">
-            <div class="card-title">Status Breakdown — Click any status to filter queue</div>
-            <div class="status-grid" id="kpi-status-grid"></div>
+          <!-- Prominent Sankey Diagram Card -->
+          <div class="card sankey-container-card" id="sankey-container">
+            <div class="sankey-header">
+              <div class="sankey-titles">
+                <h3 class="card-title">Financial Flow Diagram</h3>
+                <p class="sankey-subtitle">Interactive flow conservation across audit and settlement stages</p>
+              </div>
+              <div class="sankey-mode-toggle" role="group" aria-label="Sankey Flow Perspective">
+                <button type="button" class="btn btn-sm active" id="btn-sankey-lifecycle" data-mode="lifecycle">Lifecycle Flow</button>
+                <button type="button" class="btn btn-sm" id="btn-sankey-dept" data-mode="supplier">Supplier / Dept Flow</button>
+                <button type="button" id="btn-sankey-supplier" style="display:none;" aria-hidden="true" tabindex="-1">Supplier Flow</button>
+              </div>
+            </div>
+            <div id="sankey-diagram-wrapper" class="sankey-viewport">
+              <svg id="sankey-svg" width="100%" height="340" viewBox="0 0 920 340" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+            <div id="sankey-tooltip" class="sankey-tooltip" style="display:none;"></div>
           </div>
 
+          <!-- Maximum 2 Companion Charts -->
           <div class="chart-row">
-            <div class="card">
-              <div class="card-title">Monthly Volume (Verified vs Paid vs Flagged)</div>
-              <div class="bar-chart" id="chart-monthly-trends"></div>
+            <div class="card chart-card" id="chart-monthly-container">
+              <div class="card-title">Monthly Volume &amp; Audit Status</div>
+              <div class="chart-viewport" id="chart-monthly-trends"></div>
             </div>
-            <div class="card">
+            <div class="card chart-card" id="chart-supplier-container">
               <div class="card-title">Volume &amp; Risk by Supplier</div>
-              <div class="bar-chart" id="chart-supplier-trends"></div>
+              <div class="chart-viewport" id="chart-supplier-trends"></div>
             </div>
           </div>
+
+          <!-- Collapsible 10-Status Grid on Demand -->
+          <details class="status-grid-collapsible card">
+            <summary class="status-grid-summary">
+              <span class="card-title" style="margin-bottom:0;">Full Status Breakdown (10 Lifecycle Stages)</span>
+              <span class="status-grid-hint">Click to expand / filter queue</span>
+            </summary>
+            <div class="status-grid" id="kpi-status-grid" style="margin-top: 1rem;"></div>
+          </details>
         </section>
 
-        <!-- TAB 2: INVOICE LIST, SEARCH, FILTERS & BULK ACTIONS -->
+        <!-- TAB 2: INVOICES & AUDIT QUEUE -->
         <section class="tab-panel" id="panel-invoices" role="tabpanel">
           <div class="section-header">
-            <h2>Invoices &amp; Audit Queue</h2>
-            <p>Search, filter, inspect 9-point fraud checks, and run bulk workflow actions.</p>
+            <div>
+              <h2>Invoices &amp; Audit Queue</h2>
+              <p>Streamlined invoice processing, 9-point fraud checks, and batch operations.</p>
+            </div>
           </div>
 
           <div class="saved-views-bar" id="saved-views-bar"></div>
@@ -215,21 +257,18 @@
             </div>
           </div>
 
+          <!-- Exactly 7 Columns Table -->
           <div class="table-wrapper">
             <table id="invoices-table">
               <thead>
                 <tr>
-                  <th><input type="checkbox" id="chk-select-all" aria-label="Select all invoices" /></th>
+                  <th style="width: 42px;"><input type="checkbox" id="chk-select-all" aria-label="Select all invoices" /></th>
                   <th class="sortable" data-sort="invoiceNumber">Invoice</th>
                   <th class="sortable" data-sort="supplierName">Supplier</th>
                   <th class="sortable" data-sort="amount">Amount</th>
-                  <th class="sortable" data-sort="issueDate">Issued</th>
-                  <th class="sortable" data-sort="dueDate">Due</th>
-                  <th class="sortable" data-sort="status">Status</th>
-                  <th class="sortable" data-sort="riskScore">Risk</th>
-                  <th>PO</th>
-                  <th class="sortable" data-sort="assignee">Assignee</th>
-                  <th></th>
+                  <th class="sortable" data-sort="dueDate">Due Date</th>
+                  <th class="sortable" data-sort="status">Status &amp; Risk</th>
+                  <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
               <tbody id="invoices-tbody"></tbody>
@@ -242,26 +281,32 @@
           <div class="section-header" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;">
             <div>
               <h2>Payments &amp; SEPA</h2>
-              <p>Only audited &amp; approved invoices appear here. Segregation of Duties blocks approvers from paying their own approvals.</p>
+              <p>Audited &amp; approved invoices ready for disbursement with Segregation of Duties enforcement.</p>
             </div>
             <button class="btn btn-primary" id="btn-create-sepa-batch" type="button">Generate SEPA XML Batch</button>
           </div>
 
           <div class="kpi-grid" id="cashflow-cards"></div>
 
-          <div class="table-wrapper" style="margin-bottom: 1.25rem;">
-            <table>
+          <!-- Companion Chart for Cash-Flow Forecast & Aging -->
+          <div class="card chart-card" id="chart-cashflow-container" style="margin-bottom: 1.5rem;">
+            <div class="card-title">Cash-Flow Due Date &amp; Aging Forecast</div>
+            <div class="chart-viewport" id="chart-cashflow-viewport">
+              <svg id="chart-cashflow-svg" width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+          </div>
+
+          <!-- Exactly 6 Columns Table -->
+          <div class="table-wrapper" style="margin-bottom: 1.5rem;">
+            <table id="payments-table">
               <thead>
                 <tr>
                   <th>Invoice</th>
-                  <th>Supplier &amp; IBAN</th>
-                  <th>Status</th>
-                  <th>Due / Scheduled</th>
+                  <th>Supplier</th>
+                  <th>Due Date</th>
                   <th>Balance</th>
-                  <th>Early Discount</th>
-                  <th>Approved By</th>
                   <th>Eligibility (SoD)</th>
-                  <th>Actions</th>
+                  <th style="text-align: right;">Actions</th>
                 </tr>
               </thead>
               <tbody id="payable-tbody"></tbody>
@@ -271,83 +316,6 @@
           <div class="card">
             <div class="card-title">SEPA Payment Batches</div>
             <div id="batches-container"></div>
-          </div>
-        </section>
-
-        <!-- TAB 4: SUPPLIERS -->
-        <section class="tab-panel" id="panel-suppliers" role="tabpanel">
-          <div class="section-header">
-            <h2>Suppliers</h2>
-            <p>Vendor verification status, IBAN change history, and whitelist/blacklist controls.</p>
-          </div>
-          <div class="two-col" id="suppliers-grid"></div>
-        </section>
-
-        <!-- TAB 5: ALERTS & SLA -->
-        <section class="tab-panel" id="panel-alerts" role="tabpanel">
-          <div class="section-header">
-            <h2>Alerts &amp; SLA</h2>
-            <p>High-risk detections, verification SLA breaches, overdue invoices, and unverified bank changes.</p>
-          </div>
-          <div class="two-col">
-            <div class="card">
-              <div class="card-title">Active Alerts</div>
-              <div id="alerts-list" class="checklist-list"></div>
-            </div>
-            <div class="card">
-              <div class="card-title">Notification Channels &amp; Digest</div>
-              <div id="digest-preview-box"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- TAB 6: ANALYTICS, AUDIT TRAIL, INTEGRATIONS & SETTINGS -->
-        <section class="tab-panel" id="panel-governance" role="tabpanel">
-          <div class="section-header">
-            <h2>Audit Trail, Analytics &amp; Settings</h2>
-            <p>Compliance logs, fraud analytics, ERP integrations, and approval matrix configuration.</p>
-          </div>
-
-          <div class="two-col" style="margin-bottom: 1.25rem;">
-            <div class="card">
-              <div class="card-title">Reporting &amp; Analytics</div>
-              <div id="analytics-summary"></div>
-            </div>
-            <div class="card">
-              <div class="card-title">ERP, Bank &amp; VIES Integrations</div>
-              <div id="integrations-box"></div>
-            </div>
-          </div>
-
-          <div class="card" style="margin-bottom: 1.25rem;">
-            <div class="card-title">Risk Thresholds, Approval Matrix &amp; GDPR Settings</div>
-            <div id="settings-box"></div>
-          </div>
-
-          <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-              <div class="card-title" style="margin-bottom:0;">Immutable Audit Trail</div>
-              <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-sm" id="btn-verify-audit-chain" type="button">Verify Hash Chain</button>
-                <button class="btn btn-sm" id="btn-export-compliance" type="button">Export JSON</button>
-              </div>
-            </div>
-            <div class="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Timestamp</th>
-                    <th>Actor</th>
-                    <th>Action</th>
-                    <th>Target</th>
-                    <th>Summary</th>
-                    <th>Hash</th>
-                  </tr>
-                </thead>
-                <tbody id="audit-log-tbody"></tbody>
-              </table>
-            </div>
           </div>
         </section>
       </main>
@@ -440,6 +408,103 @@ Email: billing@cloudscale.de</textarea>
           </div>
           <button class="btn btn-primary" type="submit" style="margin-top: 0.4rem;">Ingest &amp; Run Audit Checks</button>
         </form>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ON-DEMAND DIALOG: ALERTS & SLA -->
+  <dialog id="dialog-alerts" class="app-dialog dialog-lg" aria-labelledby="alerts-dialog-title" onclick="if(event.target===this)this.close()">
+    <div class="dialog-header">
+      <div>
+        <h2 id="alerts-dialog-title" style="font-size: 1.05rem; font-weight: 600;">Alerts &amp; SLA Monitor</h2>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">High-risk detections, verification SLA breaches, overdue invoices, and unverified bank changes.</p>
+      </div>
+      <button class="btn btn-sm" id="btn-close-alerts" type="button" onclick="document.getElementById('dialog-alerts').close()">Close</button>
+    </div>
+    <div class="dialog-body">
+      <div id="panel-alerts" class="dialog-inner-panel">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">Active Alerts</div>
+            <div id="alerts-list" class="checklist-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Notification Channels &amp; Digest</div>
+            <div id="digest-preview-box"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ON-DEMAND DIALOG: SUPPLIERS DIRECTORY -->
+  <dialog id="dialog-suppliers" class="app-dialog dialog-lg" aria-labelledby="suppliers-dialog-title" onclick="if(event.target===this)this.close()">
+    <div class="dialog-header">
+      <div>
+        <h2 id="suppliers-dialog-title" style="font-size: 1.05rem; font-weight: 600;">Suppliers Directory</h2>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Vendor verification status, IBAN change history, and whitelist/blacklist controls.</p>
+      </div>
+      <button class="btn btn-sm" id="btn-close-suppliers" type="button" onclick="document.getElementById('dialog-suppliers').close()">Close</button>
+    </div>
+    <div class="dialog-body">
+      <div id="panel-suppliers" class="dialog-inner-panel">
+        <div class="two-col" id="suppliers-grid"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ON-DEMAND DIALOG: AUDIT TRAIL, ANALYTICS & SETTINGS -->
+  <dialog id="dialog-governance" class="app-dialog dialog-xl" aria-labelledby="gov-dialog-title" onclick="if(event.target===this)this.close()">
+    <div class="dialog-header">
+      <div>
+        <h2 id="gov-dialog-title" style="font-size: 1.05rem; font-weight: 600;">Audit Trail, Analytics &amp; Settings</h2>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Compliance logs, fraud analytics, ERP integrations, and approval matrix configuration.</p>
+      </div>
+      <button class="btn btn-sm" id="btn-close-governance" type="button" onclick="document.getElementById('dialog-governance').close()">Close</button>
+    </div>
+    <div class="dialog-body">
+      <div id="panel-governance" class="dialog-inner-panel">
+        <div class="two-col" style="margin-bottom: 1.25rem;">
+          <div class="card">
+            <div class="card-title">Reporting &amp; Analytics</div>
+            <div id="analytics-summary"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">ERP, Bank &amp; VIES Integrations</div>
+            <div id="integrations-box"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 1.25rem;">
+          <div class="card-title">Risk Thresholds, Approval Matrix &amp; GDPR Settings</div>
+          <div id="settings-box"></div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div class="card-title" style="margin-bottom:0;">Immutable Audit Trail</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-sm" id="btn-verify-audit-chain" type="button">Verify Hash Chain</button>
+              <button class="btn btn-sm" id="btn-export-compliance" type="button">Export JSON</button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Timestamp</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                  <th>Summary</th>
+                  <th>Hash</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-tbody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </dialog>
