@@ -2,7 +2,7 @@
 
 > **Nouveau (10 oct, fin de journée) : la boîte de dépôt des factures**, en euros, sans paiement. C'est la direction
 > actuelle de l'équipe. Son essai en 3 minutes est dans [`BOITE-FACTURES.md`](BOITE-FACTURES.md)
-> (`ENVOYER-FACTURES-DEMO.bat`, menu « 2. Factures reçues »). La suite de cette page décrit le parcours précédent
+> (`lanceurs/ENVOYER-FACTURES-DEMO.bat`, menu « 2. Factures reçues »). La suite de cette page décrit le parcours précédent
 > (assistant du client + coffre Avalanche), toujours disponible. Les numéros du menu ont avancé d'un cran :
 > Paiements = 3, Assistants = 4, Fournisseurs = 5, Règles = 6, Historique = 7.
 
@@ -10,7 +10,7 @@ Base de démo recréée le 10 oct au soir : entreprise « Transports Martin », 
 Camions Express, Épicerie Pro), un historique de 5 paiements daté de la veille.
 
 ## 1. Lancer le site et se connecter
-1. Double-clic sur `LANCER-DASHBOARD.bat`. Laisse la fenêtre ouverte : la fermer arrête le site.
+1. Double-clic sur `lanceurs/LANCER-DASHBOARD.bat`. Laisse la fenêtre ouverte : la fermer arrête le site.
 2. Ouvre http://localhost:8000/login et connecte-toi avec le compte **client** écrit dans
    `agent/data/COMPTES-DEMO.txt` (ouvre ce fichier toi-même, ne le montre à personne).
 3. Tu arrives sur l'accueil de `/app`. Le bloc « À faire » liste les paiements qui attendent ton accord, avec la
@@ -18,7 +18,7 @@ Camions Express, Épicerie Pro), un historique de 5 paiements daté de la veille
    « 4. Fournisseurs », « 5. Règles de paiement », « 6. Historique et preuves ».
 
 ## 2. Faire lire les factures par l'agent
-Double-clic sur `TRAITER-FACTURES.bat`, puis Entrée entre chaque facture. Résultat attendu :
+Double-clic sur `lanceurs/TRAITER-FACTURES.bat`, puis Entrée entre chaque facture. Résultat attendu :
 
 | Facture | Format | Verdict | Pourquoi |
 |---|---|---|---|
@@ -55,7 +55,7 @@ Si le même fichier revient sous un autre numéro de facture, son empreinte est 
 (vérifié par un test automatique, pas dans ce parcours). Un fichier modifié, lui, a une autre empreinte.
 
 ## 4. Rejouer deux mails
-Double-clic sur `REJOUER-MAILS.bat` : un mail normal (payé, ou bloqué pour double paiement si tu l'as déjà joué),
+Double-clic sur `lanceurs/REJOUER-MAILS.bat` : un mail normal (payé, ou bloqué pour double paiement si tu l'as déjà joué),
 puis un mail piégé (bloqué).
 
 ## 5. Tester la détection de prix toi-même
@@ -65,7 +65,7 @@ dans `examples/prix-reference.json`.
 Pour une seule facture : dans Kali, `python3 examples/agent_factures.py --only 06`.
 
 ## 6. La boîte mail dédiée (optionnel, demande une vraie boîte de test)
-Voir `docs/PARCOURS-A-Z.md`, section « Variante : une adresse dédiée ». Sans boîte : l'étape 4 suffit.
+Voir `docs/historique/PARCOURS-A-Z.md`, section « Variante : une adresse dédiée ». Sans boîte : l'étape 4 suffit.
 
 ## 7. Le reste de la démo
 `/demo` (scénarios d'attaque, onglet Coffre pour le vrai contrat Fuji), `/admin` avec le compte super-admin et sa
@@ -74,5 +74,5 @@ Voir `docs/PARCOURS-A-Z.md`, section « Variante : une adresse dédiée ». Sans
 ## Attention au disjoncteur
 **5 refus en une heure mettent la clé de l'agent en quarantaine** (c'est voulu). L'étape 2 fait 3 refus, l'étape 4
 en fait 1. Relancer l'étape 2 une deuxième fois déclenche donc le gel : l'agent reçoit alors « HTTP 401 ».
-Pour repartir de zéro : ferme la fenêtre du site, double-clic sur `RECREER-DEMO.bat`, relance
-`LANCER-DASHBOARD.bat` et reconnecte-toi avec les nouveaux identifiants.
+Pour repartir de zéro : ferme la fenêtre du site, double-clic sur `lanceurs/RECREER-DEMO.bat`, relance
+`lanceurs/LANCER-DASHBOARD.bat` et reconnecte-toi avec les nouveaux identifiants.

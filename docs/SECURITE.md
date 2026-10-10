@@ -2,7 +2,7 @@
 
 Méthode : on a attaqué la plateforme depuis Kali Linux (nmap, ffuf, curl, sqlmap, Slither, Bandit) pour lister les failles
 réelles, corrigé chaque vulnérabilité selon le principe de défense en profondeur, puis rejoué chaque attaque pour prouver qu'elle est bloquée. Le rejeu est automatisé :
-`bash scripts/security-audit.sh` (ou `AUDIT-SECURITE.bat`) → `docs/audit-latest.txt`.
+`bash scripts/security-audit.sh` (ou `lanceurs/AUDIT-SECURITE.bat`) → `docs/audit-latest.txt`.
 
 Résultat actuel : **29/29 vérifications d'intrusion OK (0 échec)**, Slither et Bandit sans alerte moyenne/haute,
 pip-audit sans dépendance vulnérable, 33 tests contrat (dont fuzz + invariants), 147 tests Python complets, 4 tests de parité

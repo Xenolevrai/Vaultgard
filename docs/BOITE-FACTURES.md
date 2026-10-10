@@ -23,10 +23,10 @@ Une boîte aux lettres avec un vigile devant.
 
 ## L'essayer en 3 minutes (sans vraie boîte mail)
 
-1. `LANCER-DASHBOARD.bat`, puis http://localhost:8000/app , menu **« 2. Factures reçues »**.
+1. `lanceurs/LANCER-DASHBOARD.bat`, puis http://localhost:8000/app , menu **« 2. Factures reçues »**.
    En haut : l'adresse de dépôt du client de démonstration. En bas : les deux personnes autorisées, les trois
    fournisseurs avec leur IBAN (de test), le seuil de 1 000 €.
-2. `ENVOYER-FACTURES-DEMO.bat` : il dépose 9 mails un par un. La page se met à jour seule en quelques secondes.
+2. `lanceurs/ENVOYER-FACTURES-DEMO.bat` : il dépose 9 mails un par un. La page se met à jour seule en quelques secondes.
 
 | Mail | Ce qu'il contient | Résultat |
 |---|---|---|
@@ -48,8 +48,8 @@ Une boîte aux lettres avec un vigile devant.
 4. Les mails 06 et 07 n'apparaissent pas dans la liste : ils n'ont jamais été ouverts. Seul un compteur en haut
    indique « 2 mails écartés sans être lus ».
 
-Pour rejouer : relance `ENVOYER-FACTURES-DEMO.bat` (toutes les factures seront alors « déjà reçues », ce qui est le
-comportement voulu) ou `RECREER-DEMO.bat` pour repartir de zéro (site arrêté ; les identifiants changent).
+Pour rejouer : relance `lanceurs/ENVOYER-FACTURES-DEMO.bat` (toutes les factures seront alors « déjà reçues », ce qui est le
+comportement voulu) ou `lanceurs/RECREER-DEMO.bat` pour repartir de zéro (site arrêté ; les identifiants changent).
 
 Si ta base de démonstration date d'avant cette fonction, une seule fois, site arrêté :
 `wsl -d kali-linux --cd <dossier vaultguard>/agent -- python3 ../scripts/seed_inbox_demo.py`

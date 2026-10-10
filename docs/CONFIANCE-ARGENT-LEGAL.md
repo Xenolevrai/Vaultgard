@@ -12,7 +12,7 @@ Rédigé le 10 oct 2026 à partir des questions de l'équipe. Les points juridiq
 | Le client choisit ce qu'il transmet | Boîte dédiée où il transfère ses factures, expéditeurs autorisés seulement | `examples/agent_mail.py` (`MODE=dediee`) |
 | Tous les formats de facture | Texte, HTML, XML UBL et CII, PDF, Factur-X, mail avec pièces jointes, Word. Illisible = humain | `sdk/invoice_reader.py` |
 | Cohérence des prix (œufs à 18 €) | Prix unitaire comparé au prix habituel du client, total comparé aux lignes : validation humaine | `firewall.check_invoice`, facture `06` |
-| Pas d'intermédiaire | L'agent tourne chez le client. VaultGuard ne lit ni boîte mail ni dossier | `docs/PARCOURS-A-Z.md` |
+| Pas d'intermédiaire | L'agent tourne chez le client. VaultGuard ne lit ni boîte mail ni dossier | `docs/historique/PARCOURS-A-Z.md` |
 | Chiffrement des factures (optionnel) | Non fait : il n'y a plus rien à chiffrer au repos. En transit : HTTPS obligatoire (le SDK refuse `http://` hors localhost) | — |
 
 ## 2. Comment les factures arrivent jusqu'à nous

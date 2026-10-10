@@ -88,5 +88,5 @@ if __name__ == "__main__":
     row = db.query_one("SELECT o.id AS org_id, m.user_id FROM orgs o JOIN members m ON m.org_id = o.id "
                        "WHERE o.name = 'Transports Martin' AND m.role = 'owner' ORDER BY o.created_at LIMIT 1;")
     if not row:
-        sys.exit("Client de démonstration introuvable : lance d'abord RECREER-DEMO.bat.")
+        sys.exit("Client de démonstration introuvable : lance d'abord lanceurs/RECREER-DEMO.bat.")
     print("Boîte de dépôt prête :", seed(row["org_id"], row["user_id"]))

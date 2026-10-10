@@ -1,49 +1,103 @@
-// Vaultgard Dashboard UI Controller
+// VaultGuard — espace de travail (/app).
+// Tout ce qui s'affiche vient du serveur (agent/server.py, routes /api/app/*) : rien n'est simulé dans le navigateur.
+// Sécurité : aucune donnée n'est insérée dans la page sans passer par esc() ; aucun style ni script en ligne (CSP) ;
+// chaque requête POST porte le jeton CSRF de la session.
 (function () {
   'use strict';
 
-  const VG = window.Vaultgard;
-  if (!VG) return;
+  const Charts = window.VGCharts;
+  const ROLE_LEVELS = { viewer: 1, approver: 2, admin: 3, owner: 4 };
+  const REFRESH_MS = 20000;
+  const MAX_UPLOAD_BYTES = 2000000;
+  const MAX_AUDIT_BYTES = 250000;
 
-  const state = VG.createInitialState();
+  const state = {
+    csrf: '',
+    user: null,
+    role: 'viewer',
+    orgs: [],
+    box: null,          // réponse de /api/app/inbox
+    issued: null,       // réponse de /api/app/einvoices
+    invoices: [],       // factures reçues, mises en forme pour l'affichage
+    journal: null,
+    views: []
+  };
+
   const ui = {
-    activeTab: 'overview',
-    sankeyMode: 'lifecycle', // 'lifecycle' or 'supplier'
-    filterInvoiceIds: null, // Set of invoice IDs when filtered from Sankey
-    activeViewId: 'all',
-    selectedInvoiceIds: new Set(),
-    activeDetailInvoiceId: null,
-    query: {
-      search: '',
-      status: 'all',
-      supplierId: 'all',
-      riskLevel: 'all',
-      department: 'all',
-      assignee: 'all',
-      paymentMethod: 'all',
-      dateFrom: '',
-      dateTo: '',
-      amountMin: '',
-      amountMax: '',
-      preset: '',
-      sortBy: 'dueDate',
-      sortDir: 'asc'
-    }
+    tab: 'overview',
+    sankeyMode: 'lifecycle',
+    detailId: null,
+    viewId: 'all',
+    ids: null,          // sélection venue du schéma de parcours
+    query: defaultQuery()
   };
 
-  const I18N = {
-    en: {
-      title: 'Vaultgard Invoice Audit & Payment',
-      subtitle: 'Fraud Detection • 3-Way Match • Segregation of Duties • SEPA Execution'
-    },
-    fr: {
-      title: 'Vaultgard — Audit de Factures & Paiements',
-      subtitle: 'Détection de Fraude • Rapprochement 3 Voies • Séparation des Tâches • SEPA'
-    }
+  function defaultQuery() {
+    return { search: '', status: 'all', supplier: 'all', dateFrom: '', dateTo: '', amountMin: '', amountMax: '',
+             sortBy: 'received', sortDir: 'desc' };
+  }
+
+  // ------------------------------------------------------------------ États d'une facture reçue
+  const STATUS = {
+    review:   { label: 'À vérifier', badge: 'badge-paused', icon: 'clock', color: '#d97706',
+                hint: 'Votre décision est attendue avant tout paiement.' },
+    refused:  { label: 'Refusée', badge: 'badge-high-priority', icon: 'shield', color: '#dc2626',
+                hint: 'Signes de fraude ou refus de votre part : rien ne doit être payé.' },
+    ready:    { label: 'Bonne à payer', badge: 'badge-ready', icon: 'check', color: '#14b8a6',
+                hint: 'Acceptée, pas encore dans un fichier de virements.' },
+    batched:  { label: 'Virement préparé', badge: 'badge-scheduled', icon: 'file', color: '#3b82f6',
+                hint: 'Déjà dans un fichier de virements.' },
+    accepted: { label: 'Acceptée, à payer à la main', badge: 'badge-in-progress', icon: 'hand', color: '#f59e0b',
+                hint: 'Acceptée par vous, mais le fournisseur n\'est pas dans votre liste : elle n\'entre pas dans le fichier.' }
+  };
+  const STATUS_KEYS = ['review', 'refused', 'ready', 'batched', 'accepted'];
+
+  const LEVEL = {
+    ok:      { label: 'Conforme', badge: 'badge-ready' },
+    review:  { label: 'À vérifier', badge: 'badge-paused' },
+    refused: { label: 'Fraude probable', badge: 'badge-high-priority' }
   };
 
-  function esc(str) {
-    return String(str ?? '')
+  const ICONS = {
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" x2="15" y1="9" y2="15"/><line x1="15" x2="9" y1="9" y2="15"/>',
+    check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/>',
+    hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>'
+  };
+
+  const ACTIONS = {
+    'invoice.check': 'Facture contrôlée',
+    'invoice.upload': 'Facture déposée à la main',
+    'invoice.approve': 'Facture acceptée',
+    'invoice.reject': 'Facture refusée',
+    'payee.add': 'Fournisseur ajouté',
+    'payee.remove': 'Fournisseur retiré',
+    'inbox.sender_add': 'Expéditeur autorisé',
+    'inbox.sender_remove': 'Expéditeur retiré',
+    'inbox.threshold': 'Seuil d\'accord modifié',
+    'inbox.ignored': 'Mail ignoré',
+    'bank.set': 'Compte bancaire de l\'entreprise modifié',
+    'transfer.batch': 'Fichier de virements préparé',
+    'transfer.seal': 'Empreinte du fichier inscrite',
+    'transfer.audit': 'Fichier de virements contrôlé',
+    'einvoice.profile': 'Identité de l\'entreprise modifiée',
+    'einvoice.issue': 'Facture émise',
+    'einvoice.receive': 'Facture reçue par la plateforme',
+    'audit.anchor': 'Journal scellé',
+    'auth.login': 'Connexion',
+    'auth.logout': 'Déconnexion',
+    'org.switch': 'Changement d\'entreprise'
+  };
+
+  const IGNORED = { sender: 'expéditeur non autorisé', auto: 'réponse automatique', malformed: 'mail illisible',
+                    size: 'mail trop volumineux' };
+
+  // ------------------------------------------------------------------ Outils
+  function $(id) { return document.getElementById(id); }
+
+  function esc(value) {
+    return String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -51,1970 +105,1277 @@
       .replace(/'/g, '&#39;');
   }
 
-  function showToast(message, isError = false) {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const el = document.createElement('div');
-    el.className = `toast-banner${isError ? ' error' : ''}`;
-    el.textContent = message;
-    container.innerHTML = '';
-    container.appendChild(el);
-    setTimeout(() => {
-      if (el.parentNode) el.remove();
-    }, 4200);
+  const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  const EUR_SHORT = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+  function money(euros, short) { return (short ? EUR_SHORT : EUR).format(Number(euros) || 0); }
+  function cents(value) { return value == null ? '—' : money(value / 100); }
+  function plural(n, word) { return n + ' ' + word + (n > 1 ? 's' : ''); }
+
+  function day(epoch) {
+    return epoch ? new Date(epoch * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  }
+  function dayTime(epoch) {
+    return epoch ? new Date(epoch * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric',
+                                                                    hour: '2-digit', minute: '2-digit' }) : '—';
+  }
+  function isoDay(epoch) {
+    const d = new Date(epoch * 1000);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  const FORMATS = { mail: 'mail', facturx: 'facture électronique (page + données)', ubl: 'facture électronique (données seules)',
+                    cii: 'facture électronique (données seules)', xml: 'fichier de données', pdf: 'PDF', texte: 'texte',
+                    html: 'page web', image: 'image (lue par reconnaissance de texte)', office: 'document bureautique' };
+  function formatName(fmt) {
+    return fmt ? String(fmt).split('+').map((part) => FORMATS[part] || part).join(', ') : 'non reconnu';
+  }
+  function spacedIban(iban) { return String(iban || '').replace(/(.{4})/g, '$1 ').trim(); }
+  function shortHash(hash) { return hash ? String(hash).slice(0, 10) + '…' : '—'; }
+  function can(minRole) { return (ROLE_LEVELS[state.role] || 0) >= ROLE_LEVELS[minRole]; }
+
+  function badge(cls, text, icon) {
+    const svg = icon && ICONS[icon]
+      ? `<svg class="badge-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[icon]}</svg>`
+      : '';
+    return `<span class="badge ${cls}">${svg}<span>${esc(text)}</span></span>`;
+  }
+  function statusBadge(key) {
+    const meta = STATUS[key];
+    return meta ? badge(meta.badge, meta.label, meta.icon) : badge('badge-slate', key);
   }
 
-  function downloadFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
-    const blob = new Blob([content], { type: mimeType });
+  function toast(message, isError) {
+    const box = $('toast-container');
+    const el = document.createElement('div');
+    el.className = 'toast-banner' + (isError ? ' error' : '');
+    el.textContent = message;
+    box.textContent = '';
+    box.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, isError ? 7000 : 4200);
+  }
+
+  function store(key, value) {
+    try {
+      if (value === undefined) return window.localStorage.getItem(key);
+      window.localStorage.setItem(key, value);
+    } catch (_) { /* stockage indisponible : l'interface fonctionne sans */ }
+    return null;
+  }
+
+  function openDialog(id) { const d = $(id); if (d && !d.open) d.showModal(); }
+  function closeDialog(id) { const d = $(id); if (d && d.open) d.close(); }
+  function anyDialogOpen() { return Boolean(document.querySelector('dialog[open]')); }
+
+  let confirmResolve = null;
+  function confirmAction(title, text, yesLabel) {
+    $('confirm-title').textContent = title;
+    $('confirm-text').textContent = text;
+    $('btn-confirm-yes').textContent = yesLabel || 'Confirmer';
+    openDialog('dialog-confirm');
+    return new Promise((resolve) => { confirmResolve = resolve; });
+  }
+  function settleConfirm(answer) {
+    closeDialog('dialog-confirm');
+    if (confirmResolve) { confirmResolve(answer); confirmResolve = null; }
+  }
+
+  // ------------------------------------------------------------------ Appels au serveur
+  async function api(path, body) {
+    const opts = { credentials: 'same-origin', headers: {} };
+    if (body !== undefined) {
+      opts.method = 'POST';
+      opts.headers['Content-Type'] = 'application/json';
+      opts.headers['X-CSRF-Token'] = state.csrf;
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(path, opts);
+    if (res.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Session expirée');
+    }
+    let data = null;
+    try { data = await res.json(); } catch (_) { data = null; }
+    if (!res.ok) throw new Error((data && data.error) || 'Erreur du serveur (' + res.status + ')');
+    return data;
+  }
+
+  // Lance une action déclenchée par un bouton : bouton désactivé pendant l'appel, erreur affichée en clair.
+  async function run(button, task) {
+    if (button) button.disabled = true;
+    try {
+      await task();
+    } catch (err) {
+      toast(err.message || 'Action impossible', true);
+    } finally {
+      if (button && button.isConnected) button.disabled = false;
+    }
+  }
+
+  // ------------------------------------------------------------------ Mise en forme des factures reçues
+  function adapt(check, box) {
+    const payees = box.payees || [];
+    const payee = check.payee_id ? payees.find((p) => p.id === check.payee_id) : null;
+    const platform = (box.platform || {})[check.id];
+    const amount = check.amount_cents == null ? 0 : check.amount_cents / 100;
+    let status;
+    if (check.verdict === 'review') status = 'review';
+    else if (check.verdict === 'refused') status = 'refused';
+    else if (check.batch_id) status = 'batched';
+    else if (payee && check.currency === 'EUR' && amount > 0) status = 'ready';
+    else status = 'accepted';
+    return {
+      id: check.id,
+      number: check.invoice_number || 'Sans numéro',
+      supplier: check.payee_name || (platform && platform.seller_name) || 'Fournisseur non reconnu',
+      known: Boolean(check.payee_name),
+      cents: check.amount_cents,
+      amount,
+      currency: check.currency || '',
+      received: check.created_at,
+      ibanTail: check.iban_tail || '',
+      payeeIban: payee ? payee.iban : '',
+      fmt: check.fmt || '',
+      sha: check.file_sha256 || '',
+      verdict: check.verdict,
+      // Verdict du contrôle automatique : si une personne a tranché, la facture était « à vérifier ».
+      auto: check.review_action ? 'review' : check.verdict,
+      reviewAction: check.review_action || '',
+      reasons: check.reasons || [],
+      proof: check.proof || [],
+      batchId: check.batch_id || '',
+      platform: platform || null,
+      status
+    };
+  }
+
+  function mainReason(inv) {
+    const r = inv.reasons[0];
+    if (inv.reviewAction === 'approved') return 'Acceptée par vous après vérification.';
+    if (inv.reviewAction === 'rejected') return 'Refusée par vous.';
+    return r ? r.title : '';
+  }
+
+  function filtered() {
+    const q = ui.query;
+    const needle = q.search.trim().toLowerCase();
+    const min = q.amountMin === '' ? null : Number(q.amountMin);
+    const max = q.amountMax === '' ? null : Number(q.amountMax);
+    const rows = state.invoices.filter((inv) => {
+      if (ui.ids && !ui.ids.has(inv.id)) return false;
+      if (q.status !== 'all' && inv.status !== q.status) return false;
+      if (q.supplier !== 'all' && inv.supplier !== q.supplier) return false;
+      if (q.dateFrom && isoDay(inv.received) < q.dateFrom) return false;
+      if (q.dateTo && isoDay(inv.received) > q.dateTo) return false;
+      if (min != null && inv.amount < min) return false;
+      if (max != null && inv.amount > max) return false;
+      if (needle) {
+        const hay = (inv.number + ' ' + inv.supplier + ' ' + inv.amount.toFixed(2) + ' ' + money(inv.amount)).toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+    const dir = q.sortDir === 'asc' ? 1 : -1;
+    const key = { number: (i) => i.number.toLowerCase(), supplier: (i) => i.supplier.toLowerCase(), amount: (i) => i.amount,
+                  received: (i) => i.received, status: (i) => STATUS_KEYS.indexOf(i.status) }[q.sortBy] || ((i) => i.received);
+    return rows.sort((a, b) => { const x = key(a), y = key(b); return x < y ? -dir : x > y ? dir : 0; });
+  }
+
+  function sumBy(status) {
+    const rows = state.invoices.filter((i) => i.status === status);
+    return { count: rows.length, total: rows.reduce((s, i) => s + i.amount, 0), ids: rows.map((i) => i.id) };
+  }
+
+  // ------------------------------------------------------------------ Écran 1 : vue d'ensemble
+  function renderOverview() {
+    const ready = sumBy('ready'), review = sumBy('review'), refused = sumBy('refused');
+    const total = state.invoices.reduce((s, i) => s + i.amount, 0);
+    $('kpi-top-cards').innerHTML = `
+      <div class="card kpi-card" data-go-status="ready" role="button" tabindex="0">
+        <div class="card-title">Bonnes à payer</div>
+        <div class="kpi-value kpi-teal">${esc(money(ready.total))}</div>
+        <div class="kpi-sub">${esc(plural(ready.count, 'facture'))} acceptée${ready.count > 1 ? 's' : ''}, en attente de virement</div>
+      </div>
+      <div class="card kpi-card" data-go-status="review" role="button" tabindex="0">
+        <div class="card-title">À vérifier par vous</div>
+        <div class="kpi-value kpi-warning">${esc(money(review.total))}</div>
+        <div class="kpi-sub">${esc(plural(review.count, 'facture'))} en attente de votre décision</div>
+      </div>
+      <div class="card kpi-card" data-go-status="refused" role="button" tabindex="0">
+        <div class="card-title">Fraudes arrêtées</div>
+        <div class="kpi-value kpi-danger">${esc(money(refused.total))}</div>
+        <div class="kpi-sub">${esc(plural(refused.count, 'facture'))} refusée${refused.count > 1 ? 's' : ''} avant paiement</div>
+      </div>
+      <div class="card kpi-card" data-go-status="all" role="button" tabindex="0">
+        <div class="card-title">Factures contrôlées</div>
+        <div class="kpi-value">${esc(money(total))}</div>
+        <div class="kpi-sub">${esc(plural(state.invoices.length, 'facture'))} reçue${state.invoices.length > 1 ? 's' : ''}</div>
+      </div>`;
+    bindActivate($('kpi-top-cards'), '[data-go-status]', (el) => goToStatus(el.getAttribute('data-go-status')));
+
+    renderSankey();
+    $('chart-monthly-trends').innerHTML = Charts.monthly(monthlyData(), { money });
+    $('chart-supplier-trends').innerHTML = Charts.suppliers(supplierData(), { money });
+
+    $('kpi-status-grid').innerHTML = STATUS_KEYS.map((key) => {
+      const s = sumBy(key);
+      return `
+        <div class="status-card" data-go-status="${key}" role="button" tabindex="0">
+          <div class="status-card-header">${statusBadge(key)}<span class="status-count">${s.count}</span></div>
+          <div class="status-amount">${esc(money(s.total))}</div>
+          <div class="status-hint">${esc(STATUS[key].hint)}</div>
+        </div>`;
+    }).join('');
+    bindActivate($('kpi-status-grid'), '[data-go-status]', (el) => goToStatus(el.getAttribute('data-go-status')));
+  }
+
+  function bindActivate(rootEl, selector, handler) {
+    rootEl.querySelectorAll(selector).forEach((el) => {
+      el.addEventListener('click', () => handler(el));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler(el); }
+      });
+    });
+  }
+
+  function goToStatus(status) {
+    resetQuery();
+    ui.query.status = status;
+    ui.viewId = ['all', 'review', 'refused', 'ready'].includes(status) ? status : '';
+    syncFilters();
+    switchTab('invoices');
+  }
+
+  function monthlyData() {
+    const months = new Map();
+    for (const inv of state.invoices) {
+      const d = new Date(inv.received * 1000);
+      const key = d.getFullYear() * 12 + d.getMonth();
+      if (!months.has(key)) {
+        months.set(key, { label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }), ok: 0, review: 0, refused: 0 });
+      }
+      months.get(key)[inv.verdict] += inv.amount;
+    }
+    return Array.from(months.entries()).sort((a, b) => a[0] - b[0]).slice(-6).map((e) => e[1]);
+  }
+
+  function supplierData() {
+    const map = new Map();
+    for (const inv of state.invoices) {
+      if (!map.has(inv.supplier)) map.set(inv.supplier, { name: inv.supplier, total: 0, risky: false });
+      const row = map.get(inv.supplier);
+      row.total += inv.amount;
+      if (inv.status === 'refused') row.risky = true;
+    }
+    return Array.from(map.values()).filter((r) => r.total > 0).sort((a, b) => b.total - a.total).slice(0, 5);
+  }
+
+  function sankeyData() {
+    const nodes = new Map();
+    const links = new Map();
+    const node = (id, label, stage, color) => {
+      if (!nodes.has(id)) nodes.set(id, { id, label, stage, color, value: 0, count: 0, ids: [] });
+      return nodes.get(id);
+    };
+    const add = (n, inv) => { n.value += inv.amount; n.count += 1; n.ids.push(inv.id); };
+    const link = (a, b, inv) => {
+      const key = a.id + '>' + b.id;
+      if (!links.has(key)) links.set(key, { source: a.id, target: b.id, value: 0, ids: [] });
+      const l = links.get(key);
+      l.value += inv.amount;
+      l.ids.push(inv.id);
+    };
+    const AUTO = {
+      ok: ['auto_ok', 'Rien d\'anormal', '#14b8a6'],
+      review: ['auto_review', 'À vérifier', '#d97706'],
+      refused: ['auto_refused', 'Signes de fraude', '#dc2626']
+    };
+    const END = {
+      ready: ['end_ready', 'Bonnes à payer', '#14b8a6'],
+      batched: ['end_batched', 'Virement préparé', '#3b82f6'],
+      accepted: ['end_accepted', 'À payer à la main', '#f59e0b'],
+      review: ['end_review', 'En attente de vous', '#d97706'],
+      refused: ['end_refused', 'Refusées', '#dc2626']
+    };
+    const bySupplier = ui.sankeyMode === 'supplier';
+    const top = supplierData().map((r) => r.name);
+    const palette = ['#0284c7', '#0d9488', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'];
+    let total = 0;
+    for (const inv of state.invoices) {
+      if (!(inv.amount > 0)) continue;
+      total += inv.amount;
+      let first;
+      if (bySupplier) {
+        const index = top.indexOf(inv.supplier);
+        first = index >= 0 ? node('sup_' + index, inv.supplier, 0, palette[index]) : node('sup_other', 'Autres', 0, palette[5]);
+      } else {
+        first = node('received', 'Factures reçues', 0, '#14b8a6');
+      }
+      const a = AUTO[inv.auto] || AUTO.review;
+      const e = END[inv.status];
+      const mid = node(a[0], a[1], 1, a[2]);
+      const end = node(e[0], e[1], 2, e[2]);
+      add(first, inv); add(mid, inv); add(end, inv);
+      link(first, mid, inv); link(mid, end, inv);
+    }
+    return {
+      stages: [bySupplier ? 'Fournisseur' : 'Réception', 'Contrôle automatique', 'Où elles en sont'],
+      nodes: Array.from(nodes.values()),
+      links: Array.from(links.values()),
+      total
+    };
+  }
+
+  function renderSankey() {
+    const wrapper = $('sankey-diagram-wrapper');
+    wrapper.innerHTML = Charts.sankey(sankeyData(), { width: 920, height: 340, money });
+    $('btn-sankey-lifecycle').classList.toggle('active', ui.sankeyMode === 'lifecycle');
+    $('btn-sankey-supplier').classList.toggle('active', ui.sankeyMode === 'supplier');
+
+    const tooltip = $('sankey-tooltip');
+    const container = $('sankey-container');
+    wrapper.querySelectorAll('[data-ids]').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const title = el.querySelector('title');
+        tooltip.textContent = title ? title.textContent : '';
+        tooltip.classList.remove('is-hidden');
+      });
+      el.addEventListener('mousemove', (evt) => {
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = Math.max(8, Math.min(rect.width - 260, evt.clientX - rect.left + 14)) + 'px';
+        tooltip.style.top = Math.max(8, evt.clientY - rect.top + 14) + 'px';
+      });
+      el.addEventListener('mouseleave', () => tooltip.classList.add('is-hidden'));
+      el.addEventListener('click', () => {
+        const ids = (el.getAttribute('data-ids') || '').split(',').filter(Boolean);
+        if (!ids.length) return;
+        resetQuery();
+        ui.viewId = '';
+        ui.ids = new Set(ids);
+        switchTab('invoices');
+        toast(plural(ids.length, 'facture') + ' de cette étape');
+      });
+    });
+  }
+
+  // ------------------------------------------------------------------ Écran 2 : factures reçues
+  const BUILT_IN_VIEWS = [
+    { id: 'all', name: 'Toutes', query: {} },
+    { id: 'review', name: 'À vérifier', query: { status: 'review' } },
+    { id: 'refused', name: 'Refusées', query: { status: 'refused' } },
+    { id: 'ready', name: 'Bonnes à payer', query: { status: 'ready' } }
+  ];
+
+  function loadViews() {
+    let custom = [];
+    try {
+      const parsed = JSON.parse(store('vaultguard_views') || '[]');
+      if (Array.isArray(parsed)) custom = parsed.filter((v) => v && typeof v.id === 'string' && v.id.startsWith('custom_') && v.query);
+    } catch (_) { custom = []; }
+    state.views = BUILT_IN_VIEWS.concat(custom.slice(0, 8));
+  }
+  function saveViews() {
+    store('vaultguard_views', JSON.stringify(state.views.filter((v) => v.id.startsWith('custom_'))));
+  }
+
+  function renderViews() {
+    const bar = $('saved-views-bar');
+    bar.innerHTML = state.views.map((v) => `
+      <button type="button" class="view-pill${v.id === ui.viewId ? ' active' : ''}" data-view="${esc(v.id)}">
+        ${esc(v.name)}${v.id.startsWith('custom_') ? `<span class="pill-del" data-del-view="${esc(v.id)}" title="Supprimer cette vue" role="button" aria-label="Supprimer cette vue">&times;</span>` : ''}
+      </button>`).join('');
+    bar.querySelectorAll('[data-view]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const del = e.target.closest('[data-del-view]');
+        if (del) {
+          state.views = state.views.filter((v) => v.id !== del.getAttribute('data-del-view'));
+          saveViews();
+          if (ui.viewId === del.getAttribute('data-del-view')) { resetQuery(); syncFilters(); }
+          renderInvoices();
+          return;
+        }
+        const view = state.views.find((v) => v.id === btn.getAttribute('data-view'));
+        if (!view) return;
+        resetQuery();
+        ui.viewId = view.id;
+        Object.assign(ui.query, view.query);
+        syncFilters();
+        renderInvoices();
+      });
+    });
+  }
+
+  function resetQuery() {
+    const keep = { sortBy: ui.query.sortBy, sortDir: ui.query.sortDir };
+    ui.query = Object.assign(defaultQuery(), keep);
+    ui.ids = null;
+    ui.viewId = 'all';
+  }
+
+  const FILTERS = [['f-search', 'search'], ['f-status', 'status'], ['f-supplier', 'supplier'], ['f-date-from', 'dateFrom'],
+                   ['f-date-to', 'dateTo'], ['f-amt-min', 'amountMin'], ['f-amt-max', 'amountMax']];
+
+  function syncFilters() {
+    for (const [id, key] of FILTERS) $(id).value = ui.query[key];
+  }
+
+  function renderFilterOptions() {
+    $('f-status').innerHTML = '<option value="all">Tous les états</option>' +
+      STATUS_KEYS.map((k) => `<option value="${k}">${esc(STATUS[k].label)}</option>`).join('');
+    const names = Array.from(new Set(state.invoices.map((i) => i.supplier))).sort((a, b) => a.localeCompare(b, 'fr'));
+    if (ui.query.supplier !== 'all' && !names.includes(ui.query.supplier)) ui.query.supplier = 'all';
+    $('f-supplier').innerHTML = '<option value="all">Tous les fournisseurs</option>' +
+      names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    $('f-status').value = ui.query.status;
+    $('f-supplier').value = ui.query.supplier;
+  }
+
+  function renderInvoices() {
+    renderViews();
+    const rows = filtered();
+    $('badge-invoices-count').textContent = String(state.invoices.filter((i) => i.status === 'review').length);
+    $('invoices-count-label').textContent = plural(rows.length, 'facture') + (ui.ids ? ' (sélection du schéma)' : '');
+    document.querySelectorAll('#invoices-table th.sortable').forEach((th) => {
+      const active = th.getAttribute('data-sort') === ui.query.sortBy;
+      th.classList.toggle('sorted-asc', active && ui.query.sortDir === 'asc');
+      th.classList.toggle('sorted-desc', active && ui.query.sortDir === 'desc');
+    });
+    const tbody = $('invoices-tbody');
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-cell">${state.invoices.length === 0
+        ? 'Aucune facture reçue pour le moment. Transférez une facture à votre adresse de dépôt, ou utilisez « Déposer une facture ».'
+        : 'Aucune facture ne correspond à ces critères.'}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map((inv) => `
+      <tr class="row-link" data-open="${esc(inv.id)}">
+        <td class="mono"><strong>${esc(inv.number)}</strong></td>
+        <td><strong>${esc(inv.supplier)}</strong>${inv.platform ? ' <span class="badge badge-slate">par la plateforme</span>' : ''}</td>
+        <td class="mono num"><strong>${esc(cents(inv.cents))}</strong></td>
+        <td class="mono cell-date">${esc(dayTime(inv.received))}</td>
+        <td>${statusBadge(inv.status)}</td>
+        <td class="cell-why">${esc(mainReason(inv))}</td>
+        <td class="num"><button type="button" class="btn btn-sm${inv.status === 'review' ? ' btn-primary' : ''}" data-open="${esc(inv.id)}">${inv.status === 'review' ? 'Décider' : 'Voir'}</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('tr[data-open]').forEach((tr) => {
+      tr.addEventListener('click', () => openDetail(tr.getAttribute('data-open')));
+    });
+  }
+
+  function exportCsv() {
+    const safe = (v) => {
+      let s = String(v == null ? '' : v);
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;      // un tableur ne doit pas y lire une formule
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const rows = filtered();
+    const lines = [['Facture', 'Fournisseur', 'Montant (EUR)', 'Reçue le', 'État', 'Pourquoi', 'Empreinte du fichier'].map(safe).join(';')];
+    for (const inv of rows) {
+      lines.push([inv.number, inv.supplier, inv.cents == null ? '' : inv.amount.toFixed(2).replace('.', ','), day(inv.received),
+                  STATUS[inv.status].label, mainReason(inv), inv.sha].map(safe).join(';'));
+    }
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = 'vaultguard-factures.csv';
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    toast(plural(rows.length, 'facture') + ' exportée' + (rows.length > 1 ? 's' : ''));
   }
 
-  const BADGE_ICONS = {
-    clock: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    'calendar-days': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>`,
-    'pie-chart': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`,
-    flame: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
-    'badge-check': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>`,
-    timer: `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>`,
-    'pause-octagon': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 15V9"/><path d="M14 15V9"/><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/></svg>`,
-    'file-search': `<svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3"/><path d="m9 18-1.5-1.5"/><circle cx="5" cy="14" r="3"/></svg>`
-  };
-
-  function renderDesignBadgePill(badgeSpec) {
-    const iconSvg = BADGE_ICONS[badgeSpec.icon] || '';
-    return `<span class="badge badge-${esc(badgeSpec.id)}" data-badge-id="${esc(badgeSpec.id)}" style="color: ${esc(badgeSpec.textColor)}; background-color: ${esc(badgeSpec.backgroundColor)};">${iconSvg}<span>${esc(badgeSpec.label)}</span></span>`;
+  // ------------------------------------------------------------------ Détail d'une facture
+  function openDetail(id) {
+    ui.detailId = id;
+    if (renderDetail()) openDialog('dialog-invoice-detail');
   }
 
-  function renderStatusBadge(statusKey) {
-    const meta = VG.STATUS_META[statusKey] || {
-      label: statusKey,
-      badgeId: 'queued',
-      badgeLabel: statusKey,
-      icon: 'clock',
-      textColor: '#A855F7',
-      backgroundColor: '#F3E8FF',
-      color: 'queued'
-    };
-    const label = state.settings.language === 'fr' ? meta.labelFr : meta.label;
-    const iconSvg = BADGE_ICONS[meta.icon] || '';
-    return `<span class="badge badge-${esc(meta.color)}" data-badge-id="${esc(meta.badgeId || meta.color)}" style="color: ${esc(meta.textColor || '#A855F7')}; background-color: ${esc(meta.backgroundColor || '#F3E8FF')};" title="${esc(label)}">${iconSvg}<span>${esc(meta.badgeLabel || label)}</span><span class="badge-sublabel">· ${esc(label)}</span></span>`;
-  }
-
-  function renderRiskBadge(level, score) {
-    const lvl = level || 'low';
-    const map = {
-      high: { icon: 'flame', textColor: '#EF4444', backgroundColor: '#FEE2E2', label: 'High Priority' },
-      medium: { icon: 'pie-chart', textColor: '#F59E0B', backgroundColor: '#FEF3C7', label: 'In progress' },
-      low: { icon: 'badge-check', textColor: '#14B8A6', backgroundColor: '#CCFBF1', label: 'Ready' }
-    };
-    const cfg = map[lvl] || map.low;
-    const iconSvg = BADGE_ICONS[cfg.icon] || '';
-    return `<span class="badge risk-${esc(lvl)}" style="color: ${cfg.textColor}; background-color: ${cfg.backgroundColor};">${iconSvg}<span>${esc(lvl.toUpperCase())} (${Number(score) || 0})</span></span>`;
-  }
-
-  function getStorage() {
-    try {
-      if (window.vgStorage) return window.vgStorage;
-      if (typeof Storage !== 'undefined' && window.localStorage) return window.localStorage;
-    } catch (_) {
-      // Ignore storage access errors
-    }
-    return null;
-  }
-
-  function loadSavedViewsFromStorage() {
-    try {
-      const store = getStorage();
-      const raw = store && store.getItem('vaultgard_saved_views');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          state.savedViews = parsed;
-        }
-      }
-    } catch (_) {
-      // Ignore storage access errors in restricted environments
-    }
-  }
-
-  function saveViewsToStorage() {
-    try {
-      const store = getStorage();
-      if (store) {
-        store.setItem('vaultgard_saved_views', JSON.stringify(state.savedViews));
-      }
-    } catch (_) {
-      // Ignore storage access errors
-    }
-  }
-
-  function syncDynamicFilterOptions() {
-    const supSel = document.getElementById('f-supplier');
-    if (supSel) {
-      const curSup = ui.query.supplierId || 'all';
-      const supOptions = new Map();
-      state.suppliers.forEach((s) => supOptions.set(s.id, s.name));
-      state.invoices.forEach((i) => {
-        if (i.supplierId && !supOptions.has(i.supplierId)) {
-          supOptions.set(i.supplierId, i.supplierName || i.supplierId);
-        }
-      });
-      supSel.innerHTML =
-        `<option value="all">All Suppliers</option>` +
-        Array.from(supOptions.entries())
-          .map(([id, name]) => `<option value="${esc(id)}" ${id === curSup ? 'selected' : ''}>${esc(name)}</option>`)
-          .join('');
-    }
-
-    const assSel = document.getElementById('f-assignee');
-    if (assSel) {
-      const curAss = ui.query.assignee || 'all';
-      const assignees = new Set(['Sophie Mercier', 'Elena Rostova', 'Claire Dubois', 'Unassigned']);
-      state.invoices.forEach((i) => {
-        if (i.assignee) assignees.add(i.assignee);
-      });
-      assSel.innerHTML =
-        `<option value="all">All Assignees</option>` +
-        Array.from(assignees)
-          .map((a) => `<option value="${esc(a)}" ${a === curAss ? 'selected' : ''}>${esc(a)}</option>`)
-          .join('');
-    }
-  }
-
-  function initSelectors() {
-    loadSavedViewsFromStorage();
-
-    const statusSel = document.getElementById('f-status');
-    if (statusSel) {
-      statusSel.innerHTML =
-        `<option value="all">All Statuses (10)</option>` +
-        VG.ALL_STATUS_KEYS.map((k) => `<option value="${esc(k)}">${esc(VG.STATUS_META[k].label)}</option>`).join('');
-    }
-
-    syncDynamicFilterOptions();
-  }
-
-  // ===========================================================================
-  // DIALOG HELPERS (ON-DEMAND SECONDARY DETAILS)
-  // ===========================================================================
-  function openDialog(dlgId) {
-    const dlg = document.getElementById(dlgId);
-    if (!dlg) return;
-    if (typeof dlg.showModal === 'function') {
-      dlg.showModal();
-    } else {
-      dlg.open = true;
-      dlg.setAttribute('open', 'open');
-    }
-  }
-
-  function closeDialog(dlgId) {
-    const dlg = document.getElementById(dlgId);
-    if (!dlg) return;
-    if (typeof dlg.close === 'function') {
-      dlg.close();
-    } else {
-      dlg.open = false;
-      dlg.removeAttribute('open');
-    }
-  }
-
-  // ===========================================================================
-  // TAB 1: OVERVIEW & KPIs, SANKEY & COMPANION CHARTS
-  // ===========================================================================
-  function renderOverview() {
-    const kpis = VG.computeKPIs(state);
-    const cur = kpis.baseCurrency;
-    const fmt = (val) => VG.formatMoney(val, cur);
-
-    // 1. Top KPI Summary Cards (At most 4 clean, spacious cards)
-    const topCards = document.getElementById('kpi-top-cards');
-    if (topCards) {
-      topCards.innerHTML = `
-        <div class="card">
-          <div class="card-title">Ready to Pay</div>
-          <div class="kpi-value" style="color: var(--teal) !important;">${esc(fmt(kpis.readyToPay.thisMonth))}</div>
-          <div class="kpi-sub">
-            <span>${kpis.readyToPay.count} invoices ready for disbursement</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">In Audit Queue</div>
-          <div class="kpi-value" style="color: var(--warning) !important;">${esc(fmt(kpis.pendingVerification.totalAmount))}</div>
-          <div class="kpi-sub">
-            <span>${kpis.pendingVerification.count} invoices pending review</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Fraud Prevented</div>
-          <div class="kpi-value" style="color: var(--danger) !important;">${esc(fmt(kpis.flagged.moneySaved))}</div>
-          <div class="kpi-sub">
-            <span>${kpis.flagged.rejectedCount} scam(s) intercepted</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Total Pipeline Volume</div>
-          <div class="kpi-value">${esc(fmt(kpis.totalAmount))}</div>
-          <div class="kpi-sub">
-            <span>${kpis.totalInvoices} active invoices tracked</span>
-          </div>
-        </div>
-      `;
-    }
-
-    // 2. Interactive Dual-Mode Sankey Diagram
-    renderSankey();
-
-    // 3. At most 2 Clean Companion SVG Charts
-    renderMonthlyTrendsChart(kpis);
-    renderSupplierTrendsChart(kpis);
-
-    // 4. Full Status Breakdown (10 Lifecycle Stages inside collapsible details)
-    const statusGrid = document.getElementById('kpi-status-grid');
-    if (statusGrid) {
-      statusGrid.innerHTML = VG.ALL_STATUS_KEYS.map((key) => {
-        const meta = VG.STATUS_META[key];
-        const stat = kpis.byStatus[key] || { count: 0, totalAmount: 0 };
-        return `
-          <div class="status-card" data-filter-status="${esc(key)}" role="button" tabindex="0">
-            <div class="status-card-header">
-              ${renderStatusBadge(key)}
-              <span class="status-count">${stat.count}</span>
-            </div>
-            <div class="status-amount">${esc(fmt(stat.totalAmount))}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">${esc(meta.description)}</div>
-          </div>
-        `;
-      }).join('');
-
-      statusGrid.querySelectorAll('[data-filter-status]').forEach((card) => {
-        const activateFilter = () => {
-          const st = card.getAttribute('data-filter-status');
-          resetQueryFilters();
-          ui.query.status = st;
-          const statusInput = document.getElementById('f-status');
-          if (statusInput) statusInput.value = st;
-          switchTab('invoices');
-        };
-        card.addEventListener('click', activateFilter);
-        card.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            activateFilter();
-          }
-        });
-      });
-    }
-  }
-
-  // ===========================================================================
-  // INTERACTIVE DUAL-MODE SANKEY DIAGRAM RENDERING
-  // ===========================================================================
-  function renderSankey() {
-    const wrapper = document.getElementById('sankey-diagram-wrapper');
-    if (!wrapper) return;
-
-    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const sankeyData = VG.computeSankeyData(state, { mode: ui.sankeyMode, metric: 'amount' });
-    const svgMarkup = VG.renderSankeySVG(sankeyData, { theme, width: 920, height: 340 });
-
-    // Inject SVG preserving svg id if needed
-    wrapper.innerHTML = svgMarkup.includes('id="sankey-svg"')
-      ? svgMarkup
-      : svgMarkup.replace('<svg ', '<svg id="sankey-svg" ');
-
-    // Update button active states
-    const isLifecycle = ui.sankeyMode === 'lifecycle';
-    const btnLife = document.getElementById('btn-sankey-lifecycle');
-    const btnDept = document.getElementById('btn-sankey-dept');
-    const btnSup = document.getElementById('btn-sankey-supplier');
-    if (btnLife) btnLife.classList.toggle('active', isLifecycle);
-    if (btnDept) btnDept.classList.toggle('active', !isLifecycle);
-    if (btnSup) btnSup.classList.toggle('active', !isLifecycle);
-
-    // Wire up interactive click and hover handlers on nodes and links
-    const container = document.getElementById('sankey-container');
-    const tooltip = document.getElementById('sankey-tooltip');
-
-    wrapper.querySelectorAll('.sankey-link, .sankey-node-group, .sankey-node-rect').forEach((el) => {
-      const idsStr =
-        el.getAttribute('data-invoice-ids') ||
-        (el.parentElement && el.parentElement.getAttribute('data-invoice-ids')) ||
-        '';
-
-      // Hover: show tooltip
-      el.addEventListener('mouseenter', (evt) => {
-        const titleEl = el.querySelector('title') || (el.parentElement && el.parentElement.querySelector('title'));
-        const text = titleEl ? titleEl.textContent : (el.getAttribute('data-node-id') || 'Flow item');
-        if (tooltip) {
-          tooltip.innerHTML = `<strong>${esc(text)}</strong><div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">Click to filter related invoices in queue</div>`;
-          tooltip.style.display = 'block';
-        }
-      });
-
-      el.addEventListener('mousemove', (evt) => {
-        if (tooltip && container && typeof evt.clientX === 'number' && container.getBoundingClientRect) {
-          const rect = container.getBoundingClientRect();
-          const x = evt.clientX - rect.left + 14;
-          const y = evt.clientY - rect.top + 14;
-          tooltip.style.left = `${Math.max(8, Math.min(rect.width - 240, x))}px`;
-          tooltip.style.top = `${Math.max(8, y)}px`;
-        }
-      });
-
-      el.addEventListener('mouseleave', () => {
-        if (tooltip) tooltip.style.display = 'none';
-      });
-
-      // Click: filter invoices by invoiceIds and switch to Invoices tab
-      el.addEventListener('click', (evt) => {
-        evt.stopPropagation();
-        const ids = idsStr.split(',').filter(Boolean);
-        if (ids.length > 0) {
-          resetQueryFilters();
-          ui.filterInvoiceIds = new Set(ids);
-          switchTab('invoices');
-          showToast(`Filtered ${ids.length} invoice(s) from flow diagram`);
-        }
-      });
-    });
-  }
-
-  // ===========================================================================
-  // COMPANION CHARTS: MONTHLY VOLUME & SUPPLIER VOLUME/RISK
-  // ===========================================================================
-  function renderMonthlyTrendsChart(kpis) {
-    const container = document.getElementById('chart-monthly-trends');
-    if (!container) return;
-    const data = (kpis.trends && kpis.trends.byMonth) || [];
-    const cur = kpis.baseCurrency || 'EUR';
-    const width = 460;
-    const height = 220;
-    const pad = { top: 32, right: 24, bottom: 36, left: 54 };
-    const plotW = width - pad.left - pad.right;
-    const plotH = height - pad.top - pad.bottom;
-
-    if (data.length === 0) {
-      container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" class="chart-svg"><text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="var(--text-muted)">No monthly trend data</text></svg>`;
-      return;
-    }
-
-    const maxVal = Math.max(1, ...data.map((m) => m.totalAmount)) * 1.15;
-    const bandW = plotW / data.length;
-    const barW = Math.min(48, Math.max(16, bandW * 0.52));
-
-    // Grid lines
-    const gridLines = [];
-    const yTicks = [0, maxVal * 0.5, maxVal];
-    yTicks.forEach((val) => {
-      const y = pad.top + plotH - (val / maxVal) * plotH;
-      const label = VG.formatMoney(val, cur).replace(/,00|\.00/, '');
-      gridLines.push(`
-        <line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${(width - pad.right).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--border, rgba(0,0,0,0.08))" stroke-dasharray="3 3"/>
-        <text x="${(pad.left - 8).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-muted)">${esc(label)}</text>
-      `);
-    });
-
-    const bars = data.map((m, idx) => {
-      const x = pad.left + idx * bandW + (bandW - barW) / 2;
-      const cleanAmt = m.verifiedAmount + m.paidAmount;
-      const cleanH = (cleanAmt / maxVal) * plotH;
-      const flagH = (m.flaggedAmount / maxVal) * plotH;
-      const totalH = (m.totalAmount / maxVal) * plotH;
-      const yBase = pad.top + plotH;
-      const yTotal = yBase - totalH;
-
-      const cleanRect = cleanH > 0
-        ? `<rect x="${x.toFixed(1)}" y="${(yBase - cleanH).toFixed(1)}" width="${barW.toFixed(1)}" height="${cleanH.toFixed(1)}" fill="var(--teal, #14b8a6)" rx="3" ry="3">
-             <title>${esc(m.month)} Approved/Paid: ${esc(VG.formatMoney(cleanAmt, cur))}</title>
-           </rect>`
-        : '';
-
-      const flagRect = flagH > 0
-        ? `<rect x="${x.toFixed(1)}" y="${(yBase - cleanH - flagH).toFixed(1)}" width="${barW.toFixed(1)}" height="${flagH.toFixed(1)}" fill="var(--danger, #ef4444)" rx="3" ry="3">
-             <title>${esc(m.month)} Flagged/Rejected: ${esc(VG.formatMoney(m.flaggedAmount, cur))}</title>
-           </rect>`
-        : '';
-
-      const labelX = x + barW / 2;
-      const valText = `<text x="${labelX.toFixed(1)}" y="${(yTotal - 6).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">${esc(VG.formatMoney(m.totalAmount, cur).replace(/,00|\.00/, ''))}</text>`;
-      const monthText = `<text x="${labelX.toFixed(1)}" y="${(yBase + 18).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${esc(m.month)}</text>`;
-
-      return cleanRect + flagRect + valText + monthText;
-    }).join('');
-
-    // Legend at top
-    const legend = `
-      <g transform="translate(${(width - 210).toFixed(1)}, 14)">
-        <rect x="0" y="0" width="10" height="10" rx="2" fill="var(--teal, #14b8a6)"/>
-        <text x="14" y="9" font-size="10" fill="var(--text-secondary)">Approved / Paid</text>
-        <rect x="110" y="0" width="10" height="10" rx="2" fill="var(--danger, #ef4444)"/>
-        <text x="124" y="9" font-size="10" fill="var(--text-secondary)">Flagged / Risk</text>
-      </g>
-    `;
-
-    container.innerHTML = `
-      <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" class="chart-svg" role="img" aria-label="Monthly Invoice Volume & Status Breakdown">
-        ${gridLines.join('')}
-        ${bars}
-        ${legend}
-      </svg>
-    `;
-  }
-
-  function renderSupplierTrendsChart(kpis) {
-    const container = document.getElementById('chart-supplier-trends');
-    if (!container) return;
-    const suppliers = (kpis.trends && kpis.trends.bySupplier ? kpis.trends.bySupplier.slice(0, 5) : []);
-    const cur = kpis.baseCurrency || 'EUR';
-    const width = 460;
-    const height = 220;
-    const pad = { top: 24, right: 90, bottom: 18, left: 130 };
-    const plotW = width - pad.left - pad.right;
-    const plotH = height - pad.top - pad.bottom;
-
-    if (suppliers.length === 0) {
-      container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" class="chart-svg"><text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="var(--text-muted)">No supplier data available</text></svg>`;
-      return;
-    }
-
-    const maxVal = Math.max(1, ...suppliers.map((s) => s.totalAmount)) * 1.08;
-    const rowH = plotH / suppliers.length;
-    const barH = Math.min(22, rowH * 0.58);
-
-    const rows = suppliers.map((s, idx) => {
-      const y = pad.top + idx * rowH + (rowH - barH) / 2;
-      const barW = Math.max(4, (s.totalAmount / maxVal) * plotW);
-      const isRisky = s.maxRiskScore >= 65 || s.flaggedCount > 0;
-      const fillColor = isRisky ? 'var(--danger, #ef4444)' : 'var(--accent, #0284c7)';
-      const truncatedName = s.supplierName.length > 17 ? s.supplierName.slice(0, 16) + '…' : s.supplierName;
-
-      // Supplier label on left
-      const nameLabel = `
-        <text x="${(pad.left - 10).toFixed(1)}" y="${(y + barH / 2 + 4).toFixed(1)}" text-anchor="end" font-size="11" font-weight="500" fill="var(--text)" title="${esc(s.supplierName)}">
-          ${esc(truncatedName)}
-        </text>
-      `;
-
-      // Background track
-      const track = `
-        <rect x="${pad.left}" y="${y.toFixed(1)}" width="${plotW.toFixed(1)}" height="${barH.toFixed(1)}" fill="var(--bg-elevated, rgba(0,0,0,0.04))" rx="4" ry="4"/>
-      `;
-
-      // Filled bar
-      const bar = `
-        <rect x="${pad.left}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fillColor}" rx="4" ry="4">
-          <title>${esc(s.supplierName)}: ${esc(VG.formatMoney(s.totalAmount, cur))} (Max Risk: ${s.maxRiskScore}, Flagged: ${s.flaggedCount})</title>
-        </rect>
-      `;
-
-      // Amount label on right
-      const riskIndicator = isRisky ? ' ⚠' : '';
-      const valLabel = `
-        <text x="${(pad.left + barW + 8).toFixed(1)}" y="${(y + barH / 2 + 4).toFixed(1)}" text-anchor="start" font-size="11" font-weight="600" fill="${isRisky ? 'var(--danger, #ef4444)' : 'var(--text-secondary)'}">
-          ${esc(VG.formatMoney(s.totalAmount, cur).replace(/,00|\.00/, ''))}${riskIndicator}
-        </text>
-      `;
-
-      return nameLabel + track + bar + valLabel;
-    }).join('');
-
-    container.innerHTML = `
-      <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" class="chart-svg" role="img" aria-label="Top Suppliers Volume and Risk">
-        ${rows}
-      </svg>
-    `;
-  }
-
-  // ===========================================================================
-  // TAB 2: INVOICES LIST, FILTERS, SAVED VIEWS & BULK ACTIONS
-  // ===========================================================================
-  function renderSavedViewsBar() {
-    const bar = document.getElementById('saved-views-bar');
-    if (!bar) return;
-    const views = state.savedViews;
-    bar.innerHTML = `
-      <div class="saved-views-chips">
-        ${views
-          .map(
-            (v) => `
-          <button type="button" class="view-chip${v.id === ui.activeViewId ? ' active' : ''}" data-view-id="${esc(v.id)}">
-            ${esc(v.name)}
-            ${
-              v.id.startsWith('custom_')
-                ? `<span class="chip-del" data-del-view="${esc(v.id)}" title="Delete view">&times;</span>`
-                : ''
-            }
-          </button>
-        `
-          )
-          .join('')}
-      </div>
-    `;
-
-    bar.querySelectorAll('[data-view-id]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        if (e.target.classList.contains('chip-del')) return;
-        const vid = btn.getAttribute('data-view-id');
-        const viewObj = state.savedViews.find((v) => v.id === vid);
-        if (!viewObj) return;
-        ui.activeViewId = vid;
-        ui.filterInvoiceIds = null;
-        ui.query = { ...ui.query, ...viewObj.query };
-        syncFilterInputsFromQuery();
-        renderInvoicesTable();
-      });
-    });
-
-    bar.querySelectorAll('[data-del-view]').forEach((delBtn) => {
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const vid = delBtn.getAttribute('data-del-view');
-        state.savedViews = state.savedViews.filter((v) => v.id !== vid);
-        if (ui.activeViewId === vid) {
-          ui.activeViewId = 'all';
-          resetQueryFilters();
-        }
-        saveViewsToStorage();
-        showToast('Deleted saved view');
-        renderSavedViewsBar();
-      });
-    });
-  }
-
-  function resetQueryFilters() {
-    ui.activeViewId = 'all';
-    ui.filterInvoiceIds = null;
-    ui.query = {
-      search: '',
-      status: 'all',
-      supplierId: 'all',
-      riskLevel: 'all',
-      department: 'all',
-      assignee: 'all',
-      paymentMethod: 'all',
-      dateFrom: '',
-      dateTo: '',
-      amountMin: '',
-      amountMax: '',
-      preset: '',
-      sortBy: ui.query.sortBy || 'dueDate',
-      sortDir: ui.query.sortDir || 'asc'
-    };
-    syncFilterInputsFromQuery();
-  }
-
-  function syncFilterInputsFromQuery() {
-    const elSearch = document.getElementById('f-search');
-    if (elSearch) elSearch.value = ui.query.search || '';
-    const elStatus = document.getElementById('f-status');
-    if (elStatus) elStatus.value = ui.query.status || 'all';
-    const elSupplier = document.getElementById('f-supplier');
-    if (elSupplier) elSupplier.value = ui.query.supplierId || 'all';
-    const elRisk = document.getElementById('f-risk');
-    if (elRisk) elRisk.value = ui.query.riskLevel || 'all';
-    const elDept = document.getElementById('f-dept');
-    if (elDept) elDept.value = ui.query.department || 'all';
-    const elAssignee = document.getElementById('f-assignee');
-    if (elAssignee) elAssignee.value = ui.query.assignee || 'all';
-    const elMethod = document.getElementById('f-method');
-    if (elMethod) elMethod.value = ui.query.paymentMethod || 'all';
-    const elDateFrom = document.getElementById('f-date-from');
-    if (elDateFrom) elDateFrom.value = ui.query.dateFrom || '';
-    const elDateTo = document.getElementById('f-date-to');
-    if (elDateTo) elDateTo.value = ui.query.dateTo || '';
-    const elAmtMin = document.getElementById('f-amt-min');
-    if (elAmtMin) elAmtMin.value = ui.query.amountMin || '';
-    const elAmtMax = document.getElementById('f-amt-max');
-    if (elAmtMax) elAmtMax.value = ui.query.amountMax || '';
-  }
-
-  function renderInvoicesTable() {
-    renderSavedViewsBar();
-    let filtered = VG.queryInvoices(state, ui.query);
-    if (ui.filterInvoiceIds && ui.filterInvoiceIds.size > 0) {
-      filtered = filtered.filter((i) => ui.filterInvoiceIds.has(i.id));
-    }
-    const nowStr = state.referenceDate.slice(0, 10);
-    const badgeInvoices = document.getElementById('badge-invoices-count');
-    if (badgeInvoices) badgeInvoices.textContent = String(filtered.length);
-
-    const tbody = document.getElementById('invoices-tbody');
-    if (!tbody) return;
-
-    if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No invoices match the current filters.</td></tr>`;
-      return;
-    }
-
-    // Render exactly 7 columns
-    tbody.innerHTML = filtered
-      .map((inv) => {
-        const isOverdue =
-          inv.dueDate < nowStr && inv.status !== VG.STATUSES.PAID && inv.status !== VG.STATUSES.REJECTED;
-        const checked = ui.selectedInvoiceIds.has(inv.id) ? 'checked' : '';
-        const overdueBadge = isOverdue
-          ? '<span class="badge badge-red" style="margin-left:0.25rem;">OVERDUE</span>'
-          : '';
-        const statusBadge = renderStatusBadge(inv.status);
-        const riskPill = renderRiskBadge(inv.riskLevel, inv.riskScore);
-
-        return `
-          <tr data-inv-row="${esc(inv.id)}" style="cursor: pointer;">
-            <td style="width: 42px;"><input type="checkbox" class="chk-inv" data-id="${esc(inv.id)}" ${checked} aria-label="Select ${esc(inv.invoiceNumber)}" /></td>
-            <td class="mono"><strong>${esc(inv.invoiceNumber)}</strong><br><small class="text-muted">${esc(inv.id)}</small></td>
-            <td><strong>${esc(inv.supplierName)}</strong></td>
-            <td class="mono"><strong>${esc(VG.formatMoney(inv.amount, inv.currency))}</strong></td>
-            <td class="mono">${esc(inv.dueDate)}${overdueBadge}</td>
-            <td>${statusBadge} ${riskPill}</td>
-            <td style="text-align: right;">
-              <button type="button" class="btn btn-sm btn-primary" data-inspect-id="${esc(inv.id)}">Inspect</button>
-            </td>
-          </tr>
-        `;
-      })
-      .join('');
-
-    tbody.querySelectorAll('.chk-inv').forEach((chk) => {
-      chk.addEventListener('change', (e) => {
-        const id = e.target.getAttribute('data-id');
-        if (e.target.checked) ui.selectedInvoiceIds.add(id);
-        else ui.selectedInvoiceIds.delete(id);
-        const countLabel = document.getElementById('selected-count-label');
-        if (countLabel) countLabel.textContent = `${ui.selectedInvoiceIds.size} selected`;
-      });
-    });
-
-    tbody.querySelectorAll('tr[data-inv-row]').forEach((tr) => {
-      tr.addEventListener('click', (e) => {
-        if (e.target.closest('input[type="checkbox"]') || e.target.closest('button')) return;
-        const invId = tr.getAttribute('data-inv-row');
-        if (invId) openInvoiceDetail(invId);
-      });
-    });
-
-    tbody.querySelectorAll('[data-inspect-id]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openInvoiceDetail(btn.getAttribute('data-inspect-id'));
-      });
-    });
-  }
-
-  // ===========================================================================
-  // INVOICE DETAIL MODAL (FULL 9-POINT CHECKLIST & WORKFLOW)
-  // ===========================================================================
-  function openInvoiceDetail(invoiceId) {
-    ui.activeDetailInvoiceId = invoiceId;
-    renderInvoiceDetailModal();
-    openDialog('dialog-invoice-detail');
-  }
-
-  function renderInvoiceDetailModal() {
-    const inv = state.invoices.find((i) => i.id === ui.activeDetailInvoiceId);
-    if (!inv) return;
-
-    const supplier = state.suppliers.find((s) => s.id === inv.supplierId);
-    const mask = state.settings.gdprMaskPii;
-    const reqLevels = inv.requiredApprovalLevels || VG.getRequiredApprovalLevels(
-      VG.convertCurrency(inv.amount, inv.currency, 'EUR'),
-      state.settings
-    );
-    const curApprovals = (inv.approvals || []).length;
-
-    const titleEl = document.getElementById('detail-dialog-title');
-    if (titleEl) {
-      titleEl.innerHTML = `${esc(inv.invoiceNumber)} — ${esc(inv.supplierName)} ${renderStatusBadge(inv.status)} ${renderRiskBadge(inv.riskLevel, inv.riskScore)}`;
-    }
-    const subEl = document.getElementById('detail-dialog-subtitle');
-    if (subEl) {
-      subEl.textContent = `ID: ${inv.id} • Department: ${inv.department} • Entity: ${inv.entity} • Approval Levels: ${curApprovals}/${reqLevels} • Active Actor: ${state.currentUser.name} (${state.currentUser.role})`;
-    }
-
-    const body = document.getElementById('detail-dialog-body');
-    if (!body) return;
-
-    body.innerHTML = `
-      <div class="detail-split">
-        <!-- Left Column: Original Document Viewer & Linked Docs -->
-        <div>
-          <div class="card-title">Original Document Viewer (PDF / OCR Overlay) &amp; Extracted Fields</div>
-          <div class="doc-preview">
-            <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.6rem;">
-              <span><strong>ORIGINAL INVOICE PDF</strong> (${esc(inv.invoiceNumber)}.pdf)</span>
-              <span>Source: ${esc(inv.ingestionSource || 'Email / OCR')}</span>
-            </div>
-            ${
-              inv.documentMeta && (inv.documentMeta.tampered || inv.documentMeta.fontMismatch || inv.documentMeta.modifiedAfterIssue)
-                ? `<div style="background:#FEE2E2;border:1px solid #FECACA;color:#B91C1C;padding:0.45rem 0.6rem;border-radius:6px;margin-bottom:0.6rem;font-family:var(--font);font-weight:500;">
-                    Forensic PDF Alert: Layer tampering or font glyph mismatch detected on IBAN &amp; Total block.
-                   </div>`
-                : `<div style="background:#CCFBF1;border:1px solid #99F6E4;color:#0F766E;padding:0.35rem 0.6rem;border-radius:6px;margin-bottom:0.6rem;font-family:var(--font);font-weight:500;">
-                    Digital signature &amp; PDF XMP metadata verified clean.
-                   </div>`
-            }
-            <div><strong>VENDOR:</strong> ${esc(inv.supplierName)}</div>
-            <div><strong>VAT / TAX ID:</strong> ${esc(inv.vatNumber || 'MISSING')}</div>
-            <div><strong>SENDER EMAIL:</strong> ${esc(VG.maskPII(inv.senderEmail || 'N/A', mask))}</div>
-            <div><strong>BANK IBAN:</strong> ${esc(VG.maskPII(inv.iban, mask))} ${
-              inv.callbackVerified ? '<span class="badge badge-ready">Callback Verified</span>' : ''
-            }</div>
-            <div><strong>INVOICE DATE:</strong> ${esc(inv.issueDate)} | <strong>DUE DATE:</strong> ${esc(inv.dueDate)}</div>
-            <div><strong>PO REFERENCE:</strong> ${esc(inv.poNumber || 'NONE')} (PO Amt: ${esc(VG.formatMoney(inv.poAmount || 0, inv.currency))})</div>
-            <div><strong>DELIVERY NOTE (GRN):</strong> ${esc(inv.grnNumber || 'NONE')} [${esc(inv.grnStatus || 'missing')}]</div>
-            <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.92rem;">
-              <strong>TOTAL AMOUNT: ${esc(VG.formatMoney(inv.amount, inv.currency))}</strong>
-              (Remaining: ${esc(VG.formatMoney(VG.getRemainingAmount(inv), inv.currency))})
-            </div>
-          </div>
-
-          <div style="margin-top: 1rem;">
-            <div class="card-title">Supporting Documents &amp; Attachments</div>
-            <div style="display:flex;flex-direction:column;gap:0.35rem;font-size:0.8rem;">
-              ${(inv.attachments || [])
-                .map(
-                  (att) => `
-                <div style="display:flex;justify-content:space-between;background:var(--bg-elevated);padding:0.4rem 0.6rem;border-radius:6px;">
-                  <span>📎 ${esc(att.name)} (${esc(att.type)})</span>
-                  <span style="color:var(--text-muted);font-size:0.75rem;">${esc(att.uploadedAt.slice(0, 10))}</span>
-                </div>
-              `
-                )
-                .join('')}
-              <div style="margin-top:0.35rem;">
-                <button type="button" class="btn btn-sm" id="btn-detail-attach">+ Attach Supporting File</button>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top: 1rem;">
-            <div class="card-title">Internal Audit Comments &amp; Notes</div>
-            <div style="display:flex;flex-direction:column;gap:0.4rem;font-size:0.8rem;margin-bottom:0.5rem;">
-              ${(inv.comments || [])
-                .map(
-                  (c) => `
-                <div style="background:var(--bg-elevated);padding:0.5rem 0.65rem;border-radius:6px;">
-                  <div style="display:flex;justify-content:space-between;color:var(--text-muted);font-size:0.72rem;margin-bottom:0.2rem;">
-                    <strong>${esc(c.author)} (${esc(c.role)})</strong>
-                    <span>${esc(c.timestamp.slice(0, 16).replace('T', ' '))}</span>
-                  </div>
-                  <div>${esc(c.text)}</div>
-                </div>
-              `
-                )
-                .join('')}
-            </div>
-            <div style="display:flex;gap:0.5rem;">
-              <input type="text" id="input-detail-comment" placeholder="Add an internal audit note..." style="flex:1;" />
-              <button type="button" class="btn btn-sm btn-primary" id="btn-detail-comment">Post Note</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: 9-Point Fraud Checklist, Timeline & Actions -->
-        <div>
-          <div class="card-title">9-Point Fraud &amp; Compliance Audit Checklist</div>
-          <div class="checklist-list" style="margin-bottom: 1.25rem;">
-            ${inv.checklist
-              .map((check) => {
-                const statusBadge =
-                  check.status === 'pass'
-                    ? '<span class="badge badge-emerald">✓ PASS</span>'
-                    : check.status === 'fail'
-                    ? '<span class="badge badge-red">✕ FAIL</span>'
-                    : check.status === 'warning'
-                    ? '<span class="badge badge-amber">⚠ WARN</span>'
-                    : '<span class="badge badge-slate">⏳ PENDING</span>';
-
-                return `
-                  <div class="check-item">
-                    <div style="flex:1;">
-                      <div style="display:flex;align-items:center;gap:0.5rem;">
-                        <strong>${esc(check.id)}. ${esc(check.name)}</strong>
-                        ${statusBadge}
-                      </div>
-                      <div class="check-desc">${esc(check.description)}</div>
-                      <div class="check-details">${esc(check.details || 'Check not yet evaluated.')}</div>
-                    </div>
-                  </div>
-                `;
-              })
-              .join('')}
-          </div>
-
-          <!-- Workflow Actions & Phone Callback Verification -->
-          <div class="card" style="margin-bottom: 1.25rem;">
-            <div class="card-title">Auditor &amp; Approver Actions</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;">
-              <button type="button" class="btn btn-sm btn-primary" data-wf="run_checks">Run 9-Point Checks</button>
-              <button type="button" class="btn btn-sm" data-wf="callback_verify">📞 Log Out-of-Band Phone Callback</button>
-              <button type="button" class="btn btn-sm btn-success" data-wf="approve">✓ Approve</button>
-              <button type="button" class="btn btn-sm" data-wf="hold">⏸ Hold</button>
-              <button type="button" class="btn btn-sm" data-wf="flag">🚩 Flag Suspicious</button>
-              <button type="button" class="btn btn-sm btn-danger" data-wf="reject">✕ Reject (Confirmed Fraud)</button>
-            </div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">
-              <label for="input-wf-note" style="display:block;margin-bottom:0.2rem;">Action reason / audit note:</label>
-              <input type="text" id="input-wf-note" placeholder="Required for Hold, Flag, or Reject actions..." style="width:100%;" />
-            </div>
-          </div>
-
-          <!-- Audit Timeline -->
-          <div class="card">
-            <div class="card-title">Lifecycle Audit Trail &amp; Approvals</div>
-            <div class="timeline" style="margin-top:0.6rem;">
-              ${(inv.timeline || [])
-                .map(
-                  (evt) => `
-                <div class="timeline-step">
-                  <div class="timeline-dot"></div>
-                  <div class="timeline-content">
-                    <div style="display:flex;justify-content:space-between;">
-                      <strong>${esc(((evt.action || evt.event || 'EVENT')).toUpperCase())}</strong>
-                      <span class="mono" style="font-size:0.72rem;color:var(--text-muted);">${esc(evt.timestamp.slice(0, 16).replace('T', ' '))}</span>
-                    </div>
-                    <div style="font-size:0.78rem;color:var(--text-secondary);">${esc(evt.actorName || evt.actor)} (${esc(evt.actorRole || 'System')})</div>
-                    ${evt.details ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${esc(evt.details)}</div>` : ''}
-                  </div>
-                </div>
-              `
-                )
-                .join('')}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Bind event handlers inside dialog body
-    const attachBtn = document.getElementById('btn-detail-attach');
-    if (attachBtn) {
-      attachBtn.addEventListener('click', () => {
-        inv.attachments = inv.attachments || [];
-        inv.attachments.push({
-          id: `att_${Date.now()}`,
-          name: `Supporting_Doc_${inv.attachments.length + 1}.pdf`,
-          type: 'application/pdf',
-          uploadedAt: new Date().toISOString()
-        });
-        showToast('Attached supporting document');
-        renderInvoiceDetailModal();
-      });
-    }
-
-    const commentBtn = document.getElementById('btn-detail-comment');
-    if (commentBtn) {
-      commentBtn.addEventListener('click', () => {
-        const input = document.getElementById('input-detail-comment');
-        const text = input ? input.value.trim() : '';
-        if (!text) return;
-        inv.comments = inv.comments || [];
-        inv.comments.push({
-          id: `cmt_${Date.now()}`,
-          author: state.currentUser.name,
-          role: state.currentUser.role,
-          text,
-          timestamp: new Date().toISOString()
-        });
-        showToast('Added internal audit comment');
-        renderInvoiceDetailModal();
-      });
-    }
-
-    body.querySelectorAll('[data-wf]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const action = btn.getAttribute('data-wf');
-        const noteInput = document.getElementById('input-wf-note');
-        const note = noteInput ? noteInput.value.trim() : '';
-        try {
-          if (action === 'callback_verify') {
-            VG.verifyPhoneCallback(state, inv.id, {
-              contactPerson: supplier ? supplier.officialPhoneContact : 'Authorized CFO',
-              phoneNumber: supplier ? supplier.officialPhone : '+49 89 2345 6789',
-              notes: note || 'Verified bank account authenticity via official switchboard'
-            });
-            showToast(`Phone callback logged for ${inv.invoiceNumber}`);
-          } else {
-            VG.performWorkflowAction(state, inv.id, action, { reason: note, notes: note });
-            showToast(`Action "${action}" recorded on ${inv.invoiceNumber}`);
-          }
-          renderAll();
-          renderInvoiceDetailModal();
-        } catch (err) {
-          showToast(err.message, true);
-        }
-      });
-    });
-  }
-
-  // ===========================================================================
-  // TAB 3: PAYMENTS, CASH FLOW FORECAST & SEPA BATCHES
-  // ===========================================================================
-  function renderPaymentsTab() {
-    const forecast = VG.computeCashFlowForecast(state);
-    const cur = forecast.baseCurrency;
-    const fmt = (v) => VG.formatMoney(v, cur);
-
-    const cashCards = document.getElementById('cashflow-cards');
-    if (cashCards) {
-      cashCards.innerHTML = `
-        <div class="card">
-          <div class="card-title">Overdue &amp; Due Today</div>
-          <div class="kpi-value" style="color: var(--orange) !important;">${esc(fmt(forecast.overdue + forecast.dueToday))}</div>
-          <div class="kpi-sub">
-            <span>Overdue: <strong>${esc(fmt(forecast.overdue))}</strong></span>
-            <span>Due Today: <strong>${esc(fmt(forecast.dueToday))}</strong></span>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">Next 7 Days Forecast</div>
-          <div class="kpi-value" style="color: var(--teal) !important;">${esc(fmt(forecast.next7Days))}</div>
-          <div class="kpi-sub"><span>Scheduled &amp; Ready to Pay</span></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Next 30 Days Forecast</div>
-          <div class="kpi-value">${esc(fmt(forecast.next30Days))}</div>
-          <div class="kpi-sub"><span>Beyond 30d: ${esc(fmt(forecast.beyond30Days))}</span></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Early-Payment Discount Opportunity</div>
-          <div class="kpi-value" style="color: var(--success) !important;">${esc(fmt(forecast.potentialEarlyDiscountSavings))}</div>
-          <div class="kpi-sub"><span>Schedule before discount deadline to capture</span></div>
-        </div>
-      `;
-    }
-
-    // Render Companion SVG Chart on Payments
-    renderCashFlowChart(forecast);
-
-    // Payable queue: verified_approved, ready_to_pay, scheduled, paid
-    const payableList = state.invoices.filter((inv) =>
-      [VG.STATUSES.VERIFIED_APPROVED, VG.STATUSES.READY_TO_PAY, VG.STATUSES.SCHEDULED, VG.STATUSES.PAID].includes(inv.status)
-    );
-    const activePayableCount = payableList.filter((i) => i.status !== VG.STATUSES.PAID).length;
-    const badgePayable = document.getElementById('badge-payable-count');
-    if (badgePayable) badgePayable.textContent = String(activePayableCount);
-
-    const tbody = document.getElementById('payable-tbody');
-    if (!tbody) return;
-
-    if (payableList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No invoices ready for payment.</td></tr>`;
-      return;
-    }
-
-    // Render exactly 6 columns
-    tbody.innerHTML = payableList
-      .map((inv) => {
-        const rem = VG.getRemainingAmount(inv);
-        const check = VG.canPayInvoice(state, inv);
-        const sodBadge =
-          inv.status === VG.STATUSES.PAID
-            ? `<span class="badge badge-green">✓ Paid (${esc(inv.paymentReference || 'Reconciled')})</span>`
-            : check.allowed
-            ? `<span class="badge badge-emerald">✓ Eligible to Pay</span>`
-            : `<span class="badge badge-red" title="${esc(check.reason)}">Blocked: ${esc(check.reason.slice(0, 36))}...</span>`;
-
-        return `
-          <tr data-payable-row="${esc(inv.id)}">
-            <td class="mono"><strong>${esc(inv.invoiceNumber)}</strong><br><small class="text-muted">${esc(inv.id)}</small></td>
-            <td><strong>${esc(inv.supplierName)}</strong></td>
-            <td class="mono">
-              ${esc(inv.dueDate)}
-              ${inv.scheduledPaymentDate ? `<br><small style="color:var(--accent);">Sched: ${esc(inv.scheduledPaymentDate)}</small>` : ''}
-            </td>
-            <td class="mono">
-              <strong>${esc(VG.formatMoney(rem, inv.currency))}</strong>
-              <br><small class="text-muted">of ${esc(VG.formatMoney(inv.amount, inv.currency))}</small>
-            </td>
-            <td>${sodBadge}</td>
-            <td style="text-align: right;">
-              ${
-                inv.status !== VG.STATUSES.PAID
-                  ? `<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.3rem;">
-                      <button type="button" class="btn btn-sm" data-pay-act="schedule_discount" data-id="${esc(inv.id)}" ${!check.allowed ? 'disabled' : ''}>Sched (Discount)</button>
-                      <button type="button" class="btn btn-sm btn-success" data-pay-act="pay_full" data-id="${esc(inv.id)}" ${!check.allowed ? 'disabled' : ''}>Pay &amp; Reconcile</button>
-                      <button type="button" class="btn btn-sm" data-pay-act="partial" data-id="${esc(inv.id)}" ${!check.allowed ? 'disabled' : ''}>50% Partial</button>
-                      <button type="button" class="btn btn-sm" data-pay-act="credit_note" data-id="${esc(inv.id)}">Credit Note</button>
-                     </div>`
-                  : `<span style="font-size:0.76rem;color:var(--text-muted);">${inv.reconciled ? '✓ Bank Reconciled' : 'Paid'}</span>`
-              }
-            </td>
-          </tr>
-        `;
-      })
-      .join('');
-
-    tbody.querySelectorAll('[data-pay-act]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const act = btn.getAttribute('data-pay-act');
-        const inv = state.invoices.find((i) => i.id === id);
-        if (!inv) return;
-        try {
-          if (act === 'schedule_discount') {
-            VG.scheduleInvoicePayment(state, id, { useEarlyDiscount: true });
-            showToast(`Scheduled ${inv.invoiceNumber} capturing early payment discount`);
-          } else if (act === 'pay_full') {
-            VG.recordPaymentOrCredit(state, id, { reconciled: true, reference: `SEPA-RECON-${inv.invoiceNumber}` });
-            showToast(`Paid & bank-reconciled ${inv.invoiceNumber}`);
-          } else if (act === 'partial') {
-            const half = Number((VG.getRemainingAmount(inv) / 2).toFixed(2));
-            VG.recordPaymentOrCredit(state, id, { amount: half, reference: `PART-${inv.invoiceNumber}` });
-            showToast(`Recorded partial payment of ${VG.formatMoney(half, inv.currency)}`);
-          } else if (act === 'credit_note') {
-            const cnAmt = Math.min(500, VG.getRemainingAmount(inv));
-            VG.recordPaymentOrCredit(state, id, { type: 'credit_note', amount: cnAmt, reference: `CN-${inv.invoiceNumber}` });
-            showToast(`Applied credit note of ${VG.formatMoney(cnAmt, inv.currency)}`);
-          }
-          renderAll();
-        } catch (err) {
-          showToast(err.message, true);
-        }
-      });
-    });
-
-    renderBatchesContainer();
-  }
-
-  function renderCashFlowChart(forecast) {
-    const svgEl = document.getElementById('chart-cashflow-svg');
-    if (!svgEl) return;
-    const cur = forecast.baseCurrency || 'EUR';
-    const width = 900;
-    const height = 220;
-    const pad = { top: 36, right: 36, bottom: 48, left: 70 };
-    const plotW = width - pad.left - pad.right;
-    const plotH = height - pad.top - pad.bottom;
-
-    const buckets = [
-      { id: 'overdue', label: 'Overdue (Past Due)', amount: forecast.overdue, color: 'var(--danger, #ef4444)', sub: 'Action Required' },
-      { id: 'today', label: 'Due Today', amount: forecast.dueToday, color: 'var(--orange, #f97316)', sub: 'Immediate Payout' },
-      { id: 'week', label: 'Next 7 Days', amount: forecast.next7Days, color: 'var(--teal, #14b8a6)', sub: 'Capture Discounts' },
-      { id: 'month', label: '8–30 Days', amount: forecast.next30Days, color: 'var(--accent, #0284c7)', sub: 'Planned Cash Out' },
-      { id: 'future', label: 'Beyond 30 Days', amount: forecast.beyond30Days, color: 'var(--text-muted, #8b5cf6)', sub: 'Future Commitments' }
-    ];
-
-    const maxVal = Math.max(1, ...buckets.map((b) => b.amount)) * 1.18;
-    const bandW = plotW / buckets.length;
-    const barW = Math.min(84, bandW * 0.58);
-
-    // Grid lines
-    const gridLines = [];
-    const yTicks = [0, maxVal * 0.5, maxVal];
-    yTicks.forEach((val) => {
-      const y = pad.top + plotH - (val / maxVal) * plotH;
-      const label = VG.formatMoney(val, cur).replace(/,00|\.00/, '');
-      gridLines.push(`
-        <line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${(width - pad.right).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--border, rgba(0,0,0,0.08))" stroke-dasharray="3 3"/>
-        <text x="${(pad.left - 10).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${esc(label)}</text>
-      `);
-    });
-
-    const bars = buckets.map((b, idx) => {
-      const x = pad.left + idx * bandW + (bandW - barW) / 2;
-      const barH = (b.amount / maxVal) * plotH;
-      const yBase = pad.top + plotH;
-      const yTop = yBase - barH;
-      const labelX = x + barW / 2;
-
-      const rect = `
-        <rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2, barH).toFixed(1)}" fill="${b.color}" rx="5" ry="5">
-          <title>${esc(b.label)}: ${esc(VG.formatMoney(b.amount, cur))}</title>
-        </rect>
-      `;
-
-      const amtLabel = `
-        <text x="${labelX.toFixed(1)}" y="${(yTop - 8).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">
-          ${esc(VG.formatMoney(b.amount, cur).replace(/,00|\.00/, ''))}
-        </text>
-      `;
-
-      const nameLabel = `
-        <text x="${labelX.toFixed(1)}" y="${(yBase + 20).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">
-          ${esc(b.label)}
-        </text>
-      `;
-
-      const subLabel = `
-        <text x="${labelX.toFixed(1)}" y="${(yBase + 34).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--text-muted)">
-          ${esc(b.sub)}
-        </text>
-      `;
-
-      return rect + amtLabel + nameLabel + subLabel;
-    }).join('');
-
-    // Discount highlight note
-    const discNote = forecast.potentialEarlyDiscountSavings > 0
-      ? `<g transform="translate(${(width - 290).toFixed(1)}, 14)">
-           <rect x="0" y="0" width="250" height="22" rx="4" fill="var(--bg-elevated, rgba(0,0,0,0.05))" stroke="var(--teal, #14b8a6)" stroke-width="1"/>
-           <text x="125" y="15" text-anchor="middle" font-size="11" fill="var(--teal, #14b8a6)" font-weight="600">⚡ Early Discount Available: ${esc(VG.formatMoney(forecast.potentialEarlyDiscountSavings, cur))}</text>
-         </g>`
+  function renderDetail() {
+    const inv = state.invoices.find((i) => i.id === ui.detailId);
+    if (!inv) { closeDialog('dialog-invoice-detail'); return false; }
+    $('detail-dialog-title').innerHTML = `${esc(inv.number)} — ${esc(inv.supplier)} ${statusBadge(inv.status)}`;
+    $('detail-dialog-subtitle').textContent = 'Reçue le ' + dayTime(inv.received) + ' · ' + STATUS[inv.status].hint;
+
+    const steps = { 'invoice.check': 'Contrôle automatique', 'invoice.approve': 'Acceptée par une personne de votre entreprise',
+                    'invoice.reject': 'Refusée par une personne de votre entreprise' };
+    const decide = inv.status === 'review'
+      ? (can('approver')
+        ? `<div class="card decision-card">
+             <div class="card-title">Votre décision</div>
+             <p class="card-text">Avant d'accepter, vérifiez par un autre moyen que ce document : appelez le fournisseur au numéro que vous utilisez d'habitude, jamais à celui de la facture.</p>
+             <div class="dialog-actions">
+               <button type="button" class="btn btn-danger" data-decide="reject">Refuser cette facture</button>
+               <button type="button" class="btn btn-success" data-decide="approve">J'ai vérifié : accepter</button>
+             </div>
+           </div>`
+        : '<div class="card decision-card"><p class="card-text">Cette facture attend la décision d\'une personne autorisée à valider les paiements.</p></div>')
       : '';
 
-    svgEl.innerHTML = `
-      ${gridLines.join('')}
-      ${bars}
-      ${discNote}
-    `;
-  }
+    $('detail-dialog-body').innerHTML = `
+      <div class="detail-split">
+        <div>
+          <div class="card-title">Ce que VaultGuard a lu</div>
+          <dl class="fact-list">
+            <dt>Fournisseur</dt><dd>${esc(inv.supplier)}${inv.known ? '' : ' <span class="badge badge-paused">absent de votre liste</span>'}</dd>
+            <dt>Numéro</dt><dd class="mono">${esc(inv.number)}</dd>
+            <dt>Montant</dt><dd class="mono"><strong>${esc(cents(inv.cents))}</strong>${inv.currency && inv.currency !== 'EUR' ? ' (' + esc(inv.currency) + ')' : ''}</dd>
+            <dt>Compte indiqué</dt><dd class="mono">${inv.ibanTail ? '•••• ' + esc(inv.ibanTail) : 'aucun compte lisible'}</dd>
+            <dt>Type de document</dt><dd>${esc(formatName(inv.fmt))}</dd>
+            <dt>Arrivée</dt><dd>${inv.platform ? 'par la plateforme VaultGuard, émise par ' + esc(inv.platform.seller_name) : 'par mail ou dépôt'}</dd>
+            <dt>Empreinte du fichier</dt><dd class="mono hash" title="${esc(inv.sha)}">${esc(inv.sha || '—')}</dd>
+          </dl>
+          ${inv.platform
+            ? `<p class="form-hint">Facture émise sur la plateforme : son fichier se régénère à l'identique à partir de la saisie de l'émetteur, et son empreinte prouve qu'il n'a pas changé.</p>
+               <p class="detail-download"><a class="btn btn-sm" href="/api/app/einvoices/received/${encodeURIComponent(inv.id)}.pdf" download>Télécharger la facture (PDF)</a></p>`
+            : '<p class="form-hint">Le contenu de la facture n\'est pas conservé. L\'empreinte permet de prouver plus tard quel fichier a été contrôlé, sans le garder.</p>'}
 
-  function renderBatchesContainer() {
-    const batchCont = document.getElementById('batches-container');
-    if (!batchCont) return;
-    if (state.paymentBatches.length === 0) {
-      batchCont.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);padding:0.75rem 0;">No SEPA XML payment batches generated yet. Click "Generate SEPA XML Batch" above to batch all eligible approved invoices.</div>`;
-      return;
-    }
-
-    batchCont.innerHTML = state.paymentBatches
-      .slice()
-      .reverse()
-      .map(
-        (b) => `
-        <div style="background:var(--bg-elevated);padding:0.75rem;border-radius:8px;margin-bottom:0.6rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-          <div>
-            <div style="display:flex;align-items:center;gap:0.5rem;">
-              <strong class="mono">${esc(b.id)}</strong>
-              <span class="badge ${b.status === 'reconciled' ? 'badge-emerald' : 'badge-accent'}">${esc(b.status.toUpperCase())}</span>
-            </div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">
-              Created by ${esc(b.createdByName)} • Invoices: ${b.invoiceCount} • Total: <strong class="mono">${esc(VG.formatMoney(b.totalAmount, 'EUR'))}</strong> • Exec: ${esc(b.executionDate)}
-            </div>
-          </div>
-          <div style="display:flex;gap:0.4rem;">
-            <button type="button" class="btn btn-sm" data-batch-dl="${esc(b.id)}">Download ISO 20022 XML</button>
-            ${
-              b.status !== 'reconciled'
-                ? `<button type="button" class="btn btn-sm btn-success" data-batch-recon="${esc(b.id)}">Reconcile Bank Statement</button>`
-                : `<span class="badge badge-green">✓ Bank Reconciled</span>`
-            }
+          <div class="card-title section-title">Historique de cette facture</div>
+          <div class="timeline-list">
+            ${inv.proof.length === 0 ? '<div class="timeline-entry">Aucune trace enregistrée.</div>' : inv.proof.map((p) => `
+              <div class="timeline-entry">
+                <strong>${esc(steps[p.action] || p.action)}</strong>
+                <div class="timeline-meta">${esc(dayTime(p.created_at))} · preuve <span class="mono" title="${esc(p.entry_hash)}">${esc(shortHash(p.entry_hash))}</span></div>
+              </div>`).join('')}
+            ${inv.batchId ? '<div class="timeline-entry"><strong>Ajoutée à un fichier de virements</strong></div>' : ''}
           </div>
         </div>
-      `
-      )
-      .join('');
+        <div>
+          <div class="card-title">Résultat des contrôles</div>
+          <div class="checklist-list">
+            ${inv.reasons.map((r) => {
+              const lvl = LEVEL[r.level] || LEVEL.review;
+              return `
+                <div class="check-item">
+                  <div class="check-main">
+                    <strong>${esc(r.title)}</strong>
+                    ${r.detail ? `<div class="check-detail">${esc(r.detail)}</div>` : ''}
+                    ${r.ref ? `<div class="check-ref">${esc(r.ref)}</div>` : ''}
+                  </div>
+                  ${badge(lvl.badge, lvl.label)}
+                </div>`;
+            }).join('')}
+          </div>
+          ${inv.reviewAction ? `<p class="form-hint">Décision humaine : ${inv.reviewAction === 'approved' ? 'facture acceptée' : 'facture refusée'} après le contrôle automatique.</p>` : ''}
+          ${decide}
+        </div>
+      </div>`;
 
-    batchCont.querySelectorAll('[data-batch-dl]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const bid = btn.getAttribute('data-batch-dl');
-        const b = state.paymentBatches.find((item) => item.id === bid);
-        if (b) {
-          downloadFile(`${b.id}.xml`, b.sepaXml, 'application/xml');
-          showToast(`Downloaded SEPA pain.001.001.03 XML for ${b.id}`);
-        }
-      });
+    $('detail-dialog-body').querySelectorAll('[data-decide]').forEach((btn) => {
+      btn.addEventListener('click', () => run(btn, async () => {
+        const approve = btn.getAttribute('data-decide') === 'approve';
+        const ok = await confirmAction(approve ? 'Accepter cette facture ?' : 'Refuser cette facture ?',
+          approve ? 'Elle deviendra bonne à payer. Cette décision est inscrite à votre nom et ne peut pas être annulée.'
+                  : 'Elle ne pourra plus être payée. Cette décision est inscrite à votre nom et ne peut pas être annulée.',
+          approve ? 'Accepter' : 'Refuser');
+        if (!ok) return;
+        await api('/api/app/inbox/checks/' + (approve ? 'approve' : 'reject'), { id: inv.id });
+        toast(approve ? 'Facture acceptée' : 'Facture refusée');
+        await reload();
+        renderDetail();
+      }));
+    });
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Écran 3 : paiements
+  function sealBadge(b) {
+    if (b.seal_status === 'anchored') return badge('badge-ready', 'Empreinte inscrite sur Avalanche', 'check');
+    if (b.seal_status === 'simulated') return badge('badge-scheduled', 'Empreinte inscrite (mode démonstration)');
+    return badge('badge-paused', 'Empreinte pas encore inscrite');
+  }
+
+  function renderPayments() {
+    const box = state.box;
+    const ready = state.invoices.filter((i) => i.status === 'ready');
+    const batches = box.batches || [];
+    const sealed = batches.filter((b) => b.seal_status === 'anchored' || b.seal_status === 'simulated').length;
+    const batchTotal = batches.reduce((s, b) => s + (b.total_cents || 0), 0);
+    $('badge-payable-count').textContent = String(box.payable.count);
+    $('badge-payable-count').title = 'Factures bonnes à payer';
+
+    $('payment-cards').innerHTML = `
+      <div class="card"><div class="card-title">À payer maintenant</div>
+        <div class="kpi-value kpi-teal">${esc(cents(box.payable.total_cents))}</div>
+        <div class="kpi-sub">${esc(plural(box.payable.count, 'facture'))} prête${box.payable.count > 1 ? 's' : ''} pour le prochain fichier</div></div>
+      <div class="card"><div class="card-title">À payer à la main</div>
+        <div class="kpi-value${box.payable.skipped ? ' kpi-warning' : ''}">${box.payable.skipped}</div>
+        <div class="kpi-sub">acceptée${box.payable.skipped > 1 ? 's' : ''} sans fournisseur enregistré : hors fichier</div></div>
+      <div class="card"><div class="card-title">Fichiers préparés</div>
+        <div class="kpi-value">${batches.length}</div>
+        <div class="kpi-sub">${esc(cents(batchTotal))} au total</div></div>
+      <div class="card"><div class="card-title">Preuves inscrites</div>
+        <div class="kpi-value">${sealed} / ${batches.length}</div>
+        <div class="kpi-sub">fichiers dont l'empreinte est inscrite comme preuve datée</div></div>`;
+
+    const createBtn = $('btn-create-batch');
+    const blocked = !can('approver') ? 'Réservé aux personnes autorisées à valider les paiements.'
+      : !box.bank ? 'Renseignez d\'abord le compte bancaire de votre entreprise (menu Réglages).'
+      : box.payable.count === 0 ? 'Aucune facture bonne à payer pour le moment.' : '';
+    createBtn.disabled = Boolean(blocked);
+    createBtn.title = blocked;
+
+    $('payable-tbody').innerHTML = ready.length === 0
+      ? '<tr><td colspan="6" class="empty-cell">Aucune facture n\'attend de virement.</td></tr>'
+      : ready.map((inv) => `
+        <tr>
+          <td class="mono"><strong>${esc(inv.number)}</strong></td>
+          <td><strong>${esc(inv.supplier)}</strong></td>
+          <td class="mono">${esc(spacedIban(inv.payeeIban))}</td>
+          <td class="mono num"><strong>${esc(cents(inv.cents))}</strong></td>
+          <td class="mono">${esc(day(inv.received))}</td>
+          <td class="num"><button type="button" class="btn btn-sm" data-open="${esc(inv.id)}">Voir</button></td>
+        </tr>`).join('');
+    $('payable-tbody').querySelectorAll('[data-open]').forEach((btn) => {
+      btn.addEventListener('click', () => openDetail(btn.getAttribute('data-open')));
     });
 
-    batchCont.querySelectorAll('[data-batch-recon]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const bid = btn.getAttribute('data-batch-recon');
-        try {
-          VG.reconcilePaymentBatch(state, bid, state.currentUser);
-          showToast(`Reconciled batch ${bid} with bank statement`);
-          renderAll();
-        } catch (err) {
-          showToast(err.message, true);
+    const cont = $('batches-container');
+    if (batches.length === 0) {
+      cont.innerHTML = '<p class="card-text">Aucun fichier préparé. Le bouton « Préparer le fichier de virements » regroupe toutes les factures bonnes à payer.</p>';
+      return;
+    }
+    cont.innerHTML = batches.map((b) => `
+      <div class="batch-row">
+        <div>
+          <div class="batch-head"><strong>Fichier du ${esc(dayTime(b.created_at))}</strong> ${sealBadge(b)}</div>
+          <div class="batch-meta">${esc(plural(b.tx_count, 'virement'))} · <strong class="mono">${esc(cents(b.total_cents))}</strong> · empreinte <span class="mono" title="${esc(b.file_sha256)}">${esc(shortHash(b.file_sha256))}</span></div>
+        </div>
+        <div class="batch-actions">
+          ${b.seal_url ? `<a class="btn btn-sm" href="${esc(b.seal_url)}" target="_blank" rel="noopener noreferrer">Voir la preuve</a>` : ''}
+          ${b.seal_status !== 'anchored' && b.seal_status !== 'simulated' && can('approver') ? `<button type="button" class="btn btn-sm" data-seal="${esc(b.id)}">Inscrire l'empreinte</button>` : ''}
+          ${can('approver') ? `<a class="btn btn-sm btn-primary" href="/api/app/transfers/${encodeURIComponent(b.id)}.xml" download>Télécharger pour la banque</a>` : ''}
+        </div>
+      </div>`).join('');
+    cont.querySelectorAll('[data-seal]').forEach((btn) => {
+      btn.addEventListener('click', () => run(btn, async () => {
+        const res = await api('/api/app/transfers/seal', { id: btn.getAttribute('data-seal') });
+        toast(res.seal_error || 'Empreinte inscrite', Boolean(res.seal_error));
+        await reload();
+      }));
+    });
+  }
+
+  async function createBatch(button) {
+    const box = state.box;
+    const ok = await confirmAction('Préparer le fichier de virements ?',
+      plural(box.payable.count, 'facture') + ' pour ' + cents(box.payable.total_cents) + '. Le fichier est créé et son empreinte est inscrite comme preuve datée (sur la blockchain Avalanche quand le site y est relié), sans aucune donnée de facture. Vous l\'envoyez ensuite vous-même à votre banque.',
+      'Préparer le fichier');
+    if (!ok) return;
+    await run(button, async () => {
+      const res = await api('/api/app/transfers', {});
+      toast(res.seal_error ? 'Fichier préparé. ' + res.seal_error : 'Fichier de virements préparé', Boolean(res.seal_error));
+      await reload();
+    });
+  }
+
+  async function auditFile(button) {
+    const file = $('audit-file').files[0];
+    if (!file) { toast('Choisissez d\'abord un fichier de virements (.xml)', true); return; }
+    if (file.size > MAX_AUDIT_BYTES) { toast('Fichier trop volumineux (250 Ko au plus)', true); return; }
+    await run(button, async () => {
+      const res = await api('/api/app/transfers/audit', { content: await file.text() });
+      const head = { ok: ['badge-ready', 'Rien d\'anormal : ce fichier peut partir à la banque'],
+                     review: ['badge-paused', 'À vérifier avant l\'envoi'],
+                     refused: ['badge-high-priority', 'Ne pas envoyer ce fichier'] }[res.verdict];
+      $('audit-result').innerHTML = `
+        <div class="audit-head">${badge(head[0], head[1])}
+          <span class="form-hint">${esc(plural(res.lines.length, 'virement'))} · ${esc(cents(res.total_cents))} · ${res.counts.ok} conforme${res.counts.ok > 1 ? 's' : ''}, ${res.counts.review} à vérifier, ${res.counts.refused} refusé${res.counts.refused > 1 ? 's' : ''}</span></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>N°</th><th>Bénéficiaire</th><th>Compte</th><th class="num">Montant</th><th>Verdict</th><th>Pourquoi</th></tr></thead>
+            <tbody>${res.lines.map((l) => {
+              const lvl = LEVEL[l.level] || LEVEL.review;
+              return `<tr>
+                <td class="mono">${l.position}</td>
+                <td><strong>${esc(l.name || '—')}</strong></td>
+                <td class="mono">${l.iban_tail ? '•••• ' + esc(l.iban_tail) : '—'}</td>
+                <td class="mono num">${esc(cents(l.amount_cents))}</td>
+                <td>${badge(lvl.badge, lvl.label)}</td>
+                <td class="cell-why">${esc(l.why)}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>`;
+      loadJournal(true);
+    });
+  }
+
+  // ------------------------------------------------------------------ Écran 4 : factures émises
+  const ISSUED = { undelivered: 'badge-slate', review: 'badge-paused', ok: 'badge-ready', refused: 'badge-high-priority',
+                   paid: 'badge-scheduled' };
+  const ISSUED_SHORT = { undelivered: 'À transmettre vous-même', review: 'En vérification chez le client', ok: 'Acceptée',
+                         refused: 'Refusée', paid: 'Virement préparé' };
+
+  function renderIssued() {
+    const data = state.issued;
+    const profile = data.profile;
+    const list = data.issued || [];
+    $('badge-issued-count').textContent = String(list.length);
+
+    const bankLine = data.bank
+      ? `<dt>Compte qui reçoit</dt><dd class="mono">${esc(spacedIban(data.bank.iban))}</dd>`
+      : '<dt>Compte qui reçoit</dt><dd><span class="badge badge-paused">à renseigner dans Réglages</span></dd>';
+    $('issued-profile').innerHTML = `
+      <dl class="fact-list">
+        <dt>Numéro SIREN</dt><dd class="mono">${profile ? esc(profile.siren) : '<span class="badge badge-paused">à renseigner</span>'}</dd>
+        <dt>Adresse</dt><dd>${profile && profile.address ? esc(profile.address) : '—'}</dd>
+        ${bankLine}
+      </dl>
+      <p class="form-hint">Le compte bancaire imprimé sur vos factures est toujours celui enregistré ici : personne ne peut le changer sur une facture.</p>
+      ${can('admin') ? `
+        <form id="form-profile" class="stack-form" autocomplete="off">
+          <div class="form-row">
+            <div class="filter-field"><label for="pro-siren">Numéro SIREN (9 chiffres)</label>
+              <input type="text" id="pro-siren" inputmode="numeric" maxlength="14" value="${profile ? esc(profile.siren) : ''}" required /></div>
+            <div class="filter-field"><label for="pro-address">Adresse</label>
+              <input type="text" id="pro-address" maxlength="200" value="${profile ? esc(profile.address || '') : ''}" /></div>
+          </div>
+          <button class="btn btn-sm" type="submit">Enregistrer</button>
+        </form>` : ''}`;
+    const form = $('form-profile');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        run(form.querySelector('button'), async () => {
+          await api('/api/app/einvoices/profile', { siren: $('pro-siren').value.trim(), address: $('pro-address').value.trim() });
+          toast('Identité de l\'entreprise enregistrée');
+          await reload();
+        });
+      });
+    }
+
+    const blocked = !can('approver') ? 'Réservé aux personnes autorisées à valider.'
+      : !profile ? 'Renseignez d\'abord le numéro SIREN de votre entreprise.'
+      : !data.bank ? 'Renseignez d\'abord le compte bancaire de votre entreprise (menu Réglages).' : '';
+    $('btn-issue').disabled = Boolean(blocked);
+    $('btn-issue').title = blocked;
+    updateIssueTotal();
+
+    $('issued-tbody').innerHTML = list.length === 0
+      ? '<tr><td colspan="6" class="empty-cell">Aucune facture émise pour le moment.</td></tr>'
+      : list.map((inv) => `
+        <tr>
+          <td class="mono"><strong>${esc(inv.number)}</strong></td>
+          <td><strong>${esc(inv.buyer_name)}</strong><div class="cell-sub mono">SIREN ${esc(inv.buyer_siren)}</div></td>
+          <td class="mono num"><strong>${esc(cents(inv.total_cents))}</strong></td>
+          <td class="mono">${esc(day(inv.created_at))}</td>
+          <td><span title="${esc(inv.status_text)}">${badge(ISSUED[inv.status] || 'badge-slate', ISSUED_SHORT[inv.status] || inv.status)}</span></td>
+          <td class="num"><a class="btn btn-sm" href="/api/app/einvoices/${encodeURIComponent(inv.id)}.pdf" download>PDF</a></td>
+        </tr>`).join('');
+  }
+
+  function addIssueLine() {
+    const wrap = $('iss-lines');
+    if (wrap.children.length >= 50) return;
+    const row = document.createElement('div');
+    row.className = 'line-row';
+    row.innerHTML = `
+      <div class="filter-field filter-grow"><label>Désignation</label><input type="text" class="iss-label" maxlength="120" placeholder="Par exemple : entretien du véhicule" required /></div>
+      <div class="filter-field line-qty"><label>Quantité</label><input type="number" class="iss-qty" min="1" max="9999" step="1" value="1" required /></div>
+      <div class="filter-field line-price"><label>Prix unitaire HT (€)</label><input type="text" class="iss-price mono" inputmode="decimal" placeholder="150,00" required /></div>
+      <button type="button" class="icon-btn line-del" title="Retirer cette ligne" aria-label="Retirer cette ligne">&times;</button>`;
+    row.querySelectorAll('input').forEach((input, index) => {
+      // Les libellés visent leur champ sans identifiant fixe : les lignes sont créées à la demande.
+      const id = 'iss-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '-' + index;
+      input.id = id;
+      input.closest('.filter-field').querySelector('label').setAttribute('for', id);
+      input.addEventListener('input', updateIssueTotal);
+    });
+    row.querySelector('.line-del').addEventListener('click', () => {
+      if (wrap.children.length > 1) row.remove();
+      updateIssueTotal();
+    });
+    wrap.appendChild(row);
+    updateIssueTotal();
+  }
+
+  function priceCents(text) {
+    const m = /^(\d{1,7})(?:[.,](\d{1,2}))?$/.exec(String(text).trim());
+    return m ? Number(m[1]) * 100 + Number((m[2] || '0').padEnd(2, '0')) : null;
+  }
+
+  function updateIssueTotal() {
+    let ht = 0;
+    $('iss-lines').querySelectorAll('.line-row').forEach((row) => {
+      const qty = Number(row.querySelector('.iss-qty').value);
+      const price = priceCents(row.querySelector('.iss-price').value);
+      if (Number.isInteger(qty) && qty > 0 && price) ht += qty * price;
+    });
+    const rate = (state.issued && state.issued.vat_percent) || 20;
+    const tax = Math.floor((ht * rate + 50) / 100);
+    $('iss-total').textContent = 'Hors taxes ' + cents(ht) + ' · TVA ' + rate + ' % ' + cents(tax) + ' · Total ' + cents(ht + tax);
+  }
+
+  let lookupTimer = null;
+  function lookupBuyer() {
+    clearTimeout(lookupTimer);
+    const siren = $('iss-siren').value.replace(/[\s.]/g, '');
+    const hint = $('iss-lookup');
+    const name = $('iss-name');
+    if (!/^\d{9}$/.test(siren)) { hint.textContent = ''; name.readOnly = false; return; }
+    lookupTimer = setTimeout(async () => {
+      try {
+        const res = await api('/api/app/einvoices/lookup', { siren });
+        if (res.found) {
+          name.value = res.name;
+          name.readOnly = true;
+          hint.textContent = 'Ce client est sur VaultGuard : la facture lui sera remise directement, déjà contrôlée.';
+        } else {
+          name.readOnly = false;
+          hint.textContent = 'Ce client n\'est pas sur VaultGuard : indiquez son nom, puis téléchargez la facture pour la lui transmettre.';
         }
+      } catch (err) {
+        hint.textContent = err.message;
+      }
+    }, 350);
+  }
+
+  async function submitIssue(button) {
+    const lines = [];
+    $('iss-lines').querySelectorAll('.line-row').forEach((row) => {
+      lines.push({ label: row.querySelector('.iss-label').value.trim(), quantity: Number(row.querySelector('.iss-qty').value),
+                   unit_price: row.querySelector('.iss-price').value.trim() });
+    });
+    await run(button, async () => {
+      const inv = await api('/api/app/einvoices', { buyer_siren: $('iss-siren').value.trim(), buyer_name: $('iss-name').value.trim(), lines });
+      toast('Facture ' + inv.number + ' créée. ' + (ISSUED_SHORT[inv.status] || ''));
+      $('form-issue').reset();
+      $('iss-name').readOnly = false;
+      $('iss-lookup').textContent = '';
+      $('iss-lines').textContent = '';
+      addIssueLine();
+      await reload();
+    });
+  }
+
+  // ------------------------------------------------------------------ Fenêtre : alertes
+  function alerts() {
+    const box = state.box;
+    const out = [];
+    const week = Date.now() / 1000 - 7 * 86400;
+    for (const inv of state.invoices) {
+      if (inv.status === 'review') {
+        out.push({ level: 1, badge: 'badge-paused', tag: 'À vérifier', title: inv.number + ' — ' + inv.supplier + ' (' + cents(inv.cents) + ')',
+                   text: mainReason(inv), open: inv.id });
+      } else if (inv.status === 'refused' && inv.received >= week) {
+        out.push({ level: 0, badge: 'badge-high-priority', tag: 'Fraude arrêtée', title: inv.number + ' — ' + inv.supplier + ' (' + cents(inv.cents) + ')',
+                   text: mainReason(inv), open: inv.id });
+      }
+    }
+    if (!box.bank) {
+      out.push({ level: 1, badge: 'badge-paused', tag: 'Réglage', title: 'Compte bancaire de votre entreprise non renseigné',
+                 text: 'Sans lui, aucun fichier de virements ne peut être préparé.', dialog: 'dialog-settings' });
+    }
+    if ((box.senders || []).length === 0) {
+      out.push({ level: 2, badge: 'badge-slate', tag: 'Réglage', title: 'Aucun expéditeur autorisé',
+                 text: 'Les mails envoyés à votre adresse de dépôt sont ignorés tant que vous n\'avez autorisé personne.', dialog: 'dialog-settings' });
+    }
+    if (box.payable.skipped > 0) {
+      out.push({ level: 2, badge: 'badge-in-progress', tag: 'À payer à la main', title: plural(box.payable.skipped, 'facture') + ' acceptée' + (box.payable.skipped > 1 ? 's' : '') + ' hors fichier de virements',
+                 text: 'Leur fournisseur n\'est pas dans votre liste : ajoutez-le pour les prochaines.', status: 'accepted' });
+    }
+    for (const p of box.payees || []) {
+      if (!p.is_active) {
+        out.push({ level: 2, badge: 'badge-slate', tag: 'Délai de sécurité', title: p.name + ' vient d\'être ajouté',
+                   text: 'Ses factures demandent votre accord pendant encore ' + delay(p.remaining_seconds) + '.', dialog: 'dialog-suppliers' });
+      }
+    }
+    const ignored = Object.entries(box.ignored_7d || {});
+    if (ignored.length) {
+      const n = ignored.reduce((s, e) => s + e[1], 0);
+      out.push({ level: 2, badge: 'badge-slate', tag: 'Mails ignorés', title: plural(n, 'mail') + ' ignoré' + (n > 1 ? 's' : '') + ' sur 7 jours',
+                 text: ignored.map(([k, v]) => v + ' × ' + (IGNORED[k] || k)).join(', ') + '.', dialog: 'dialog-settings' });
+    }
+    return out.sort((a, b) => a.level - b.level);
+  }
+
+  function delay(seconds) {
+    if (seconds >= 3600) return Math.ceil(seconds / 3600) + ' h';
+    return Math.max(1, Math.ceil(seconds / 60)) + ' min';
+  }
+
+  function renderAlerts() {
+    const list = alerts();
+    const urgent = list.filter((a) => a.level < 2).length;
+    $('badge-alerts-count').textContent = String(urgent);
+    $('badge-alerts-count').classList.toggle('tab-badge-alert', urgent > 0);
+    $('alerts-list').innerHTML = list.length === 0
+      ? '<p class="card-text">Rien à signaler.</p>'
+      : list.map((a, i) => `
+        <div class="check-item">
+          <div class="check-main">
+            ${badge(a.badge, a.tag)} <strong>${esc(a.title)}</strong>
+            <div class="check-detail">${esc(a.text)}</div>
+          </div>
+          <button type="button" class="btn btn-sm" data-alert="${i}">${a.open ? 'Ouvrir' : 'Voir'}</button>
+        </div>`).join('');
+    $('alerts-list').querySelectorAll('[data-alert]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const a = list[Number(btn.getAttribute('data-alert'))];
+        closeDialog('dialog-alerts');
+        if (a.open) openDetail(a.open);
+        else if (a.status) goToStatus(a.status);
+        else if (a.dialog) openDialog(a.dialog);
       });
     });
   }
 
-  // ===========================================================================
-  // ON-DEMAND DIALOG: SUPPLIERS DIRECTORY
-  // ===========================================================================
-  function renderSuppliersTab() {
-    const grid = document.getElementById('suppliers-grid');
-    if (!grid) return;
-    grid.innerHTML = state.suppliers
-      .map((s) => {
-        const supInvoices = state.invoices.filter((i) => i.supplierId === s.id);
-        const flagCount = supInvoices.filter(
-          (i) => i.status === VG.STATUSES.FLAGGED || i.status === VG.STATUSES.REJECTED
-        ).length;
-        const statusColor =
-          s.status === 'verified' ? 'emerald' : s.status === 'blacklisted' ? 'red' : 'amber';
+  // ------------------------------------------------------------------ Fenêtre : fournisseurs
+  function renderSuppliers() {
+    const payees = state.box.payees || [];
+    const admin = can('admin');
+    $('form-supplier').classList.toggle('is-hidden', !admin);
+    $('suppliers-grid').innerHTML = payees.length === 0
+      ? '<p class="card-text">Aucun fournisseur enregistré. Ajoutez vos fournisseurs habituels avec le compte bancaire que vous leur connaissez : c\'est la référence de tous les contrôles.</p>'
+      : payees.map((p) => {
+        const invs = state.invoices.filter((i) => i.supplier === p.name);
+        const refused = invs.filter((i) => i.status === 'refused').length;
         return `
           <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
-              <div>
-                <h3 style="font-size:1rem;">${esc(s.name)}</h3>
-                <div class="mono" style="font-size:0.75rem;color:var(--text-muted);">
-                  ID: ${esc(s.id)} • VAT: ${esc(s.vatNumber)} • Reg: ${esc(s.regNumber)} • Domain: @${esc(s.officialDomain)}
-                </div>
-              </div>
-              <span class="badge badge-${statusColor}">${esc(s.status.toUpperCase())}</span>
+            <div class="supplier-head">
+              <h3 class="supplier-name">${esc(p.name)}</h3>
+              ${p.is_active ? badge('badge-ready', 'Habituel', 'check') : badge('badge-paused', 'Délai de sécurité : ' + delay(p.remaining_seconds), 'clock')}
             </div>
-
-            <div style="font-size:0.82rem;margin-bottom:0.6rem;">
-              <div><strong>Current IBAN:</strong> <span class="mono">${esc(VG.maskPII(s.iban, state.settings.gdprMaskPii))}</span>
-                ${s.bankChangedRecently ? '<span class="badge badge-orange">Recent Unverified IBAN Change</span>' : ''}
-              </div>
-              <div><strong>Risk Rating:</strong> ${esc(s.riskRating.toUpperCase())} • <strong>Historical Avg:</strong> ${esc(VG.formatMoney(s.avgInvoiceAmount, 'EUR'))}</div>
-              <div><strong>History:</strong> ${supInvoices.length} invoices (${flagCount} flagged/rejected)</div>
-            </div>
-
-            <div style="margin-bottom:0.65rem;">
-              <div class="card-title" style="font-size:0.7rem;">Bank Detail Change Log</div>
-              ${
-                (s.bankChangeLog || []).length === 0
-                  ? `<div style="font-size:0.75rem;color:var(--text-muted);">No bank account changes recorded.</div>`
-                  : s.bankChangeLog
-                      .map(
-                        (chg) => `
-                    <div style="font-size:0.75rem;background:var(--bg-elevated);padding:0.35rem 0.5rem;border-radius:4px;margin-bottom:0.25rem;">
-                      <span class="mono">${esc(chg.changedAt.slice(0, 10))}</span>:
-                      <span>${esc(VG.maskPII(chg.oldIban, state.settings.gdprMaskPii))} &rarr; <strong>${esc(VG.maskPII(chg.newIban, state.settings.gdprMaskPii))}</strong></span>
-                      (${chg.verified ? '<span style="color:var(--teal)">Verified</span>' : '<span style="color:var(--danger)">Unverified</span>'})
-                    </div>
-                  `
-                      )
-                      .join('')
-              }
-            </div>
-
-            <div style="display:flex;gap:0.4rem;">
-              <button type="button" class="btn btn-sm" data-sup-act="whitelist" data-id="${esc(s.id)}" ${s.status === 'verified' ? 'disabled' : ''}>Whitelist</button>
-              <button type="button" class="btn btn-sm btn-danger" data-sup-act="blacklist" data-id="${esc(s.id)}" ${s.status === 'blacklisted' ? 'disabled' : ''}>Blacklist</button>
-            </div>
-          </div>
-        `;
-      })
-      .join('');
-
-    grid.querySelectorAll('[data-sup-act]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const act = btn.getAttribute('data-sup-act');
-        const s = state.suppliers.find((item) => item.id === id);
-        if (!s) return;
-        s.status = act === 'whitelist' ? 'verified' : 'blacklisted';
-        VG.appendAuditLog(state, {
-          actorId: state.currentUser.id,
-          actorName: state.currentUser.name,
-          actorRole: state.currentUser.role,
-          action: act === 'whitelist' ? 'WHITELIST_SUPPLIER' : 'BLACKLIST_SUPPLIER',
-          entityType: 'supplier',
-          entityId: s.id,
-          summary: `${act === 'whitelist' ? 'Whitelisted' : 'Blacklisted'} supplier ${s.name}`
-        });
-        showToast(`${act === 'whitelist' ? 'Whitelisted' : 'Blacklisted'} supplier ${s.name}`);
-        renderAll();
-      });
+            <dl class="fact-list">
+              <dt>Compte enregistré</dt><dd class="mono">${esc(spacedIban(p.iban))}</dd>
+              <dt>Ajouté le</dt><dd>${esc(day(p.created_at))}</dd>
+              <dt>Factures reçues</dt><dd>${invs.length}${refused ? ' dont ' + badge('badge-high-priority', refused + ' refusée' + (refused > 1 ? 's' : '')) : ''}</dd>
+            </dl>
+            ${admin ? `<button type="button" class="btn btn-sm btn-danger" data-remove-payee="${esc(p.id)}" data-name="${esc(p.name)}">Retirer de la liste</button>` : ''}
+          </div>`;
+      }).join('');
+    $('suppliers-grid').querySelectorAll('[data-remove-payee]').forEach((btn) => {
+      btn.addEventListener('click', () => run(btn, async () => {
+        const ok = await confirmAction('Retirer ce fournisseur ?', btn.getAttribute('data-name') + ' ne sera plus reconnu : ses prochaines factures vous seront soumises.', 'Retirer');
+        if (!ok) return;
+        await api('/api/app/payees/remove', { id: btn.getAttribute('data-remove-payee') });
+        toast('Fournisseur retiré');
+        await reload();
+      }));
     });
   }
 
-  // ===========================================================================
-  // ON-DEMAND DIALOG: ALERTS & SLA
-  // ===========================================================================
-  function renderAlertsTab() {
-    const alerts = VG.computeAlerts(state);
-    const badgeAlerts = document.getElementById('badge-alerts-count');
-    if (badgeAlerts) badgeAlerts.textContent = String(alerts.length);
+  // ------------------------------------------------------------------ Fenêtre : réglages
+  function renderSettings() {
+    const box = state.box;
+    const admin = can('admin');
+    const off = admin ? '' : 'disabled';
+    $('settings-body').innerHTML = `
+      ${admin ? '' : '<p class="form-hint block-gap">Seul un administrateur de l\'entreprise peut modifier ces réglages.</p>'}
+      <div class="two-col block-gap">
+        <div class="card">
+          <div class="card-title">Votre adresse de dépôt</div>
+          <p class="card-text">Transférez vos factures à cette adresse : elles sont contrôlées à l'arrivée.</p>
+          <div class="inline-form">
+            <span class="mono address-box" id="inbox-address">${esc(box.address)}</span>
+            <button type="button" class="btn btn-sm" id="btn-copy-address">Copier</button>
+          </div>
+          <div class="card-title section-title">Qui a le droit d'y envoyer des factures</div>
+          <div class="checklist-list">
+            ${(box.senders || []).length === 0 ? '<p class="card-text">Personne pour l\'instant : tous les mails sont ignorés.</p>' : box.senders.map((s) => `
+              <div class="check-item">
+                <span class="mono">${esc(s.email)}</span>
+                ${admin ? `<button type="button" class="btn btn-sm" data-remove-sender="${esc(s.id)}">Retirer</button>` : ''}
+              </div>`).join('')}
+          </div>
+          <form id="form-sender" class="inline-form" autocomplete="off">
+            <input type="email" id="sender-email" class="filter-grow" placeholder="comptabilite@votre-entreprise.fr" aria-label="Adresse mail à autoriser" required ${off} />
+            <button type="submit" class="btn btn-sm" ${off}>Autoriser</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Accord humain</div>
+          <p class="card-text">Au-dessus de ce montant, une facture même conforme attend votre accord.</p>
+          <form id="form-threshold" class="inline-form" autocomplete="off">
+            <input type="number" id="threshold-euros" min="0" step="1" value="${Math.round((box.review_threshold_cents || 0) / 100)}" aria-label="Seuil en euros" required ${off} />
+            <span class="form-hint">euros</span>
+            <button type="submit" class="btn btn-sm" ${off}>Enregistrer</button>
+          </form>
+          <div class="card-title section-title">Compte bancaire de votre entreprise</div>
+          <p class="card-text">Le compte qui paie vos fournisseurs et qui reçoit le paiement de vos factures émises.</p>
+          <form id="form-bank" class="stack-form" autocomplete="off">
+            <div class="filter-field"><label for="bank-holder">Titulaire</label>
+              <input type="text" id="bank-holder" maxlength="70" value="${box.bank ? esc(box.bank.holder) : ''}" required ${off} /></div>
+            <div class="filter-field"><label for="bank-iban">IBAN</label>
+              <input type="text" id="bank-iban" class="mono" maxlength="42" value="${box.bank ? esc(spacedIban(box.bank.iban)) : ''}" required ${off} /></div>
+            <button type="submit" class="btn btn-sm" ${off}>Enregistrer le compte</button>
+          </form>
+        </div>
+      </div>
+      <p class="form-hint">Équipe, clés d'accès des assistants automatiques, coffre et règles de paiement : <a href="/app/classique">ouvrir l'ancienne interface</a>.</p>`;
 
-    const listEl = document.getElementById('alerts-list');
-    if (listEl) {
-      listEl.innerHTML = alerts
-        .map((a) => {
-          const col = a.severity === 'critical' ? 'red' : a.severity === 'high' ? 'orange' : 'amber';
-          return `
-            <div class="check-item">
-              <div>
-                <span class="badge badge-${col}" style="margin-right:0.35rem;">${esc(a.type.toUpperCase())}</span>
-                <strong>${esc(a.title)}</strong>
-                <div style="font-size:0.76rem;color:var(--text-muted);margin-top:0.15rem;">${esc(a.message)}</div>
-              </div>
-              ${
-                a.invoiceId
-                  ? `<button type="button" class="btn btn-sm" data-alert-inv="${esc(a.invoiceId)}">Inspect</button>`
-                  : ''
-              }
-            </div>
-          `;
-        })
-        .join('');
-
-      listEl.querySelectorAll('[data-alert-inv]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          openInvoiceDetail(btn.getAttribute('data-alert-inv'));
-        });
+    $('btn-copy-address').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(box.address); toast('Adresse copiée'); }
+      catch (_) { toast('Copie impossible : sélectionnez l\'adresse à la main', true); }
+    });
+    $('settings-body').querySelectorAll('[data-remove-sender]').forEach((btn) => {
+      btn.addEventListener('click', () => run(btn, async () => {
+        await api('/api/app/inbox/senders/remove', { id: btn.getAttribute('data-remove-sender') });
+        toast('Expéditeur retiré');
+        await reload(true);
+      }));
+    });
+    const submit = (formId, task) => {
+      $(formId).addEventListener('submit', (e) => {
+        e.preventDefault();
+        run(e.target.querySelector('button[type="submit"]'), async () => { await task(); await reload(true); });
       });
-    }
-
-    const digestBox = document.getElementById('digest-preview-box');
-    if (digestBox) {
-      const n = state.settings.notifications;
-      digestBox.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.85rem;">
-          <span class="badge ${n.email ? 'badge-emerald' : 'badge-slate'}">Email: ${n.email ? 'ON' : 'OFF'}</span>
-          <span class="badge ${n.inApp ? 'badge-emerald' : 'badge-slate'}">In-App: ${n.inApp ? 'ON' : 'OFF'}</span>
-          <span class="badge ${n.slack ? 'badge-emerald' : 'badge-slate'}">Slack (#ap-fraud-alerts): ${n.slack ? 'ON' : 'OFF'}</span>
-          <span class="badge ${n.teams ? 'badge-emerald' : 'badge-slate'}">MS Teams: ${n.teams ? 'ON' : 'OFF'}</span>
-        </div>
-        <div class="doc-preview">
-          <div><strong>[${esc(n.digestFrequency.toUpperCase())} SECURITY &amp; AP DIGEST — ${esc(state.referenceDate.slice(0, 10))}]</strong></div>
-          <div>• Total Active Alerts: ${alerts.length}</div>
-          <div>• High-Risk / Fraud Alerts: ${alerts.filter((a) => a.type === 'high_risk').length}</div>
-          <div>• SLA Verification Breaches (&gt;${state.settings.slaHours}h): ${alerts.filter((a) => a.type === 'sla_breach').length}</div>
-          <div>• Unverified Supplier Bank Changes: ${alerts.filter((a) => a.type === 'bank_change').length}</div>
-          <div>• Overdue / Upcoming Due Invoices: ${alerts.filter((a) => a.type === 'overdue' || a.type === 'upcoming_due').length}</div>
-        </div>
-      `;
-    }
+    };
+    submit('form-sender', async () => {
+      await api('/api/app/inbox/senders', { email: $('sender-email').value.trim() });
+      toast('Expéditeur autorisé');
+    });
+    submit('form-threshold', async () => {
+      await api('/api/app/inbox/threshold', { cents: Math.round(Number($('threshold-euros').value) * 100) });
+      toast('Seuil enregistré');
+    });
+    submit('form-bank', async () => {
+      await api('/api/app/inbox/bank', { holder: $('bank-holder').value.trim(), iban: $('bank-iban').value.trim() });
+      toast('Compte bancaire enregistré');
+    });
   }
 
-  // ===========================================================================
-  // ON-DEMAND DIALOG: AUDIT TRAIL, ANALYTICS & SETTINGS
-  // ===========================================================================
-  function renderGovernanceTab() {
-    const an = VG.computeAnalytics(state);
-    const cur = state.settings.baseCurrency;
-
-    const summaryEl = document.getElementById('analytics-summary');
-    if (summaryEl) {
-      summaryEl.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.8rem;">
-          <div style="background:var(--bg-elevated);padding:0.7rem;border-radius:8px;">
-            <div class="card-title">Fraud Caught &amp; Money Saved</div>
-            <div style="font-size:1.3rem;font-weight:800;color:var(--success);">
-              ${esc(VG.formatMoney(an.moneySaved, cur))}
-            </div>
-            <div style="font-size:0.75rem;color:var(--text-muted);">${an.fraudCaughtCount} fraudulent/suspicious invoices intercepted</div>
-          </div>
-          <div style="background:var(--bg-elevated);padding:0.7rem;border-radius:8px;">
-            <div class="card-title">On-Time Payment Performance</div>
-            <div style="font-size:1.3rem;font-weight:800;color:var(--accent);">${an.paymentPerformance.onTimeRatePercent}%</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);">On-time: ${an.paymentPerformance.paidOnTime} • Late: ${an.paymentPerformance.paidLate}</div>
-          </div>
-        </div>
-        <div class="card-title">Verification Turnaround Time by Auditor</div>
-        <div style="font-size:0.8rem;margin-bottom:0.65rem;">
-          ${an.turnaroundByAuditor
-            .map(
-              (a) =>
-                `<div style="display:flex;justify-content:space-between;padding:0.22rem 0;border-bottom:1px solid var(--border);">
-                  <span>${esc(a.auditor)} (${a.count} assigned)</span>
-                  <strong>${a.avgHours}h avg turnaround</strong>
-                </div>`
-            )
-            .join('')}
-        </div>
-        <div class="card-title">Verification Turnaround Time by Supplier</div>
-        <div style="font-size:0.8rem;margin-bottom:0.65rem;">
-          ${(an.turnaroundBySupplier || [])
-            .map(
-              (s) =>
-                `<div style="display:flex;justify-content:space-between;padding:0.22rem 0;border-bottom:1px solid var(--border);">
-                  <span>${esc(s.supplierName)} (${s.count} inv)</span>
-                  <strong>${s.avgHours}h avg turnaround</strong>
-                </div>`
-            )
-            .join('')}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-          <div>
-            <div class="card-title">Top Suppliers by Volume</div>
-            <div style="font-size:0.78rem;">
-              ${(an.topSuppliersByVolume || [])
-                .map(
-                  (s) =>
-                    `<div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border);">
-                      <span>${esc(s.supplierName)}</span>
-                      <strong class="mono">${esc(VG.formatMoney(s.totalAmount, cur))}</strong>
-                    </div>`
-                )
-                .join('')}
-            </div>
-          </div>
-          <div>
-            <div class="card-title">Top Suppliers by Risk Score</div>
-            <div style="font-size:0.78rem;">
-              ${(an.topSuppliersByRisk || [])
-                .map(
-                  (s) =>
-                    `<div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border);">
-                      <span>${esc(s.supplierName)}</span>
-                      <strong class="mono" style="color:${s.maxRiskScore >= 65 ? 'var(--danger)' : 'var(--text)'};">Risk ${s.maxRiskScore} (${s.flaggedCount} flagged)</strong>
-                    </div>`
-                )
-                .join('')}
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    const intgBox = document.getElementById('integrations-box');
-    if (intgBox) {
-      intgBox.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;">
-          ${state.integrations
-            .map(
-              (intg) => `
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;background:var(--bg-elevated);padding:0.4rem 0.65rem;border-radius:6px;">
-                <span><strong>${esc(intg.name)}</strong> (${esc(intg.category)})</span>
-                <span class="badge ${intg.status === 'connected' ? 'badge-emerald' : 'badge-amber'}">${esc(intg.status.toUpperCase())}</span>
-              </div>
-            `
-            )
-            .join('')}
-        </div>
-        <div style="display:flex;gap:0.4rem;align-items:center;">
-          <input type="text" id="input-vat-lookup" value="DE812345678" placeholder="Enter EU VAT ID (e.g. DE812345678)" style="flex:1;" />
-          <button type="button" class="btn btn-sm btn-primary" id="btn-vat-lookup">Lookup VIES VAT Registry</button>
-        </div>
-        <div id="vat-lookup-result" style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;"></div>
-      `;
-
-      const vatLookupBtn = document.getElementById('btn-vat-lookup');
-      if (vatLookupBtn) {
-        vatLookupBtn.addEventListener('click', () => {
-          const inputVat = document.getElementById('input-vat-lookup');
-          const v = inputVat ? inputVat.value.trim() : '';
-          const valid = /^[A-Z]{2}[A-Z0-9]{8,12}$/i.test(v);
-          const matchSup = state.suppliers.find((s) => s.vatNumber.toLowerCase() === v.toLowerCase());
-          const resEl = document.getElementById('vat-lookup-result');
-          if (resEl) {
-            resEl.innerHTML = valid
-              ? `✓ VIES Format Valid (${esc(v.toUpperCase())}) — ${matchSup ? `Registered to ${esc(matchSup.name)} (${esc(matchSup.regNumber)})` : 'Active EU VAT Registration'}`
-              : `✕ Invalid VAT number format (${esc(v)})`;
-          }
-        });
-      }
-    }
-
-    // Settings Box
-    const s = state.settings;
-    const settingsBox = document.getElementById('settings-box');
-    if (settingsBox) {
-      settingsBox.innerHTML = `
-        <div class="filters-grid" style="margin-bottom:0;">
-          <div class="filter-field">
-            <label for="set-t1">Level 1 Approval Threshold (EUR)</label>
-            <input type="number" id="set-t1" value="${s.approvalThresholds.level1}" />
-          </div>
-          <div class="filter-field">
-            <label for="set-t2">Level 2 CFO Threshold (EUR)</label>
-            <input type="number" id="set-t2" value="${s.approvalThresholds.level2}" />
-          </div>
-          <div class="filter-field">
-            <label for="set-sla">Verification SLA (Hours)</label>
-            <input type="number" id="set-sla" value="${s.slaHours}" />
-          </div>
-          <div class="filter-field">
-            <label for="set-high-risk">High Risk Cutoff (0-100)</label>
-            <input type="number" id="set-high-risk" value="${s.highRiskThreshold}" />
-          </div>
-          <div class="filter-field">
-            <label for="set-sod">Segregation of Duties (SoD)</label>
-            <select id="set-sod">
-              <option value="true" ${s.enforceSegregationOfDuties ? 'selected' : ''}>Enforced (Approver ≠ Payer)</option>
-              <option value="false" ${!s.enforceSegregationOfDuties ? 'selected' : ''}>Disabled</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label for="set-gdpr">GDPR PII Masking (IBAN / Email)</label>
-            <select id="set-gdpr">
-              <option value="false" ${!s.gdprMaskPii ? 'selected' : ''}>Unmasked</option>
-              <option value="true" ${s.gdprMaskPii ? 'selected' : ''}>Masked (••••)</option>
-            </select>
-          </div>
-          <div class="filter-field" style="justify-content:flex-end;">
-            <button type="button" class="btn btn-primary" id="btn-save-settings">Apply Risk &amp; Compliance Rules</button>
-          </div>
-        </div>
-      `;
-
-      const saveSettingsBtn = document.getElementById('btn-save-settings');
-      if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', () => {
-          const t1 = document.getElementById('set-t1');
-          const t2 = document.getElementById('set-t2');
-          const sla = document.getElementById('set-sla');
-          const hr = document.getElementById('set-high-risk');
-          const sod = document.getElementById('set-sod');
-          const gdpr = document.getElementById('set-gdpr');
-
-          s.approvalThresholds.level1 = (t1 && Number(t1.value)) || 10000;
-          s.approvalThresholds.level2 = (t2 && Number(t2.value)) || 50000;
-          s.slaHours = (sla && Number(sla.value)) || 48;
-          s.highRiskThreshold = (hr && Number(hr.value)) || 65;
-          s.enforceSegregationOfDuties = sod ? sod.value === 'true' : true;
-          s.gdprMaskPii = gdpr ? gdpr.value === 'true' : false;
-
-          if (typeof VG.refreshInvoicesAuditState === 'function') {
-            VG.refreshInvoicesAuditState(state);
-          }
-          VG.appendAuditLog(state, {
-            actorId: state.currentUser.id,
-            actorName: state.currentUser.name,
-            actorRole: state.currentUser.role,
-            action: 'UPDATE_SETTINGS',
-            entityType: 'settings',
-            entityId: 'GLOBAL',
-            summary: `Updated risk thresholds (L1: ${s.approvalThresholds.level1}, L2: ${s.approvalThresholds.level2}, SoD: ${s.enforceSegregationOfDuties})`
-          });
-          showToast('Updated risk thresholds, SoD rules, and GDPR settings');
-          renderAll();
-        });
-      }
-    }
-
-    // Audit Log Table
-    const auditTbody = document.getElementById('audit-log-tbody');
-    if (auditTbody) {
-      auditTbody.innerHTML = state.auditLog
-        .slice()
-        .reverse()
-        .map(
-          (entry) => `
-          <tr>
-            <td class="mono">${esc(entry.id)}</td>
-            <td class="mono">${esc(entry.timestamp.slice(0, 19).replace('T', ' '))}</td>
-            <td><strong>${esc(entry.actorName)}</strong> <span class="badge badge-slate">${esc(entry.actorRole)}</span></td>
-            <td class="mono">${esc(entry.action)}</td>
-            <td class="mono">${esc(entry.entityId)}</td>
-            <td>${esc(entry.summary)}</td>
-            <td class="mono" style="color:var(--teal);">${esc(entry.hash)}</td>
-          </tr>
-        `
-        )
-        .join('');
-    }
+  // ------------------------------------------------------------------ Fenêtre : historique et preuves
+  function journalDetail(d) {
+    const parts = [];
+    if (d.number) parts.push('n° ' + d.number);
+    if (d.name) parts.push(d.name);
+    if (d.email) parts.push(d.email);
+    if (d.verdict) parts.push('verdict : ' + ((LEVEL[d.verdict] || {}).label || d.verdict).toLowerCase());
+    if (d.amount_cents != null) parts.push(cents(d.amount_cents));
+    if (d.total_cents != null) parts.push(cents(d.total_cents));
+    if (d.tx_count != null) parts.push(plural(d.tx_count, 'virement'));
+    if (d.review_threshold_cents != null) parts.push('seuil : ' + cents(d.review_threshold_cents));
+    if (d.iban_tail) parts.push('compte •••• ' + d.iban_tail);
+    if (d.reason) parts.push(IGNORED[d.reason] || d.reason);
+    if (d.status) parts.push(d.status === 'anchored' ? 'sur Avalanche' : d.status === 'simulated' ? 'mode démonstration' : d.status);
+    return parts.join(' · ');
   }
 
-  // ===========================================================================
-  // TAB SWITCHING & GLOBAL RENDER
-  // ===========================================================================
-  function switchTab(tabId) {
-    // If opening an on-demand dialog via switchTab fallback
-    if (tabId === 'alerts' || tabId === 'suppliers' || tabId === 'governance') {
-      openDialog(`dialog-${tabId}`);
+  async function loadJournal(silent) {
+    try {
+      state.journal = await api('/api/app/audit');
+    } catch (err) {
+      if (!silent) toast(err.message, true);
       return;
     }
-
-    ui.activeTab = tabId;
-    document.querySelectorAll('.nav-tab').forEach((btn) => {
-      const isMatch = btn.getAttribute('data-tab') === tabId;
-      btn.classList.toggle('active', isMatch);
-      btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-    });
-    document.querySelectorAll('.tab-panel').forEach((panel) => {
-      panel.classList.toggle('active', panel.id === `panel-${tabId}`);
-    });
-    renderAll();
+    $('journal-tbody').innerHTML = state.journal.length === 0
+      ? '<tr><td colspan="5" class="empty-cell">Aucune action enregistrée.</td></tr>'
+      : state.journal.map((e) => `
+        <tr>
+          <td class="mono">${esc(dayTime(e.created_at))}</td>
+          <td>${e.user_email ? esc(e.user_email) : '<span class="cell-sub">VaultGuard (automatique)</span>'}</td>
+          <td><strong>${esc(ACTIONS[e.action] || e.action)}</strong></td>
+          <td class="cell-why">${esc(journalDetail(e.details || {}))}</td>
+          <td class="mono" title="${esc(e.entry_hash)}">${esc(shortHash(e.entry_hash))}</td>
+        </tr>`).join('');
   }
 
-  function renderAll() {
-    syncDynamicFilterOptions();
+  // ------------------------------------------------------------------ Dépôt d'une facture
+  function toBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(binary);
+  }
+
+  function pickUpload(file) {
+    const tooBig = file && file.size > MAX_UPLOAD_BYTES;
+    $('upload-name').textContent = !file ? '' : tooBig ? file.name + ' — trop volumineux (2 Mo au plus)' : file.name;
+    $('upload-name').classList.toggle('drop-error', Boolean(tooBig));
+    $('btn-upload').disabled = !file || tooBig || !can('approver');
+    pickUpload.file = file && !tooBig ? file : null;
+  }
+
+  async function upload(button) {
+    const file = pickUpload.file;
+    if (!file) return;
+    await run(button, async () => {
+      const res = await api('/api/app/inbox/upload', { name: file.name, content_b64: toBase64(await file.arrayBuffer()) });
+      $('upload-file').value = '';
+      pickUpload(null);
+      closeDialog('dialog-upload');
+      await reload();
+      toast('Facture contrôlée : ' + ((LEVEL[res.verdict] || {}).label || res.verdict).toLowerCase());
+      openDetail(res.id);
+    });
+  }
+
+  // ------------------------------------------------------------------ Navigation et rafraîchissement
+  function switchTab(tab) {
+    ui.tab = tab;
+    document.querySelectorAll('.nav-tab').forEach((btn) => {
+      const on = btn.getAttribute('data-tab') === tab;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === 'panel-' + tab));
+    if (tab === 'invoices') renderInvoices();
+    if (tab === 'overview') renderSankey();
+  }
+
+  function renderAll(withSettings) {
+    renderFilterOptions();
     renderOverview();
-    renderInvoicesTable();
-    renderPaymentsTab();
-    renderSuppliersTab();
-    renderAlertsTab();
-    renderGovernanceTab();
+    renderInvoices();
+    renderPayments();
+    renderIssued();
+    renderAlerts();
+    renderSuppliers();
+    if (withSettings || !$('dialog-settings').open) renderSettings();
   }
 
-  // ===========================================================================
-  // EVENT LISTENERS BINDING
-  // ===========================================================================
-  function bindEvents() {
-    // Primary Tabs
-    document.querySelectorAll('.nav-tab').forEach((btn) => {
-      btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+  // withSettings : après une action faite dans la fenêtre Réglages, on la redessine même ouverte.
+  async function reload(withSettings) {
+    const [box, issued] = await Promise.all([api('/api/app/inbox'), api('/api/app/einvoices')]);
+    state.box = box;
+    state.issued = issued;
+    state.invoices = (box.checks || []).map((c) => adapt(c, box));
+    $('load-error').classList.add('is-hidden');
+    renderAll(withSettings);
+    if ($('dialog-journal').open) loadJournal(true);
+  }
+
+  async function loadOrgs() {
+    state.orgs = await api('/api/app/orgs');
+    const active = state.orgs.find((o) => o.is_active) || state.orgs[0];
+    state.role = (active && active.role) || 'viewer';
+    const select = $('org-select');
+    select.innerHTML = state.orgs.map((o) => `<option value="${esc(o.id)}"${o.is_active ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
+    select.classList.toggle('org-select-single', state.orgs.length < 2);
+    select.disabled = state.orgs.length < 2;
+    $('btn-open-upload').disabled = !can('approver');
+    $('btn-open-upload').title = can('approver') ? '' : 'Réservé aux personnes autorisées à valider.';
+  }
+
+  function bind() {
+    document.querySelectorAll('.nav-tab').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab'))));
+
+    $('btn-theme-toggle').addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      store('vaultguard_theme', next);
     });
-
-    // Theme Switch
-    const themeBtn = document.getElementById('btn-theme-toggle');
-    if (themeBtn) {
-      themeBtn.addEventListener('click', () => {
-        const html = document.documentElement;
-        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        html.setAttribute('data-theme', next);
-        state.settings.darkMode = next === 'dark';
-        renderOverview();
-        renderPaymentsTab();
-      });
-    }
-
-    // Sidebar Toggle
-    const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
-    function handleToggleSidebar() {
-      const sb = document.getElementById('app-sidebar');
-      if (!sb) return;
-      const isCollapsed = sb.classList.toggle('collapsed');
-      if (toggleSidebarBtn) {
-        toggleSidebarBtn.classList.toggle('is-collapsed', isCollapsed);
-        toggleSidebarBtn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-      }
-    }
-    if (toggleSidebarBtn) {
-      toggleSidebarBtn.addEventListener('click', handleToggleSidebar);
-    }
-
-    // Quick Search button
-    const focusSearchBtn = document.getElementById('btn-focus-search');
-    if (focusSearchBtn) {
-      focusSearchBtn.addEventListener('click', () => {
-        switchTab('invoices');
-        const searchEl = document.getElementById('f-search');
-        if (searchEl && typeof searchEl.focus === 'function') searchEl.focus();
-      });
-    }
-
-    // Sankey Flow Perspective Mode Switchers
-    const btnSankeyLife = document.getElementById('btn-sankey-lifecycle');
-    if (btnSankeyLife) {
-      btnSankeyLife.addEventListener('click', () => {
-        ui.sankeyMode = 'lifecycle';
-        renderOverview();
-      });
-    }
-
-    const btnSankeyDept = document.getElementById('btn-sankey-dept');
-    if (btnSankeyDept) {
-      btnSankeyDept.addEventListener('click', () => {
-        ui.sankeyMode = 'supplier';
-        renderOverview();
-      });
-    }
-
-    const btnSankeySup = document.getElementById('btn-sankey-supplier');
-    if (btnSankeySup) {
-      btnSankeySup.addEventListener('click', () => {
-        ui.sankeyMode = 'supplier';
-        renderOverview();
-      });
-    }
-
-    // On-Demand Dialog Triggers & Close buttons
-    const bindDialogBtn = (btnId, dlgId, isClose = false) => {
-      const btn = document.getElementById(btnId);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          if (isClose) closeDialog(dlgId);
-          else openDialog(dlgId);
-        });
-      }
-    };
-
-    bindDialogBtn('btn-open-alerts', 'dialog-alerts');
-    bindDialogBtn('btn-sidebar-alerts', 'dialog-alerts');
-    bindDialogBtn('btn-close-alerts', 'dialog-alerts', true);
-
-    bindDialogBtn('btn-open-suppliers', 'dialog-suppliers');
-    bindDialogBtn('btn-sidebar-suppliers', 'dialog-suppliers');
-    bindDialogBtn('btn-close-suppliers', 'dialog-suppliers', true);
-
-    bindDialogBtn('btn-open-governance', 'dialog-governance');
-    bindDialogBtn('btn-sidebar-governance', 'dialog-governance');
-    bindDialogBtn('btn-close-governance', 'dialog-governance', true);
-
-    bindDialogBtn('btn-close-detail', 'dialog-invoice-detail', true);
-    bindDialogBtn('btn-open-ingest', 'dialog-ingest');
-    bindDialogBtn('btn-close-ingest', 'dialog-ingest', true);
-
-    // Generic [data-close] buttons
-    document.querySelectorAll('[data-close]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const targetId = btn.getAttribute('data-close');
-        if (targetId) closeDialog(targetId);
-      });
+    $('btn-toggle-sidebar').addEventListener('click', () => {
+      const collapsed = $('app-sidebar').classList.toggle('collapsed');
+      $('btn-toggle-sidebar').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     });
+    $('btn-focus-search').addEventListener('click', () => { switchTab('invoices'); $('f-search').focus(); });
 
-    // Filter inputs
-    const filterBindings = [
-      ['f-search', 'search'],
-      ['f-status', 'status'],
-      ['f-supplier', 'supplierId'],
-      ['f-risk', 'riskLevel'],
-      ['f-dept', 'department'],
-      ['f-assignee', 'assignee'],
-      ['f-method', 'paymentMethod'],
-      ['f-date-from', 'dateFrom'],
-      ['f-date-to', 'dateTo'],
-      ['f-amt-min', 'amountMin'],
-      ['f-amt-max', 'amountMax']
-    ];
-    for (const [elId, key] of filterBindings) {
-      const el = document.getElementById(elId);
-      if (el) {
-        el.addEventListener('input', () => {
-          ui.query.preset = '';
-          ui.activeViewId = '';
-          ui.filterInvoiceIds = null;
-          ui.query[key] = el.value;
-          renderInvoicesTable();
-        });
-      }
+    $('btn-sankey-lifecycle').addEventListener('click', () => { ui.sankeyMode = 'lifecycle'; renderSankey(); });
+    $('btn-sankey-supplier').addEventListener('click', () => { ui.sankeyMode = 'supplier'; renderSankey(); });
+
+    const openers = { 'btn-open-alerts': 'dialog-alerts', 'btn-sidebar-alerts': 'dialog-alerts', 'btn-sidebar-suppliers': 'dialog-suppliers',
+                      'btn-sidebar-settings': 'dialog-settings', 'btn-open-upload': 'dialog-upload' };
+    for (const [btn, dlg] of Object.entries(openers)) $(btn).addEventListener('click', () => openDialog(dlg));
+    $('btn-sidebar-journal').addEventListener('click', () => { openDialog('dialog-journal'); loadJournal(); });
+    document.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', () => closeDialog(btn.getAttribute('data-close'))));
+    document.querySelectorAll('dialog').forEach((dlg) => {
+      dlg.addEventListener('click', (e) => { if (e.target === dlg && dlg.id !== 'dialog-confirm') dlg.close(); });
+    });
+    $('dialog-confirm').addEventListener('cancel', (e) => { e.preventDefault(); settleConfirm(false); });
+    $('btn-confirm-no').addEventListener('click', () => settleConfirm(false));
+    $('btn-confirm-yes').addEventListener('click', () => settleConfirm(true));
+
+    for (const [id, key] of FILTERS) {
+      $(id).addEventListener('input', () => {
+        ui.query[key] = $(id).value;
+        ui.viewId = '';
+        ui.ids = null;
+        renderInvoices();
+      });
     }
-
-    // Table sorting
     document.querySelectorAll('#invoices-table th.sortable').forEach((th) => {
       th.addEventListener('click', () => {
         const col = th.getAttribute('data-sort');
-        if (ui.query.sortBy === col) {
-          ui.query.sortDir = ui.query.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          ui.query.sortBy = col;
-          ui.query.sortDir = 'asc';
-        }
-        renderInvoicesTable();
+        ui.query.sortDir = ui.query.sortBy === col && ui.query.sortDir === 'asc' ? 'desc' : 'asc';
+        ui.query.sortBy = col;
+        renderInvoices();
+      });
+    });
+    $('btn-reset-filters').addEventListener('click', () => { resetQuery(); syncFilters(); renderInvoices(); });
+    $('btn-save-view').addEventListener('click', () => {
+      const custom = state.views.filter((v) => v.id.startsWith('custom_'));
+      if (custom.length >= 8) { toast('8 vues enregistrées au plus : supprimez-en une', true); return; }
+      const q = ui.query;
+      const label = [q.status !== 'all' ? STATUS[q.status].label : '', q.supplier !== 'all' ? q.supplier : '', q.search].filter(Boolean).join(' · ');
+      const view = { id: 'custom_' + Date.now(), name: (label || 'Ma vue ' + (custom.length + 1)).slice(0, 40), query: Object.assign({}, q) };
+      state.views.push(view);
+      ui.viewId = view.id;
+      saveViews();
+      renderViews();
+      toast('Vue enregistrée sur cet ordinateur');
+    });
+    $('btn-export-csv').addEventListener('click', exportCsv);
+    $('btn-export-pdf').addEventListener('click', () => window.print());
+
+    $('btn-create-batch').addEventListener('click', () => createBatch($('btn-create-batch')));
+    $('btn-audit-file').addEventListener('click', () => auditFile($('btn-audit-file')));
+
+    $('btn-iss-add-line').addEventListener('click', addIssueLine);
+    $('iss-siren').addEventListener('input', lookupBuyer);
+    $('form-issue').addEventListener('submit', (e) => { e.preventDefault(); submitIssue($('btn-issue')); });
+    addIssueLine();
+
+    $('form-supplier').addEventListener('submit', (e) => {
+      e.preventDefault();
+      run($('btn-add-supplier'), async () => {
+        await api('/api/app/payees', { name: $('sup-name').value.trim(), iban: $('sup-iban').value.trim() });
+        $('form-supplier').reset();
+        toast('Fournisseur ajouté. Un délai de sécurité s\'applique avant qu\'il soit « habituel ».');
+        await reload();
       });
     });
 
-    // Select All checkbox
-    const chkSelectAll = document.getElementById('chk-select-all');
-    if (chkSelectAll) {
-      chkSelectAll.addEventListener('change', (e) => {
-        let visible = VG.queryInvoices(state, ui.query);
-        if (ui.filterInvoiceIds && ui.filterInvoiceIds.size > 0) {
-          visible = visible.filter((i) => ui.filterInvoiceIds.has(i.id));
-        }
-        if (e.target.checked) {
-          visible.forEach((i) => ui.selectedInvoiceIds.add(i.id));
-        } else {
-          visible.forEach((i) => ui.selectedInvoiceIds.delete(i.id));
-        }
-        const lbl = document.getElementById('selected-count-label');
-        if (lbl) lbl.textContent = `${ui.selectedInvoiceIds.size} selected`;
-        renderInvoicesTable();
-      });
-    }
+    $('upload-file').addEventListener('change', () => pickUpload($('upload-file').files[0] || null));
+    const drop = $('upload-drop');
+    ['dragenter', 'dragover'].forEach((type) => drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('drop-over'); }));
+    ['dragleave', 'drop'].forEach((type) => drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('drop-over'); }));
+    drop.addEventListener('drop', (e) => pickUpload((e.dataTransfer && e.dataTransfer.files[0]) || null));
+    $('btn-upload').addEventListener('click', () => upload($('btn-upload')));
 
-    // Bulk actions
-    function runBulk(action, payload = {}) {
-      if (ui.selectedInvoiceIds.size === 0) {
-        showToast('Select at least one invoice first', true);
-        return;
-      }
-      let ok = 0;
-      let lastErr = '';
-      for (const id of ui.selectedInvoiceIds) {
-        try {
-          VG.performWorkflowAction(state, id, action, payload);
-          ok += 1;
-        } catch (err) {
-          lastErr = err.message;
-        }
-      }
-      if (ok > 0) {
-        showToast(`Executed "${action}" on ${ok} invoice(s)${lastErr ? ` (Some skipped: ${lastErr})` : ''}`);
-      } else {
-        showToast(lastErr || 'Bulk action failed', true);
-      }
-      renderAll();
-    }
+    $('btn-verify-chain').addEventListener('click', () => run($('btn-verify-chain'), async () => {
+      const res = await api('/api/app/audit/verify', {});
+      $('verify-chain-result').textContent = res.message;
+      $('verify-chain-result').classList.toggle('text-danger', !res.valid);
+    }));
 
-    const bulkChecksBtn = document.getElementById('btn-bulk-checks');
-    if (bulkChecksBtn) bulkChecksBtn.addEventListener('click', () => runBulk('run_checks'));
-
-    const bulkAssignBtn = document.getElementById('btn-bulk-assign');
-    if (bulkAssignBtn) {
-      bulkAssignBtn.addEventListener('click', () => runBulk('assign', { assignee: 'Sophie Mercier' }));
-    }
-
-    const bulkApproveBtn = document.getElementById('btn-bulk-approve');
-    if (bulkApproveBtn) bulkApproveBtn.addEventListener('click', () => runBulk('approve'));
-
-    const bulkHoldBtn = document.getElementById('btn-bulk-hold');
-    if (bulkHoldBtn) bulkHoldBtn.addEventListener('click', () => runBulk('hold', { reason: 'Bulk hold for review' }));
-
-    const bulkFlagBtn = document.getElementById('btn-bulk-flag');
-    if (bulkFlagBtn) bulkFlagBtn.addEventListener('click', () => runBulk('flag', { reason: 'Flagged in bulk audit' }));
-
-    // Save View & Reset
-    const saveViewBtn = document.getElementById('btn-save-view');
-    if (saveViewBtn) {
-      saveViewBtn.addEventListener('click', () => {
-        const name = `Custom View #${state.savedViews.length + 1}`;
-        const id = `custom_${Date.now()}`;
-        state.savedViews.push({ id, name, query: { ...ui.query } });
-        ui.activeViewId = id;
-        saveViewsToStorage();
-        showToast(`Saved filter view "${name}"`);
-        renderSavedViewsBar();
-      });
-    }
-
-    const resetFiltersBtn = document.getElementById('btn-reset-filters');
-    if (resetFiltersBtn) {
-      resetFiltersBtn.addEventListener('click', () => {
-        resetQueryFilters();
-        renderAll();
-      });
-    }
-
-    // Exports
-    const expCsvBtn = document.getElementById('btn-export-csv');
-    if (expCsvBtn) {
-      expCsvBtn.addEventListener('click', () => {
-        const rows = VG.queryInvoices(state, ui.query);
-        const csv = VG.exportInvoicesCSV(rows);
-        downloadFile('vaultgard-invoices.csv', csv, 'text/csv;charset=utf-8');
-        showToast(`Exported ${rows.length} invoices to CSV`);
-      });
-    }
-
-    const expXlsBtn = document.getElementById('btn-export-xls');
-    if (expXlsBtn) {
-      expXlsBtn.addEventListener('click', () => {
-        const rows = VG.queryInvoices(state, ui.query);
-        const csv = VG.exportInvoicesCSV(rows);
-        downloadFile('vaultgard-invoices.xls', csv, 'application/vnd.ms-excel');
-        showToast(`Exported ${rows.length} invoices to Excel (.xls)`);
-      });
-    }
-
-    const expPdfBtn = document.getElementById('btn-export-pdf');
-    if (expPdfBtn) {
-      expPdfBtn.addEventListener('click', () => {
-        window.print();
-      });
-    }
-
-    // SEPA Batch Creation
-    const createBatchBtn = document.getElementById('btn-create-sepa-batch');
-    if (createBatchBtn) {
-      createBatchBtn.addEventListener('click', () => {
-        const eligibleIds = state.invoices
-          .filter((inv) => VG.canPayInvoice(state, inv, null, { forBatch: true }).allowed)
-          .map((inv) => inv.id);
-        try {
-          const batch = VG.createPaymentBatch(state, eligibleIds, {
-            executionDate: state.referenceDate.slice(0, 10)
-          });
-          showToast(`Created SEPA Batch ${batch.id} (${batch.invoiceCount} invoices)`);
-          renderAll();
-        } catch (err) {
-          showToast(err.message, true);
-        }
-      });
-    }
-
-    // Audit Chain Integrity Verification & Export
-    const verifyChainBtn = document.getElementById('btn-verify-audit-chain');
-    if (verifyChainBtn) {
-      verifyChainBtn.addEventListener('click', () => {
-        const res = VG.verifyAuditLogIntegrity(state.auditLog);
-        if (res.valid) {
-          showToast(`✓ Cryptographic hash chain verified intact across ${res.count} audit records`);
-        } else {
-          showToast(`✕ Audit chain integrity broken at index ${res.brokenAtIndex}`, true);
-        }
-      });
-    }
-
-    const expComplianceBtn = document.getElementById('btn-export-compliance');
-    if (expComplianceBtn) {
-      expComplianceBtn.addEventListener('click', () => {
-        const report = JSON.stringify(
-          {
-            generatedAt: new Date().toISOString(),
-            integrity: VG.verifyAuditLogIntegrity(state.auditLog),
-            auditLog: state.auditLog
-          },
-          null,
-          2
-        );
-        downloadFile('vaultgard-compliance-report.json', report, 'application/json');
-        showToast('Exported compliance report JSON');
-      });
-    }
-
-    // OCR Parser & Scam Preset in Ingest Modal
-    const parseOcrBtn = document.getElementById('btn-parse-ocr');
-    if (parseOcrBtn) {
-      parseOcrBtn.addEventListener('click', () => {
-        const rawEl = document.getElementById('ocr-raw-input');
-        const raw = rawEl ? rawEl.value : '';
-        const parsed = VG.parseOcrText(raw);
-        const setVal = (id, val) => {
-          const el = document.getElementById(id);
-          if (el) el.value = val;
-        };
-        setVal('ing-number', parsed.invoiceNumber);
-        setVal('ing-supplier', parsed.supplierName);
-        setVal('ing-vat', parsed.vatNumber);
-        setVal('ing-iban', parsed.iban);
-        setVal('ing-amount', parsed.amount);
-        setVal('ing-currency', parsed.currency);
-        setVal('ing-po', parsed.poNumber);
-        setVal('ing-due', parsed.dueDate);
-        setVal('ing-email', parsed.senderEmail);
-        showToast('OCR fields extracted from raw invoice text');
-      });
-    }
-
-    const loadScamPresetBtn = document.getElementById('btn-load-scam-preset');
-    if (loadScamPresetBtn) {
-      loadScamPresetBtn.addEventListener('click', () => {
-        const scamText = `Invoice Number: CS-2026-999
-Supplier: CloudScale Infrastructure GmbH
-VAT: DE812345678
-IBAN: DE99000099998888777766
-Total: 9950.00
-Currency: EUR
-PO: 
-Issue Date: 2026-10-10
-Due Date: 2026-10-12
-Email: urgent@c1oudscale.de`;
-        const rawEl = document.getElementById('ocr-raw-input');
-        if (rawEl) rawEl.value = scamText;
-        const ocrBtn = document.getElementById('btn-parse-ocr');
-        if (ocrBtn) ocrBtn.click();
-      });
-    }
-
-    const formIngest = document.getElementById('form-ingest-invoice');
-    if (formIngest) {
-      formIngest.addEventListener('submit', (e) => {
-        e.preventDefault();
-        try {
-          const getVal = (id) => {
-            const el = document.getElementById(id);
-            return el ? el.value.trim() : '';
-          };
-          const inv = VG.ingestInvoice(
-            state,
-            {
-              invoiceNumber: getVal('ing-number'),
-              supplierName: getVal('ing-supplier'),
-              vatNumber: getVal('ing-vat'),
-              iban: getVal('ing-iban'),
-              amount: Number(getVal('ing-amount')),
-              currency: getVal('ing-currency'),
-              poNumber: getVal('ing-po'),
-              dueDate: getVal('ing-due'),
-              senderEmail: getVal('ing-email')
-            },
-            'ocr_upload'
-          );
-          closeDialog('dialog-ingest');
-          showToast(
-            `Ingested ${inv.invoiceNumber} -> Status: ${VG.STATUS_META[inv.status].label} (Risk: ${inv.riskLevel.toUpperCase()} / ${inv.riskScore})`
-          );
-          renderAll();
-          openInvoiceDetail(inv.id);
-        } catch (err) {
-          showToast(err.message, true);
-        }
-      });
-    }
+    $('org-select').addEventListener('change', () => run(null, async () => {
+      await api('/api/app/orgs/switch', { org_id: $('org-select').value });
+      window.location.reload();
+    }));
+    $('btn-logout').addEventListener('click', () => run($('btn-logout'), async () => {
+      await api('/api/auth/logout', {});
+      window.location.href = '/login';
+    }));
   }
 
-  initSelectors();
-  bindEvents();
-  renderAll();
+  async function init() {
+    const theme = store('vaultguard_theme');
+    if (theme === 'dark' || theme === 'light') document.documentElement.setAttribute('data-theme', theme);
+    loadViews();
+    bind();
+    try {
+      const me = await api('/api/auth/me');
+      state.csrf = me.csrf || '';
+      state.user = me.user;
+      $('user-email-display').textContent = me.user.email;
+      await loadOrgs();
+      await reload();
+    } catch (err) {
+      $('load-error').textContent = 'Chargement impossible : ' + (err.message || 'erreur inconnue') + '. Rechargez la page.';
+      $('load-error').classList.remove('is-hidden');
+      return;
+    }
+    // Les factures arrivent par mail à tout moment : on rafraîchit sans déranger une saisie ou une fenêtre ouverte.
+    setInterval(() => {
+      if (document.hidden || anyDialogOpen()) return;
+      const el = document.activeElement;
+      if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+      reload().catch(() => {});
+    }, REFRESH_MS);
+  }
+
+  init();
 })();

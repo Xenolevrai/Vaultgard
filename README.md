@@ -1,71 +1,71 @@
 # VaultGuard
 
-**Pare-feu de paiements pour agents IA, sur Avalanche.** Hackathon Secure Horizons 2026 — Track 1 « Guardians of Value ».
+**Le contrôle des factures avant paiement.** Hackathon Secure Horizons 2026 — Track 1 « Guardians of Value ».
 
-Un agent IA qui paie des factures peut être manipulé par une instruction cachée dans un document (injection de
-prompt), une adresse sosie ou une fausse demande de changement de RIB. VaultGuard le borne en deux couches
-indépendantes :
+Depuis le 1er septembre 2026, une facture électronique contient deux choses : une page PDF que l'humain lit, et
+des données XML que les logiciels lisent. Personne ne vérifie qu'elles disent la même chose. VaultGuard contrôle
+chaque facture avant qu'elle soit payée : compte bancaire changé, page et données qui se contredisent, PDF
+retouché, faux fournisseur, doublon maquillé, instructions cachées pour tromper un assistant automatique. Quand
+il doute, il demande l'accord d'une personne. Il prépare ensuite le fichier de virements que l'entreprise envoie
+elle-même à sa banque : VaultGuard ne déplace pas l'argent.
 
-1. **Pare-feu off-chain** : comprend le contexte avant de signer. D'où vient l'adresse ? Est-ce le mandat de
-   l'utilisateur ? Le texte cache-t-il des instructions, même camouflées ? Un secret va-t-il fuiter dans le memo ?
-2. **Coffre on-chain** (`AgentVault`, Avalanche C-Chain) : liste blanche avec délai d'activation, plafonds par
-   transaction et par jour, validation humaine, adresses appâts qui gèlent le coffre, disjoncteur automatique,
-   clé d'agent expirante, guardian, journal et rapports d'audit scellés. Ces règles tiennent même si l'IA **et**
-   le serveur sont compromis.
-
-> « Ne faites pas confiance au LLM. Bornez-le. »
-
-## Déploiement Fuji
-Contrat `AgentVault` : [`0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793`](https://testnet.snowtrace.io/address/0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793)
-(Avalanche Fuji C-Chain, testnet, bloc 59263971).
+**Ce qui est fait et ce qui ne l'est pas : [`docs/ETAT.md`](docs/ETAT.md).** L'idée et les fraudes réelles qui la
+justifient : [`docs/DETECTION-FRAUDE.md`](docs/DETECTION-FRAUDE.md).
 
 ## Démarrer
-Windows : double-clic sur `LANCER-DASHBOARD.bat` → démo sur http://localhost:8000/demo (accueil sur http://localhost:8000).
+Windows : double-clic sur `lanceurs/LANCER-DASHBOARD.bat`, puis http://localhost:8000/app
+(identifiants de démonstration dans `agent/data/COMPTES-DEMO.txt`, créés par `lanceurs/RECREER-DEMO.bat`).
 
 Kali / Linux :
 ```bash
-bash scripts/setup.sh            # une fois
-bash scripts/test-all.sh --full  # contrat, agent, API, parité blockchain, analyse statique
-bash scripts/security-audit.sh   # attaques rejouées sur 127.0.0.1 -> docs/audit-latest.txt
-bash scripts/doctor.sh           # diagnostic de la configuration
-cd agent && ~/.venvs/vaultguard/bin/python server.py
+bash scripts/setup.sh                                   # une fois
+cd agent && ~/.venvs/vaultguard/bin/python ../scripts/seed-demo-local.py   # base de démonstration
+~/.venvs/vaultguard/bin/python server.py                # http://localhost:8000
 ```
 
-## Parcours de A à Z (factures)
-Une entreprise, un agent IA, huit factures (texte, XML, PDF Factur-X) dont trois piégées et une au prix anormal :
-`TRAITER-FACTURES.bat` (ou `python3 examples/agent_factures.py --pause`), puis http://localhost:8000/app.
-Explications : `docs/PARCOURS-A-Z.md`.
+Démonstrations : `lanceurs/ENVOYER-FRAUDES-DEMO.bat` (sept mails, dont six fraudes) et
+`lanceurs/PREPARER-PLATEFORME-DEMO.bat` (émettre une facture d'une entreprise à une autre).
+
+## Organisation du dépôt
+| Dossier | Contenu |
+|---|---|
+| `agent/` | Le serveur (Python, bibliothèque standard) : API, comptes, contrôles anti-fraude, boîte de dépôt, virements, facturation, tests `test_*.py` |
+| `dashboard/workspace/` | L'interface de travail servie sur `/app` (`index.html`, `app.js`, `charts.js`, `styles.css`), sans dépendance |
+| `dashboard/` (autres fichiers) | Site public, connexion, inscription, administration de la plateforme, ancienne interface (`/app/classique`) |
+| `sdk/` | Lecteur de factures (PDF, XML, mail, image, bureautique) et client de l'API `/v1` |
+| `contracts/` | Contrat `AgentVault` (Solidity, Foundry) : coffre et preuves sur Avalanche |
+| `examples/` | Factures et mails de démonstration, corpus de fraudes reconstruites depuis des cas publiés |
+| `scripts/` | Installation, tests, audit de sécurité, métriques, déploiement |
+| `lanceurs/` | Fichiers `.bat` à double-cliquer sous Windows |
+| `docs/` | Documentation ([index](docs/README.md)) |
+| `deploy/`, `Dockerfile` | Mise en ligne (Caddy, HTTPS) |
+| `archive/maquette-front/` | Maquette d'origine du front-end, gardée pour mémoire |
+| `preparation/` | Références OWASP et ancien prototype d'avant le hackathon |
+
+## Avalanche
+Contrat `AgentVault` : [`0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793`](https://testnet.snowtrace.io/address/0x30c9A13FACf3Be404C1Ea0333D31165Fe1f0d793)
+(Avalanche Fuji C-Chain, réseau de test, bloc 59263971). L'empreinte de chaque fichier de virements y est inscrite :
+une preuve datée de ce qui a été validé, sans aucune donnée de facture. Le même contrat borne les paiements d'un
+assistant automatique (liste blanche, plafonds, validation humaine, gel) par l'API `/v1`.
 
 ## Données du client
-VaultGuard ne conserve aucun texte de facture ni de consigne : analyse en mémoire, puis empreinte SHA-256 seulement.
-Pas de service d'IA tiers : le pare-feu est un moteur de règles, le lecteur de factures (`sdk/invoice_reader.py`)
-tourne chez le client. Argent réel, confiance, légalité, marché : `docs/CONFIANCE-ARGENT-LEGAL.md`.
-
-## Limites connues
-- Réseau de test uniquement ; contrat non audité par un tiers.
-- Les factures sont en euros mais la démo règle en AVAX de test (taux fictif) ; le règlement en euro numérique
-  (EURC) et la conversion vers un virement SEPA ne sont pas construits.
-- PDF scannés, chiffrés ou à polices exotiques : non lus, renvoyés à un humain. Images : OCR `tesseract` optionnel.
-- Le contrôle des prix s'appuie sur une liste tenue par le client : il attrape les erreurs, pas un agent
-  entièrement compromis. Les bornes dures sont celles du contrat.
-- Sur une chaîne publique, adresses et montants sont visibles : une L1 Avalanche dédiée est la réponse prévue.
-- Le texte des factures transite en mémoire sur le serveur : pour l'éviter, installer VaultGuard chez le client.
-- Pas de filtrage des listes de sanctions, pas de connecteur vers une plateforme de facturation agréée.
+Aucun texte de facture n'est conservé : lecture en mémoire, puis verdict, montant, numéro, quatre derniers
+caractères du compte et empreintes SHA-256. Pas de service d'IA tiers : les contrôles sont des règles, le lecteur
+de factures tourne sur le serveur de l'entreprise. Détails : `docs/CONFIANCE-ARGENT-LEGAL.md`.
 
 ## Tests et sécurité
-| Suite | Contenu |
-|---|---|
-| Foundry | 32 tests (unitaires, réentrance, token non standard, contrôle d'accès) + 2 fuzz + 4 invariants (8 192 appels d'un agent compromis) |
-| Python | 35 tests pare-feu / simulation / scénarios + 17 tests de sécurité de l'API (CSRF, DNS rebinding, DoS, validation, sessions, brute force) |
-| Parité | 4 tests sur blockchain locale : la simulation prend exactement les mêmes décisions que le contrat + bout en bout |
-| Audit | 19 attaques rejouées, Slither, Bandit, pip-audit — voir `docs/SECURITE.md` |
+```bash
+bash scripts/test-all.sh --full   # contrat (Foundry), serveur (unittest), parité sur blockchain locale, Slither, Bandit
+bash scripts/security-audit.sh    # attaques rejouées sur 127.0.0.1 -> docs/audit-latest.txt
+bash scripts/doctor.sh            # diagnostic de la configuration
+```
+Les chiffres de détection (`docs/METRIQUES.md`) viennent de notre propre jeu d'essai, pas de trafic réel.
 
-## Production
-`Dockerfile` (non-root) + `deploy/docker-compose.yml` (Caddy, HTTPS automatique) + CI GitHub.
-Guide : `docs/MISE_EN_PRODUCTION.md`. En production, la clé owner n'est jamais sur le serveur : l'owner signe avec Core Wallet.
-
-## Documentation
-`AGENTS.md` (contexte technique) · `docs/HACKATHON.md` (règles, livrables, grille) · `docs/PARCOURS-A-Z.md` · `docs/CONFIANCE-ARGENT-LEGAL.md` · `docs/PITCH.md` · `docs/SECURITE.md` · `docs/MISE_EN_PRODUCTION.md` · `docs/PLAN.md` ·
-guide complet : `../GUIDE-VAULTGUARD.pdf`.
-
-Réseau de test uniquement. Contrat non audité par un tiers : ne pas utiliser avec de vrais fonds.
+## Limites connues
+- Réseau de test uniquement ; contrat non audité par un tiers. Ne pas utiliser avec de vrais fonds.
+- VaultGuard n'est pas une plateforme de facturation agréée ; aucun connecteur vers un logiciel de comptabilité
+  (Pennylane compris) n'est construit.
+- PDF scannés, chiffrés ou à polices exotiques : non lus, renvoyés à une personne. Images : OCR optionnel.
+- Le numéro SIREN d'une entreprise est déclaré par elle, pas encore vérifié.
+- Le site public et l'ancienne interface présentent encore l'ancien sujet du projet.
+- La liste complète est dans `docs/ETAT.md`.

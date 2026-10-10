@@ -142,7 +142,7 @@ def pdf(text: str, xml: str = "", producer: str = "Sage 100 Gestion commerciale"
 # ------------------------------------------------------------------ Démonstration en direct
 
 def build() -> dict[str, bytes]:
-    """Sept mails à déposer un par un (ENVOYER-FRAUDES-DEMO.bat), à la suite du parcours de boite_demo.build()."""
+    """Sept mails à déposer un par un (lanceurs/ENVOYER-FRAUDES-DEMO.bat), à la suite du parcours de boite_demo.build()."""
     compta, boss = demo.SENDERS
     job = ("Révision complète camion", 1, "195,00")
     text = lambda number, iban=demo.GARAGE, j=job: demo.invoice_text("Garage Dupont SARL", number, [j], iban)  # noqa: E731

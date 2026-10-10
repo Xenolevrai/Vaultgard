@@ -4,9 +4,9 @@ title VaultGuard - envoyer les factures de demonstration
 echo Cette fenetre depose 9 mails, un par un, dans la boite de depot du client de demonstration.
 echo Avant de commencer :
 echo   1. LANCER-DASHBOARD.bat doit tourner.
-echo   2. Ouvre http://localhost:8000/app , onglet "2. Factures recues" (la page se met a jour seule).
+echo   2. Ouvre http://localhost:8000/app , menu "Factures recues" (la page se met a jour seule).
 echo.
-if not exist "%~dp0agent\data\boite-entrante" mkdir "%~dp0agent\data\boite-entrante"
+if not exist "%~dp0..\agent\data\boite-entrante" mkdir "%~dp0..\agent\data\boite-entrante"
 pause
 
 call :send 01-facture-normale       "Facture normale du Garage Dupont, 480 EUR"                  "BON A PAYER"
@@ -29,7 +29,7 @@ echo ------------------------------------------------------------------------
 echo Mail %~1
 echo   Contenu          : %~2
 echo   Resultat attendu : %~3
-copy /y "%~dp0examples\boite\%~1.eml" "%~dp0agent\data\boite-entrante\" >nul
+copy /y "%~dp0..\examples\boite\%~1.eml" "%~dp0..\agent\data\boite-entrante\" >nul
 echo   Mail depose. Regarde la page (quelques secondes), puis :
 pause
 exit /b

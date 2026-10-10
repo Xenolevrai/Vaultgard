@@ -120,7 +120,7 @@ class TestLayoutStaticWhitelist(unittest.TestCase):
 
 class TestHtmlHygiene(unittest.TestCase):
     def setUp(self):
-        self.html_files = list(DASHBOARD_DIR.glob("*.html"))
+        self.html_files = list(DASHBOARD_DIR.rglob("*.html"))     # dont dashboard/workspace/index.html
         self.assertGreaterEqual(len(self.html_files), 10, "Moins de 10 fichiers HTML trouvés dans dashboard/")
 
     def test_no_inline_style_attributes(self):

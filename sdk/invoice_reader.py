@@ -129,7 +129,8 @@ def _currency(symbol: str) -> str:
 def _from_text(inv: Invoice, text: str) -> Invoice:
     """Complète les champs absents à partir du texte (factures non structurées)."""
     if not inv.number:
-        m = re.search(r"(?:Facture|Invoice)\s*(?:n°|no\.?|#|numéro)\s*:?\s*([A-Za-z0-9][\w/-]*)", text, re.I)
+        # « no » suivi d'une lettre n'est pas « numéro » (« FACTURE / Nouvelle Énergie ») ; un numéro contient un chiffre.
+        m = re.search(r"(?:Facture|Invoice)\s*(?:n°|no\.?(?![a-zà-ÿ])|#|numéro)\s*:?\s*(?=[\w/-]*\d)([A-Za-z0-9][\w/-]*)", text, re.I)
         inv.number = m.group(1) if m else ""
     if not inv.pay_to:
         m = re.search(r"(?:régler à|payer à|pay to)\s*:?\s*(" + ADDRESS + ")", text, re.I)

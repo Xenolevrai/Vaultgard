@@ -11,7 +11,7 @@ URL publique à montrer au jury ; le **niveau 3** est ce qu'il faudrait pour de 
 3. `bash scripts/deploy-fuji.sh` → déploie, configure (liste blanche, délai, appât, guardian, disjoncteur), finance.
 4. Dans `agent/.env` : `CHAIN=web3`.
 5. `bash scripts/doctor.sh` → 0 erreur.
-6. `LANCER-DASHBOARD.bat` → onglet Coffre → « Vrai coffre » : contrat visible sur Snowtrace.
+6. `lanceurs/LANCER-DASHBOARD.bat` → onglet Coffre → « Vrai coffre » : contrat visible sur Snowtrace.
 
 ---
 

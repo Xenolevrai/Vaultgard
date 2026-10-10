@@ -9,7 +9,7 @@ factures, on pitche la détection des fraudes que les autres ne voient pas.** D�
 |---|---|
 | 0:00–0:40 | **Accroche.** « Le 17 juin et le 9 septembre 2026, la Cour de cassation a jugé deux fraudes au faux RIB : 103 000 € et 365 000 € partis sur le compte d'un escroc. Dans les deux cas, la facture avait l'air vraie. » |
 | 0:40–1:30 | **Le problème nouveau.** Depuis le 1er septembre 2026, toute entreprise reçoit des factures électroniques. Une facture électronique, c'est deux documents en un : la page que l'humain regarde, et les données que le logiciel paie. Personne ne vérifie qu'ils disent la même chose. Image : un chèque dont les chiffres et les lettres diffèrent. |
-| 1:30–3:30 | **Démo** : `ENVOYER-FRAUDES-DEMO.bat` (facture normale payée ; compte différent dans les données → refusée ; PDF retouché ; nom sosie ; doublon maquillé), puis le fichier de virements d'un autre logiciel → « N'envoyez pas ce fichier ». |
+| 1:30–3:30 | **Démo** : `lanceurs/ENVOYER-FRAUDES-DEMO.bat` (facture normale payée ; compte différent dans les données → refusée ; PDF retouché ; nom sosie ; doublon maquillé), puis le fichier de virements d'un autre logiciel → « N'envoyez pas ce fichier ». |
 | 3:30–4:20 | **Les chiffres.** 25 fraudes reconstruites à partir de cas publiés : notre propre version d'hier en laissait payer 7 sur 17 ; aujourd'hui 0, sans fausse alerte sur les factures honnêtes piégeuses. 70 mails au total, ~20 ms par mail. Dire que c'est notre jeu d'essai. |
 | 4:20–5:00 | **Pourquoi nous.** Les autres vérifient « ce compte appartient-il à cette société ? ». Nous vérifions « ce document dit-il la même chose à l'humain et à la machine ? », nous contrôlons le fichier juste avant la banque, et un compte refusé chez un client prévient les autres. Preuve de chaque lot scellée sur Avalanche. |
 
@@ -50,7 +50,7 @@ derrière l'outil du client, ou en autonome comme ici.
 ## Script de démo — parcours boîte mail (recommandé, répond directement à l'axe 3)
 http://localhost:8000/app, menu « 2. Factures reçues » (connecté en client de démo).
 1. Montrer l'adresse de dépôt : chaque entreprise a la sienne, part aléatoire non devinable.
-2. `ENVOYER-FACTURES-DEMO.bat` : déposer le mail normal (payé), celui au RIB changé (refusé : « ce n'est pas le
+2. `lanceurs/ENVOYER-FACTURES-DEMO.bat` : déposer le mail normal (payé), celui au RIB changé (refusé : « ce n'est pas le
    compte enregistré »), celui à instructions cachées (refusé), celui d'un expéditeur imité (jamais ouvert, compteur
    « écarté sans être lu »). Ouvrir « Détail » sur un refus : raison en clair, aucune donnée de la facture recopiée.
 3. **Payer en euros** : « Préparer le fichier de virements » → fichier SEPA téléchargeable, empreinte scellée sur

@@ -4,10 +4,10 @@ title VaultGuard - fraudes a la facture electronique
 echo Cette fenetre depose 7 mails, un par un : les fraudes que la facture electronique rend possibles.
 echo Avant de commencer :
 echo   1. LANCER-DASHBOARD.bat doit tourner.
-echo   2. Ouvre http://localhost:8000/app , onglet "2. Factures recues" (la page se met a jour seule).
-echo   3. Clique sur "Detail" a chaque facture pour lire l'explication.
+echo   2. Ouvre http://localhost:8000/app , menu "Factures recues" (la page se met a jour seule).
+echo   3. Clique sur une facture pour lire l'explication.
 echo.
-if not exist "%~dp0agent\data\boite-entrante" mkdir "%~dp0agent\data\boite-entrante"
+if not exist "%~dp0..\agent\data\boite-entrante" mkdir "%~dp0..\agent\data\boite-entrante"
 pause
 
 call :send 20-facture-electronique-normale "Facture electronique du garage (PDF + donnees XML identiques), 234 EUR" "BON A PAYER"
@@ -19,9 +19,9 @@ call :send 25-faux-registre                "Faux registre officiel : inscription
 call :send 26-doublon-maquille             "La facture 20 renvoyee, un zero remplace par la lettre O dans le numero" "REFUSEE (deja recue)"
 
 echo.
-echo Termine. Dernier essai : dans la meme page, bloc "Dernier controle avant la banque", depose le fichier
+echo Termine. Dernier essai : menu "Paiements", bloc "Dernier controle avant la banque", depose le fichier
 echo   examples\virements\virements-autre-logiciel.xml
-echo Resultat attendu : "N'envoyez pas ce fichier" (le compte du loueur a ete remplace par un compte en Lituanie).
+echo Resultat attendu : "Ne pas envoyer ce fichier" (le compte du loueur a ete remplace par un compte en Lituanie).
 pause
 exit /b
 
@@ -31,7 +31,7 @@ echo ------------------------------------------------------------------------
 echo Mail %~1
 echo   Contenu          : %~2
 echo   Resultat attendu : %~3
-copy /y "%~dp0examples\boite\%~1.eml" "%~dp0agent\data\boite-entrante\" >nul
+copy /y "%~dp0..\examples\boite\%~1.eml" "%~dp0..\agent\data\boite-entrante\" >nul
 echo   Mail depose. Regarde la page (quelques secondes), puis :
 pause
 exit /b

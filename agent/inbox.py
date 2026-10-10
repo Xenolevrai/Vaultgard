@@ -689,6 +689,38 @@ def judge(org: dict[str, Any], invoice: Any, sender_id: str | None = None, db_pa
             "invoice_number": number, "amount_cents": cents, "currency": currency, "file_sha256": file_sha256}
 
 
+MAX_UPLOAD_BYTES = 2_000_000
+
+
+def check_upload(org_id: str, user_id: str, name: str, data: bytes, ip: str | None = None,
+                 db_path: str | None = None) -> dict[str, Any]:
+    """Facture déposée à la main depuis le site (approver+) : même lecture et même contrôle qu'un mail reçu."""
+    import sys
+    from pathlib import Path
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from sdk.invoice_reader import UnreadableInvoice, read_bytes
+    check_org_writable(org_id, db_path=db_path)
+    if not data:
+        raise OrgError("Fichier vide")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise OrgError("Fichier trop volumineux (2 Mo au plus)", 413)
+    if checks_last_hour(org_id, db_path=db_path) >= MAX_CHECKS_PER_HOUR:
+        raise OrgError(f"Limite de {MAX_CHECKS_PER_HOUR} factures par heure atteinte", 429)
+    clean_name = re.sub(r"[^A-Za-z0-9._-]", "_", name)[-80:] or "facture"
+    org = org_for_alias(ensure_inbox(org_id, db_path=db_path)["alias"], db_path=db_path)
+    if not org:
+        raise OrgError("Organisation introuvable", 404)
+    try:
+        result = judge(org, read_bytes(data, clean_name), db_path=db_path)
+    except UnreadableInvoice:
+        result = judge(org, None, db_path=db_path, unreadable=True, file_sha256=hashlib.sha256(data).hexdigest())
+    auth.log_audit("invoice.upload", org_id=org_id, user_id=user_id,
+                   details={"check_id": result["id"], "file_sha256": result["file_sha256"]}, ip=ip, db_path=db_path)
+    return result
+
+
 def review_check(org_id: str, user_id: str, check_id: str, approve: bool, ip: str | None = None,
                  db_path: str | None = None) -> dict[str, Any]:
     """Décision humaine sur une facture « à vérifier » (approver+). Une seule décision possible."""

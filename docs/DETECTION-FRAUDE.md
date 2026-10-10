@@ -72,8 +72,8 @@ c'est notre jeu d'essai — c'est **« notre propre version d'hier laissait paye
 
 ## 5. La démonstration (2 minutes)
 
-1. `LANCER-DASHBOARD.bat`, puis http://localhost:8000/app, menu « 2. Factures reçues ».
-2. `ENVOYER-FRAUDES-DEMO.bat` dépose 7 mails un par un :
+1. `lanceurs/LANCER-DASHBOARD.bat`, puis http://localhost:8000/app, menu « 2. Factures reçues ».
+2. `lanceurs/ENVOYER-FRAUDES-DEMO.bat` dépose 7 mails un par un :
    - une facture électronique normale → **bon à payer** ;
    - la même, compte habituel sur la page, compte lituanien dans les données → **refusée**, « la page que vous
      voyez et les données lues par les logiciels ne disent pas la même chose » ;

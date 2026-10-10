@@ -1,8 +1,8 @@
 ---
-description: Construire VaultGuard v3 (plateforme multi-clients) étape par étape à partir de docs/SPEC-V3-PRODUIT.md
+description: Construire VaultGuard v3 (plateforme multi-clients) étape par étape à partir de docs/historique/SPEC-V3-PRODUIT.md
 ---
 
-1. Lis AGENTS.md puis docs/SPEC-V3-PRODUIT.md en entier. Repère l'étape suivante non cochée dans AGENTS.md §6.
+1. Lis AGENTS.md puis docs/historique/SPEC-V3-PRODUIT.md en entier. Repère l'étape suivante non cochée dans AGENTS.md §6.
 2. Réalise UNE seule étape du cahier des charges. Réutilise l'existant (firewall.py, chain.py, server.py : sessions,
    CSRF, limites, en-têtes, scrypt) au lieu de le réécrire ; ne retire aucune protection.
 3. Ajoute les tests de l'étape dans agent/test_product.py (dont les tests d'isolation entre clients et de rôles).

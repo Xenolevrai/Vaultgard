@@ -66,7 +66,7 @@ fi
 
 echo "== Dashboard"
 if curl -s -m 2 http://localhost:8000/healthz -H "Host: localhost" | grep -q ok; then ok "dashboard en ligne sur http://localhost:8000"
-else echo "  [info]  dashboard arrêté (LANCER-DASHBOARD.bat pour le démarrer)"; fi
+else echo "  [info]  dashboard arrêté (lanceurs/LANCER-DASHBOARD.bat pour le démarrer)"; fi
 
 echo
 echo "Bilan : $OK OK, $WARN à surveiller, $KO erreur(s)"

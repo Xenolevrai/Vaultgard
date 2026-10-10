@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import csv
 import getpass
 import hashlib
@@ -46,6 +47,8 @@ DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 DASHBOARD = DASHBOARD_DIR / "index.html"
 MAX_BODY = 16 * 1024
 MAX_AUDIT_BODY = 320 * 1024
+MAX_UPLOAD_BODY = 2_800_000     # une facture de 2 Mo, encodée en base64
+BIG_BODIES = {"/api/app/transfers/audit": MAX_AUDIT_BODY, "/api/app/inbox/upload": MAX_UPLOAD_BODY}
 SESSION_TTL = 2 * 3600
 MAX_SESSIONS = 500
 CSV_DANGEROUS = ("=", "+", "-", "@", "\t", "\r")
@@ -56,6 +59,9 @@ STATIC_ASSETS = {
     "/dashboard/app.css": ("app.css", "text/css; charset=utf-8", False),
     "/app.js": ("app.js", "application/javascript; charset=utf-8", False),
     "/dashboard/app.js": ("app.js", "application/javascript; charset=utf-8", False),
+    "/app/styles.css": ("workspace/styles.css", "text/css; charset=utf-8", False),
+    "/app/charts.js": ("workspace/charts.js", "application/javascript; charset=utf-8", False),
+    "/app/app.js": ("workspace/app.js", "application/javascript; charset=utf-8", False),
     "/admin.js": ("admin.js", "application/javascript; charset=utf-8", True),
     "/dashboard/admin.js": ("admin.js", "application/javascript; charset=utf-8", True),
 }
@@ -457,10 +463,13 @@ class Handler(BaseHTTPRequestHandler):
             sid, s, extra = self._session(create=True)
             html = (DASHBOARD_DIR / "signup.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
             return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
-        if path in ("/app", "/app.html"):
+        if path in ("/app", "/app/", "/app.html", "/app/classique"):
+            # /app : l'espace de travail (dashboard/workspace). /app/classique : l'ancienne interface, gardée pour
+            # ce qui n'a pas encore été repris (équipe, clés d'accès des assistants, coffre, règles de paiement).
+            page = "app.html" if path == "/app/classique" else "workspace/index.html"
             nonce = secrets.token_urlsafe(16)
             sid, s, extra = self._session(create=True)
-            html = (DASHBOARD_DIR / "app.html").read_text(encoding="utf-8").replace("__NONCE__", nonce)
+            html = (DASHBOARD_DIR / page).read_text(encoding="utf-8").replace("__NONCE__", nonce)
             return self._send(200, html.encode(), "text/html; charset=utf-8", extra, nonce=nonce)
         if path in ("/admin", "/admin.html"):
             user, csrf = self._admin_context()
@@ -875,8 +884,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(e.code, e.message)
 
         self._require_csrf(s)
-        # Seule route qui reçoit un fichier (de virements, à contrôler) : limite propre, jeton CSRF déjà vérifié.
-        b = self._body(MAX_AUDIT_BODY if path == "/api/app/transfers/audit" else MAX_BODY)
+        # Seules routes qui reçoivent un fichier (virements à contrôler, facture déposée) : limite propre, jeton
+        # CSRF déjà vérifié.
+        b = self._body(BIG_BODIES.get(path, MAX_BODY))
 
         if path == "/api/logout":
             SESSIONS.drop(sid)
@@ -1043,6 +1053,17 @@ class Handler(BaseHTTPRequestHandler):
                         raise ApiError(400, "Champ requis : " + key)
                     return value
 
+                if path == "/api/app/inbox/upload":
+                    user, org, _ = self._app_context("approver")
+                    encoded = b.get("content_b64")
+                    if not isinstance(encoded, str) or not encoded:
+                        raise ApiError(400, "Champ requis : content_b64")
+                    try:
+                        data = base64.b64decode(encoded, validate=True)
+                    except (binascii.Error, ValueError):
+                        raise ApiError(400, "Fichier illisible (base64 invalide)") from None
+                    return self._json(inbox.check_upload(org["id"], user["id"], text("name"), data, ip=self._ip()),
+                                      code=201)
                 if path == "/api/app/inbox/senders":
                     user, org, _ = self._app_context("admin")
                     return self._json(inbox.add_sender(org["id"], user["id"], text("email"), ip=self._ip()), code=201)

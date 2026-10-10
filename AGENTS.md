@@ -64,20 +64,24 @@ Utilisateur (fiable) ─▶ Agent LLM ─▶ lit factures/emails (NON fiables, e
 | `agent/api_v1.py` | API REST `/v1` pour agents IA (Bearer token temps constant, quarantaine sans expiration, pare-feu multi-tenant). |
 | `agent/admin.py` | Espace super-admin furtif `/admin` (404 stealth, révocations globales de sessions, suspension d'organisation). |
 | `sdk/` | Client Python autonome sans dépendance tierce (`VaultGuardClient`), lecteur de factures multi-formats côté client (`invoice_reader.py` : texte, HTML, UBL, CII, PDF, Factur-X, mail, Word) et exemple d'agent (`examples/agent_example.py`). |
-| `dashboard/` | Interfaces web : accueil (`index.html`), console (`app.html`), administration (`admin.html`), démo (`demo.html`), doc API (`docs.html`), sécurité (`securite.html`), mentions légales, 404. |
+| `dashboard/workspace/` | **L'interface de travail, servie sur `/app`** : `index.html`, `app.js` (tout vient de `/api/app/*`, rien de simulé), `charts.js` (schéma de parcours, graphiques SVG), `styles.css`. Design de la maquette de `feat/dashboard`. Aucun style ni script en ligne (CSP). |
+| `dashboard/` (autres) | Site public (`index.html`), ancienne interface (`app.html`, servie sur `/app/classique` : équipe, clés d'accès, coffre, règles), administration (`admin.html`), démo (`demo.html`), doc API (`docs.html`), sécurité, mentions légales, 404. |
+| `agent/fraud.py`, `inbox.py`, `transfers.py`, `einvoice.py`, `mail_agent.py` | Contrôles anti-fraude, boîte de dépôt et verdicts, fichiers de virements SEPA, facturation électronique entre entreprises, relève des mails. |
+| `lanceurs/` | Fichiers `.bat` Windows (ils partent de `%~dp0..`). |
+| `archive/maquette-front/` | Maquette d'origine du front (Node, données simulées). Ne pas y travailler. |
 | `agent/abi/AgentVault.json` | ABI exportée (`scripts/export-abi.sh`) : la prod n'a pas besoin de Foundry. |
 | `agent/test_vaultguard.py`, `test_server.py`, `test_parity.py`, `test_product.py`, `test_layout.py` | Tests unitaires, fonctionnels, parité on-chain, produit multi-tenant et conformité ergonomie/CSP. |
 | `scripts/` | `setup`, `test-all [--full]`, `security-audit`, `doctor`, `create-wallets`, `deploy-fuji`, `local-chain`, `balances`, `export-abi`, `rehearse-deploy`, `build-guide.ps1`. |
 | `Dockerfile`, `deploy/` | Production : image non-root + docker-compose avec Caddy (HTTPS auto). |
 | `.github/workflows/ci.yml` | CI : tests complets + pip-audit + détection de secrets commités. |
-| `docs/` | `PITCH.md`, `PLAN.md`, `SECURITE.md` (audit 29/29), `MISE_EN_PRODUCTION.md`, `guide.html` (→ PDF). |
+| `docs/` | Index : `docs/README.md`. **`ETAT.md` (fait / pas fait)**, `DETECTION-FRAUDE.md`, `PITCH.md`, `HACKATHON.md`, `SECURITE.md` (audit 29/29), `MISE_EN_PRODUCTION.md`, `guide.html` (→ PDF, ancien sujet), `historique/`. |
 
 **3 modes de démo** : `naive` (aucune protection → perte), `contract` (couche 2 seule), `full` (VaultGuard).
 
 ## 4. Commandes
-Windows (double-clic) : `LANCER-DASHBOARD.bat`, `LANCER-TESTS.bat` (complet), `AUDIT-SECURITE.bat`, `DIAGNOSTIC.bat`,
-`TRAITER-FACTURES.bat` (8 factures de démo), `REJOUER-MAILS.bat` (2 mails enregistrés), `LIRE-MAILS.bat` (vraie boîte),
-`RECREER-DEMO.bat` (base de démo neuve, site arrêté). Mode d'emploi pour tout essayer : `docs/ESSAYER.md`.
+Windows (double-clic) : `lanceurs/LANCER-DASHBOARD.bat`, `lanceurs/LANCER-TESTS.bat` (complet), `lanceurs/AUDIT-SECURITE.bat`, `lanceurs/DIAGNOSTIC.bat`,
+`lanceurs/TRAITER-FACTURES.bat` (8 factures de démo), `lanceurs/REJOUER-MAILS.bat` (2 mails enregistrés), `lanceurs/LIRE-MAILS.bat` (vraie boîte),
+`lanceurs/RECREER-DEMO.bat` (base de démo neuve, site arrêté). Mode d'emploi pour tout essayer : `docs/ESSAYER.md`.
 Guide PDF d'Ozgun : `docs/guide.html` → `powershell -File scripts/build-guide.ps1` → `../GUIDE-VAULTGUARD.pdf`.
 
 Dans Kali, depuis `vaultguard/` :
@@ -119,7 +123,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
 - [x] Dashboard v2 (5 onglets, grand public + détails techniques, mode présentation, signature Core Wallet) — testé dans Chrome
 - [x] Production : Dockerfile non-root, docker-compose + Caddy HTTPS, CI GitHub, `doctor.sh`, docs/MISE_EN_PRODUCTION.md (image Docker non construite localement : démon Docker arrêté dans Kali)
 - [x] Wallets de test dans `agent/.env` : Owner 0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5, Agent 0xB0EAffb186B576dF58Edf3f4953033AE2Dc20f6d, Guardian 0x2EC47230c69278a2D6715a95454F2f4dc1cBa325, Supplier 0xd92B1525628baA7AB228796FD49304Ef1435a234, Nouveau 0x8AE704D42082EfbdAbc338D740c9984669049f18, Appât 0xF5Fd6fDA3eC0391E9763D8cD3f9663d0056F65E4
-- [x] **v3 produit multi-clients** (`docs/SPEC-V3-PRODUIT.md`, workflow `/build-v3`) :
+- [x] **v3 produit multi-clients** (`docs/historique/SPEC-V3-PRODUIT.md`, workflow `/build-v3`) :
   - [x] Étape 1 persistance SQLite · [x] 2 comptes/2FA · [x] 3 espaces clients · [x] 4 API agents `/v1` ·
     [x] 5 admin plateforme · [x] 6 site public · [x] 7 design · [x] 8 tests + audit
   - Règles de `db.py` (revue de l'étape 1) : montants en **gwei entiers** (`amount_gwei`, `max_tx_gwei`… ;
@@ -221,7 +225,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   refaire le faucet, pas de cooldown). `CHAIN=web3` activé dans `agent/.env` ; `scripts/doctor.sh` 20/20 OK.
 - [x] Démo locale : `scripts/seed-demo-local.py` (depuis `agent/`) recrée la base avec un super-admin 2FA et un client
   « Transports Martin » (5 paiements réels via `/v1` : 1 autorisé, 1 en attente, 3 bloqués). Identifiants dans
-  `agent/data/COMPTES-DEMO.txt` (ignoré par git, ne jamais les afficher). Lancement : `LANCER-DASHBOARD.bat`.
+  `agent/data/COMPTES-DEMO.txt` (ignoré par git, ne jamais les afficher). Lancement : `lanceurs/LANCER-DASHBOARD.bat`.
 - [x] Production : `DB_PATH=/data/vaultguard.db` dans le Dockerfile (sinon base non inscriptible avec `read_only`).
   En production, **ne pas définir `ADMIN_PASSWORD_HASH`** (ancien admin de la démo, mot de passe seul, sans 2FA, qui
   pilote le coffre « live ») : l'administration passe par le super-admin 2FA. `ALLOWED_HOSTS` = le domaine.
@@ -236,11 +240,11 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   un échec (`A && ok` ne déclenche pas `set -e`) → chaque étape fait maintenant `|| exit 1`. (4) Les venv
   `vaultguard` et `vg-audit` avaient perdu `pip` (Python de Kali passé en 3.14) : `get-pip.py` puis réinstallation.
 - [x] **Parcours de A à Z** : `examples/agent_factures.py` (agent naïf qui lit `examples/factures/*.txt` et appelle
-  `/v1`), lanceur `TRAITER-FACTURES.bat`, mode d'emploi `docs/PARCOURS-A-Z.md`. Verdicts attendus : 01 payé, 02 en
+  `/v1`), lanceur `lanceurs/TRAITER-FACTURES.bat`, mode d'emploi `docs/historique/PARCOURS-A-Z.md`. Verdicts attendus : 01 payé, 02 en
   attente humaine, 03/04/05 bloqués. Un passage = 3 refus ; le disjoncteur gèle à 5 refus/jour (ne pas le lancer
   deux fois le même jour sur la même base, ou reseeder). La consigne (`user_request`) doit nommer le fournisseur,
   sinon le pare-feu envoie en validation humaine.
-- [x] **Agent branché sur une vraie boîte mail** : `examples/agent_mail.py` (IMAP en lecture seule, objet contenant « facture »), configuration `examples/.env.mail` (ignoré par git), lanceur `LIRE-MAILS.bat`, mails types et schéma « qui possède quoi » dans `docs/PARCOURS-A-Z.md`. Lecture des mails et décisions vérifiées sur `examples/mails/*.eml` ; la connexion IMAP réelle reste à essayer par Ozgun (mot de passe d'application à créer).
+- [x] **Agent branché sur une vraie boîte mail** : `examples/agent_mail.py` (IMAP en lecture seule, objet contenant « facture »), configuration `examples/.env.mail` (ignoré par git), lanceur `lanceurs/LIRE-MAILS.bat`, mails types et schéma « qui possède quoi » dans `docs/historique/PARCOURS-A-Z.md`. Lecture des mails et décisions vérifiées sur `examples/mails/*.eml` ; la connexion IMAP réelle reste à essayer par Ozgun (mot de passe d'application à créer).
 - [x] **Zéro conservation, formats, prix, boîte dédiée (10 oct soir, demandes de l'équipe)** — synthèse et réponses
   blockchain / argent réel / légalité / marché dans `docs/CONFIANCE-ARGENT-LEGAL.md`.
   - Règle : **aucun texte de facture ni de consigne en base**. `payments.documents_json` = `[{n, sha256, chars,
@@ -264,9 +268,9 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     de la veille et le loueur activé après. Vérifié : 01 payé, 02 attente, 03-05 bloqués, 06 attente, 07-08 payés.
   - 172 tests Python (`test_invoices.py` ajouté à `test-all.sh`), `--full` vert, audit 29/29.
   - Base de démo d'Ozgun recréée le 10 oct au soir (3 fournisseurs actifs, historique de 5 paiements daté de la
-    veille), site relancé. `docs/ESSAYER.md` = parcours d'essai pas à pas ; `REJOUER-MAILS.bat` et `RECREER-DEMO.bat`
+    veille), site relancé. `docs/ESSAYER.md` = parcours d'essai pas à pas ; `lanceurs/REJOUER-MAILS.bat` et `lanceurs/RECREER-DEMO.bat`
     ajoutés. Le disjoncteur compte les refus **sur 1 h par clé** : un passage de `TRAITER-FACTURES` = 3 refus, le
-    mail piégé = 1 ; un 2e passage gèle la clé (HTTP 401) → `RECREER-DEMO.bat`.
+    mail piégé = 1 ; un 2e passage gèle la clé (HTTP 401) → `lanceurs/RECREER-DEMO.bat`.
   - **Preuve de paiement et facture déjà payée** : `orgs._with_proof` ajoute à chaque paiement `supplier_name` et
     `proof` (empreintes du journal chaîné pour la demande et l'accord) ; le pare-feu reconnaît un document déjà
     réglé au même destinataire par son empreinte (`FirewallSession.paid_docs`, raison `double_payment` en `CONFIRM`,
@@ -302,7 +306,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     écarte sans lire tout expéditeur hors liste ou non prouvé (premier en-tête `Authentication-Results` seulement,
     au nom de notre serveur, DMARC/DKIM/SPF aligné sur le domaine de l'expéditeur), puis lit, juge, répond
     (SMTP, sans rien recopier du mail, `Auto-Submitted`) et efface. Sans `INBOUND_IMAP_HOST` et en écoute locale :
-    boîte de démonstration = dossier `agent/data/boite-entrante/*.eml` (`ENVOYER-FACTURES-DEMO.bat`).
+    boîte de démonstration = dossier `agent/data/boite-entrante/*.eml` (`lanceurs/ENVOYER-FACTURES-DEMO.bat`).
   - Règle zéro conservation tenue : `invoice_checks` ne contient que verdict, montant, numéro, 4 derniers caractères
     + empreinte de l'IBAN, empreinte du fichier ; les raisons sont nos phrases (test
     `test_no_invoice_text_reaches_the_database`). Le mail passe désormais par chez nous : promesse = « on ne garde
@@ -376,7 +380,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
     de cassation de 2026, La Banque Postale, DGCCRF, Supervizor, DAF Magazine), source par cas. **Avant : 7 fraudes
     payées sur 17 et 2 fausses alertes sur 8 ; maintenant 0 et 0** (`docs/METRIQUES.md`, 70 mails au total).
     Il n'existe pas de base publique de vraies factures frauduleuses : le dire au jury.
-  - Démo : `ENVOYER-FRAUDES-DEMO.bat` (7 mails `examples/boite/2*.eml`) puis
+  - Démo : `lanceurs/ENVOYER-FRAUDES-DEMO.bat` (7 mails `examples/boite/2*.eml`) puis
     `examples/virements/virements-autre-logiciel.xml` dans le bloc « Dernier contrôle avant la banque ».
     Vérifié dans Chrome sur une instance jetable. Pitch réécrit en tête de `docs/PITCH.md`.
   - 220 tests Python (`test_fraud.py` : 18), `test-all.sh --full` vert, audit 29/29. **Non commité** (à faire sur
@@ -389,7 +393,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   restent hors champ. Construit : `agent/einvoice.py` (SIREN de l'entreprise, émission d'une facture hybride PDF + XML
   CII produite d'une seule saisie, numéro attribué à la suite, IBAN = compte enregistré, remise au destinataire par
   SIREN avec `inbox.judge`, statut suivi par l'émetteur), routes `/api/app/einvoices*`, menu « 3. Factures émises »
-  de `/app` (**les menus suivants ont pris +1** : Paiements = 4 … Paramètres = 10), `PREPARER-PLATEFORME-DEMO.bat`
+  de `/app` (**les menus suivants ont pris +1** : Paiements = 4 … Paramètres = 10), `lanceurs/PREPARER-PLATEFORME-DEMO.bat`
   (inscrit Transports Martin et Garage Dupont, même compte, on change par le menu « Organisation »).
   `test_einvoice.py` : 11 tests ; 231 tests Python verts. Pas une plateforme agréée : SIREN déclaré non vérifié,
   PDF non certifié PDF/A-3, rien n'est transmis à l'administration, pas d'échange avec les autres plateformes.
@@ -403,6 +407,27 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   admin ; bac à sable depuis le profil (« Test environment ») ; intégration publique = OAuth 2.0 via
   integrations@pennylane.com ; 5 requêtes/s. **Connecteur non construit** ; sans compte Pennylane, il ne peut être
   testé que contre un simulateur écrit d'après la doc.
+  **10 oct, soir : l'équipe n'a pas de compte Pennylane et ne peut pas en créer (pas d'entreprise).** Décision
+  proposée à Ozgun, écrite dans `docs/ETAT.md` § « Sans Pennylane » : ne pas écrire de faux Pennylane ; présenter
+  VaultGuard comme indépendant du logiciel de comptabilité (entrée : mail ou dépôt ; sortie : contrôle du fichier
+  de virements SEPA exporté par n'importe quel logiciel), et Pennylane comme étape suivante lue dans leur doc.
+- [x] **10 oct, soir — fusion front + back, nouveau dépôt `github.com/Xenolevrai/Vaultgard`** (remote `vg` ;
+  l'ancien `origin` = SecureHorizon reste en sauvegarde). Le front de Kanan Bashaï (`feat/dashboard` : appli Node
+  autonome, anglais, données simulées dans `core.js`) a été fusionné en sous-arborescence (historiques gardés) puis
+  **branché sur le vrai serveur** : `dashboard/workspace/` (`index.html`, `app.js`, `charts.js`, `styles.css`),
+  servi sur `/app`, en français simple, sans style ni script en ligne. Écrans : vue d'ensemble (schéma de
+  parcours), factures reçues (détail des contrôles, accepter / refuser), paiements (fichier SEPA, preuve, contrôle
+  d'un fichier externe), factures émises, alertes, fournisseurs, réglages, historique. L'ancienne interface reste
+  sur `/app/classique` (équipe, clés d'accès, coffre, règles). Retiré de la maquette car sans équivalent serveur :
+  fausses connexions SAP / Oracle / banque, rapprochement bon de commande, devises, escompte, paiement partiel,
+  rôles de démo. Maquette d'origine : `archive/maquette-front/`. Détail : `docs/ETAT.md`.
+  Serveur : route `POST /api/app/inbox/upload` (`inbox.check_upload`, approver+, 2 Mo, même contrôle qu'un mail,
+  journal `invoice.upload`) ; `/app/styles.css`, `/app/charts.js`, `/app/app.js` en liste blanche. Lecteur : « no »
+  suivi d'une lettre n'est plus pris pour « numéro » (« FACTURE / Nouvelle Énergie » donnait le numéro « uvelle »).
+  Rangement : `.bat` dans `lanceurs/`, `PLAN` / `SPEC-V3` / `PARCOURS-A-Z` dans `docs/historique/`, index
+  `docs/README.md`, README réécrit. 232 tests Python + parité + Slither + Bandit verts, audit 29/29.
+  Vérifié dans Chrome sur une instance jetable (thème clair et sombre, écran d'ordinateur ; **pas sur téléphone**).
+  Reste : site public et `/app/classique` encore à l'ancienne charte ; contrôles `fraud.py` pas branchés sur `/v1`.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
   1 page, playbook de réponse, accès du jury au dépôt. (Métriques de détection : fait, `docs/METRIQUES.md`.
   README « limites connues » : fait.)
@@ -412,7 +437,7 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   (recommandé), Docker/VPS (`docs/MISE_EN_PRODUCTION.md`, prêt), ou adaptateur WSGI + cron à écrire pour o2switch.
   Pas tranché.
 - [ ] Mode `--llm` testé avec une vraie clé API
-- [ ] Backlog jour J : voir `docs/PLAN.md`
+- [ ] Backlog jour J : voir `docs/historique/PLAN.md`
 
 ## 7. Idées d'extension
 LLM-juge en plus des motifs · politique par destinataire (plafond fournisseur) · paiements USDC dans la démo ·
@@ -432,7 +457,7 @@ Les points 1 et 2 ci-dessous sont faits ; restent 3 à 6, plus la fiche de défe
    `agent/.env` → `bash scripts/doctor.sh` → lien Snowtrace du contrat. Le CAPTCHA et les connexions de wallet sont
    faits par Ozgun. Faire ceci **dans le tour courant** (pas de surveillant en tâche de fond entre deux sessions).
 3. **Avant toute démo** : `bash scripts/test-all.sh --full` et `bash scripts/security-audit.sh` au vert ;
-   `python3 ../scripts/seed-demo-local.py` (depuis `agent/`) pour une base propre ; `LANCER-DASHBOARD.bat`.
+   `python3 ../scripts/seed-demo-local.py` (depuis `agent/`) pour une base propre ; `lanceurs/LANCER-DASHBOARD.bat`.
 4. **Parcours de démo (3 min)** : accueil `/` → `/demo` (scénarios d'attaque : injection, appât, sosie, double
    paiement) → `/login` client → `/app` (paiement en attente à valider, paiement bloqué expliqué, journal chaîné
    « Vérifier l'intégrité », export CSV) → `/admin` (super-admin 2FA) → contrat sur Snowtrace (événements on-chain).

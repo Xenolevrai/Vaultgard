@@ -9,4 +9,6 @@ contracts/broadcast
 **/__pycache__
 **/audit.jsonl*
 docs
-*.bat
+lanceurs
+archive
+preparation
