@@ -163,6 +163,12 @@
     const newSupBox = document.getElementById('new-supplier-box');
     if (newSupBox) newSupBox.style.display = isAdmin ? 'block' : 'none';
 
+    ['add-sender-form', 'add-payee-form'].forEach(id => {
+      document.getElementById(id).style.display = isAdmin ? '' : 'none';
+    });
+    document.getElementById('btn-save-threshold').style.display = isAdmin ? '' : 'none';
+    document.getElementById('inbox-threshold').disabled = !isAdmin;
+
     const btnSavePolicy = document.getElementById('btn-save-policy');
     if (btnSavePolicy) btnSavePolicy.style.display = isAdmin ? 'inline-block' : 'none';
 
@@ -189,7 +195,7 @@
 
   function handleRoute() {
     const hash = (window.location.hash || '#overview').replace('#', '');
-    const validSections = ['overview', 'payments', 'api-keys', 'suppliers', 'policy', 'audit', 'team', 'settings'];
+    const validSections = ['overview', 'inbox', 'payments', 'api-keys', 'suppliers', 'policy', 'audit', 'team', 'settings'];
     const target = validSections.includes(hash) ? hash : 'overview';
 
     // Mise à jour de la barre latérale
@@ -213,7 +219,11 @@
   }
 
   function loadSectionData(sec) {
+    // Les verdicts arrivent quelques secondes après l'envoi d'un mail : la page se met à jour seule.
+    if (state.inboxTimer) clearInterval(state.inboxTimer);
+    state.inboxTimer = sec === 'inbox' ? setInterval(loadInbox, 5000) : null;
     if (sec === 'overview') loadOverview();
+    else if (sec === 'inbox') loadInbox();
     else if (sec === 'payments') loadPayments();
     else if (sec === 'api-keys') loadApiKeys();
     else if (sec === 'suppliers') loadSuppliers();
@@ -258,6 +268,10 @@
       addrEl.textContent = isPaused
         ? 'Plus aucun paiement ne part tant que vous ne le rouvrez pas'
         : (data.org.vault_address || (data.org.network === 'mock' ? 'Coffre de démonstration' : 'Non configuré'));
+
+      api('/api/app/inbox').then(box => {
+        if (box) document.getElementById('stat-inbox-review').textContent = box.checks.filter(c => c.verdict === 'review').length;
+      }).catch(() => {});
 
       const payments = await api('/api/app/payments') || [];
       state.payments = payments;
@@ -1424,6 +1438,246 @@
       }
     };
   }
+
+  // ------------------------------------------------------------------ Factures reçues par mail
+  const VERDICTS = {
+    ok: ['badge-status-allowed', 'Bon à payer'],
+    review: ['badge-status-pending', 'À vérifier'],
+    refused: ['badge-status-blocked', 'Refusée']
+  };
+
+  function formatEuros(cents) {
+    if (cents === null || cents === undefined) return '—';
+    return (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function checkWho(c) {
+    return c.payee_name || 'Fournisseur inconnu';
+  }
+
+  function checkWhy(c) {
+    if (c.review_action === 'approved') return 'Accepté par une personne de votre équipe.';
+    if (c.review_action === 'rejected') return 'Refusé par une personne de votre équipe.';
+    return c.reasons.length ? c.reasons[0].title : '';
+  }
+
+  function emptyRow(tbody, cols, text) {
+    const td = el('td', 'table-empty-cell', text);
+    td.colSpan = cols;
+    const tr = el('tr');
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  async function inboxPost(path, body) {
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(body) });
+      return true;
+    } catch (e) {
+      alert(e.message);
+      return false;
+    } finally {
+      loadInbox();
+    }
+  }
+
+  async function loadInbox() {
+    let box;
+    try {
+      box = await api('/api/app/inbox');
+    } catch (e) {
+      console.error('Erreur factures reçues :', e);
+      return;
+    }
+    if (!box) return;
+    state.inbox = box;
+    const editable = !(state.org && state.org.is_suspended);
+
+    document.getElementById('inbox-address').textContent = box.address;
+    const ignored = Object.values(box.ignored_7d).reduce((a, b) => a + b, 0);
+    document.getElementById('inbox-ignored').textContent = ignored
+      ? ignored + (ignored > 1 ? ' mails écartés sans être lus' : ' mail écarté sans être lu') + ' ces 7 derniers jours (expéditeur non autorisé ou adresse imitée).'
+      : '';
+
+    // À faire
+    const pending = box.checks.filter(c => c.verdict === 'review');
+    const todo = document.getElementById('inbox-todo-list');
+    todo.textContent = '';
+    document.getElementById('inbox-todo-title').textContent = pending.length
+      ? 'À faire : ' + pending.length + (pending.length > 1 ? ' factures attendent' : ' facture attend') + ' votre décision'
+      : 'À faire';
+    if (!pending.length) todo.textContent = 'Rien à faire : aucune facture n\'attend votre décision.';
+    pending.forEach(c => {
+      const item = el('div', 'todo-item');
+      const text = el('div', 'todo-text');
+      text.appendChild(el('div', '', formatEuros(c.amount_cents) + ' — ' + checkWho(c) + (c.invoice_number ? ' — facture ' + c.invoice_number : '')));
+      c.reasons.forEach(r => {
+        text.appendChild(el('div', 'todo-why', r.title + (r.detail ? ' ' + r.detail : '')));
+      });
+      item.appendChild(text);
+      if (hasRole('approver') && editable) {
+        const actions = el('div', 'todo-actions');
+        const no = el('button', 'btn btn-danger', 'Refuser');
+        no.onclick = () => inboxPost('/api/app/inbox/checks/reject', { id: c.id });
+        const yes = el('button', 'btn btn-success', 'Bonne à payer');
+        yes.onclick = () => inboxPost('/api/app/inbox/checks/approve', { id: c.id });
+        actions.appendChild(no);
+        actions.appendChild(yes);
+        item.appendChild(actions);
+      }
+      todo.appendChild(item);
+    });
+
+    // Factures contrôlées
+    const tbody = document.getElementById('inbox-checks-tbody');
+    tbody.textContent = '';
+    if (!box.checks.length) emptyRow(tbody, 7, 'Aucune facture reçue pour le moment. Transférez-en une à l\'adresse ci-dessus.');
+    state.openChecks = state.openChecks || {};
+    box.checks.forEach(c => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', formatTimestamp(c.created_at)));
+      tr.appendChild(el('td', '', checkWho(c)));
+      tr.appendChild(el('td', 'mono', c.currency && c.currency !== 'EUR' && c.amount_cents !== null
+        ? (c.amount_cents / 100).toLocaleString('fr-FR') + ' ' + c.currency : formatEuros(c.amount_cents)));
+      tr.appendChild(el('td', '', c.invoice_number || '—'));
+      const tdVerdict = el('td');
+      const v = VERDICTS[c.verdict] || ['badge-viewer', c.verdict];
+      tdVerdict.appendChild(el('span', 'badge ' + v[0], v[1]));
+      tr.appendChild(tdVerdict);
+      tr.appendChild(el('td', '', checkWhy(c)));
+
+      const detail = el('tr');
+      const cell = el('td', 'check-detail-cell');
+      cell.colSpan = 7;
+      c.reasons.forEach(r => {
+        const boxEl = el('div', 'reason-box ' + ({ refused: 'reason-box-block', review: 'reason-box-confirm', ok: 'reason-box-ok' }[r.level] || ''));
+        boxEl.appendChild(el('div', 'reason-title', r.title));
+        if (r.detail) boxEl.appendChild(el('div', 'reason-detail', r.detail));
+        cell.appendChild(boxEl);
+      });
+      const proof = el('div', 'check-proof');
+      const lines = [];
+      if (c.iban_tail) lines.push('Compte bancaire lu sur la facture : finissant par ' + c.iban_tail);
+      if (c.file_sha256) lines.push('Empreinte de la facture (seule trace conservée) : ' + c.file_sha256);
+      (c.proof || []).forEach(t => {
+        const what = { 'invoice.check': 'Contrôle inscrit', 'invoice.approve': 'Accord inscrit', 'invoice.reject': 'Refus inscrit' }[t.action] || t.action;
+        lines.push(what + ' au journal infalsifiable le ' + formatTimestamp(t.created_at) + ' : ' + t.entry_hash);
+      });
+      lines.push('Référence : ' + c.id);
+      lines.forEach(line => proof.appendChild(el('div', 'break-all', line)));
+      cell.appendChild(proof);
+      detail.appendChild(cell);
+      detail.style.display = state.openChecks[c.id] ? '' : 'none';
+
+      const tdBtn = el('td');
+      const btn = el('button', 'btn btn-secondary', 'Détail');
+      btn.onclick = () => {
+        state.openChecks[c.id] = !state.openChecks[c.id];
+        detail.style.display = state.openChecks[c.id] ? '' : 'none';
+      };
+      tdBtn.appendChild(btn);
+      tr.appendChild(tdBtn);
+      tbody.appendChild(tr);
+      tbody.appendChild(detail);
+    });
+
+    // Personnes autorisées
+    const senders = document.getElementById('inbox-senders');
+    senders.textContent = '';
+    if (!box.senders.length) {
+      senders.textContent = 'Personne pour le moment : tant que cette liste est vide, aucun mail n\'est lu.';
+    }
+    box.senders.forEach(s => {
+      const row = el('div', 'inbox-list-item');
+      row.appendChild(el('span', 'mono break-all', s.email));
+      if (hasRole('admin') && editable) {
+        const del = el('button', 'btn btn-danger', 'Retirer');
+        del.onclick = () => {
+          if (confirm('Retirer ' + s.email + ' ? Ses mails ne seront plus lus.')) inboxPost('/api/app/inbox/senders/remove', { id: s.id });
+        };
+        row.appendChild(del);
+      }
+      senders.appendChild(row);
+    });
+
+    // Fournisseurs et IBAN
+    const payees = document.getElementById('inbox-payees-tbody');
+    payees.textContent = '';
+    if (!box.payees.length) emptyRow(payees, 4, 'Aucun fournisseur enregistré : toutes les factures vous seront soumises.');
+    box.payees.forEach(p => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', p.name));
+      tr.appendChild(el('td', 'mono break-all', p.iban.replace(/(.{4})/g, '$1 ').trim()));
+      const tdState = el('td');
+      const hours = Math.ceil(p.remaining_seconds / 3600);
+      tdState.appendChild(el('span', 'badge ' + (p.is_active ? 'badge-status-allowed' : 'badge-status-pending'),
+        p.is_active ? 'Habituel' : 'Délai de sécurité : ' + hours + ' h'));
+      tr.appendChild(tdState);
+      const tdDel = el('td');
+      if (hasRole('admin') && editable) {
+        const del = el('button', 'btn btn-danger', 'Retirer');
+        del.onclick = () => {
+          if (confirm('Retirer le fournisseur "' + p.name + '" ?')) inboxPost('/api/app/payees/remove', { id: p.id });
+        };
+        tdDel.appendChild(del);
+      }
+      tr.appendChild(tdDel);
+      payees.appendChild(tr);
+    });
+
+    const threshold = document.getElementById('inbox-threshold');
+    if (document.activeElement !== threshold) {
+      threshold.value = (box.review_threshold_cents / 100).toLocaleString('fr-FR', { useGrouping: false, minimumFractionDigits: box.review_threshold_cents % 100 ? 2 : 0, maximumFractionDigits: 2 });
+    }
+  }
+
+  document.getElementById('btn-refresh-inbox').onclick = loadInbox;
+
+  document.getElementById('btn-copy-inbox').onclick = async () => {
+    const status = document.getElementById('inbox-copy-status');
+    try {
+      await navigator.clipboard.writeText(document.getElementById('inbox-address').textContent);
+      status.textContent = 'Adresse copiée.';
+    } catch (e) {
+      status.textContent = 'Copie impossible : sélectionnez l\'adresse à la main.';
+    }
+  };
+
+  document.getElementById('add-sender-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('sender-email');
+    if (await inboxPost('/api/app/inbox/senders', { email: input.value.trim() })) input.value = '';
+  };
+
+  document.getElementById('add-payee-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('payee-name');
+    const iban = document.getElementById('payee-iban');
+    if (await inboxPost('/api/app/payees', { name: name.value.trim(), iban: iban.value.trim() })) {
+      name.value = '';
+      iban.value = '';
+    }
+  };
+
+  document.getElementById('inbox-threshold-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('inbox-threshold-msg');
+    const m = document.getElementById('inbox-threshold').value.trim().replace(/\s/g, '').replace(',', '.').match(/^(\d{1,9})(?:\.(\d{1,2}))?$/);
+    if (!m) {
+      msg.textContent = 'Montant invalide : un nombre d\'euros, ex. 1000 ou 1000,50.';
+      return;
+    }
+    document.getElementById('inbox-threshold').blur();
+    const ok = await inboxPost('/api/app/inbox/threshold', { cents: Number(m[1]) * 100 + Number((m[2] || '').padEnd(2, '0')) });
+    msg.textContent = ok ? 'Enregistré.' : '';
+  };
 
   // ------------------------------------------------------------------ Utilitaires
   // Montants stockés en gwei entiers (1 AVAX = 10^9 gwei) : exacts en JavaScript jusqu'à ~9 millions d'AVAX.

@@ -1,0 +1,26 @@
+Authentication-Results: demo.vaultguard.local; dkim=none; spf=fail
+ smtp.mailfrom=direction@transports-martin.example; dmarc=fail
+ header.from=transports-martin.example
+From: Direction Transports Martin <direction@transports-martin.example>
+To: factures+transports-martin@demo.vaultguard.local
+Subject: Facture =?utf-8?q?=C3=A0?= payer aujourd'hui
+Message-ID: <07@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+GARAGE DUPONT SARL — 12 rue des Ateliers, 95000 Cergy
+Facture n° GD-2026-2009 — 10/10/2026
+Client : Transports Martin
+
+Désignation                               Quantité x prix HT
+Réparation urgente                        1 x 900,00
+
+Total HT : 900,00 €
+TVA 20 % : 180,00 €
+Total à payer : 1080,00 €
+
+Règlement par virement
+IBAN : LT55 3250 0187 6452 9381
+BIC : DEMOFRPPXXX
+Échéance : 30 jours. Merci de votre confiance.

@@ -1,0 +1,35 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=compta@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: compta@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: Facture location LCE-7781
+Message-ID: <02@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Bonjour,
+
+Ci-dessous une facture à régler.
+
+---------- Message transféré ----------
+De : facturation@loueur-camions.example
+Objet : facture
+
+LOUEUR CAMIONS EXPRESS — 12 rue des Ateliers, 95000 Cergy
+Facture n° LCE-7781 — 10/10/2026
+Client : Transports Martin
+
+Désignation                               Quantité x prix HT
+Location semi-remorque (mois)             1 x 2000,00
+
+Total HT : 2000,00 €
+TVA 20 % : 400,00 €
+Total à payer : 2400,00 €
+
+Règlement par virement
+IBAN : FR14 2004 1010 0505 0001 3M02 606
+BIC : DEMOFRPPXXX
+Échéance : 30 jours. Merci de votre confiance.

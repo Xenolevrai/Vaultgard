@@ -223,6 +223,61 @@ CREATE TABLE IF NOT EXISTS org_vault_states (
     updated_at INTEGER NOT NULL
 );
 
+-- 13. Boîte de dépôt des factures : une adresse par organisation (inbox.py)
+CREATE TABLE IF NOT EXISTS inboxes (
+    org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    alias TEXT UNIQUE NOT NULL,
+    review_threshold_cents INTEGER NOT NULL DEFAULT 100000 CHECK (review_threshold_cents >= 0),
+    created_at INTEGER NOT NULL
+);
+
+-- 14. Expéditeurs de confiance : seuls leurs mails sont lus
+CREATE TABLE IF NOT EXISTS inbox_senders (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    email TEXT NOT NULL COLLATE NOCASE,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(org_id, email)
+);
+
+-- 15. Fournisseurs payés par virement : nom + IBAN de référence
+CREATE TABLE IF NOT EXISTS payees (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    iban TEXT NOT NULL,
+    active_after INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(org_id, iban)
+);
+
+-- 16. Factures vérifiées. Aucun texte de facture : montant, numéro, empreintes, fin de l'IBAN.
+CREATE TABLE IF NOT EXISTS invoice_checks (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    sender_id TEXT,
+    payee_id TEXT,
+    payee_name TEXT NOT NULL DEFAULT '',
+    invoice_number TEXT NOT NULL DEFAULT '',
+    amount_cents INTEGER,
+    currency TEXT NOT NULL DEFAULT '',
+    iban_tail TEXT NOT NULL DEFAULT '',
+    iban_sha256 TEXT NOT NULL DEFAULT '',
+    file_sha256 TEXT NOT NULL DEFAULT '',
+    fmt TEXT NOT NULL DEFAULT '',
+    verdict TEXT NOT NULL CHECK (verdict IN ('ok', 'review', 'refused')),
+    reasons_json TEXT NOT NULL DEFAULT '[]',
+    reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at INTEGER,
+    review_action TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_senders_org ON inbox_senders(org_id);
+CREATE INDEX IF NOT EXISTS idx_payees_org ON payees(org_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_checks_org ON invoice_checks(org_id, created_at);
+
 -- Un maillon ne peut avoir qu'un seul successeur : la chaîne ne peut pas bifurquer.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_prev_unique ON audit(prev_hash);
 
@@ -429,7 +484,14 @@ def execute(
     Valide immédiatement si appelée hors d'un bloc `transaction`.
     """
     conn = connect(db_path)
-    cur = conn.execute(sql, params)
+    try:
+        cur = conn.execute(sql, params)
+    except sqlite3.Error:
+        # Une écriture refusée (contrainte d'unicité...) laisse sinon une transaction ouverte sur la connexion
+        # de ce fil : elle garde le verrou d'écriture et toutes les autres requêtes échouent (« database is locked »).
+        if getattr(_local, "tx_depth", 0) == 0:
+            conn.rollback()
+        raise
     if getattr(_local, "tx_depth", 0) == 0:
         conn.commit()
     return cur

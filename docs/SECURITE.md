@@ -92,6 +92,28 @@ La version 3 transforme VaultGuard en plateforme multi-tenants sécurisée inté
   9. Analyse statique Python (Bandit : 0 alerte moyenne/haute).
   10. Analyse des dépendances (pip-audit : 0 vulnérabilité connue).
 
+### Étape 9 : Boîte de dépôt des factures (10 octobre 2026)
+Une adresse mail par organisation reçoit les factures (`agent/mail_agent.py`, `agent/inbox.py`, détail dans
+`docs/BOITE-FACTURES.md`). Menaces traitées :
+- **Expéditeur inconnu** : seuls les en-têtes sont téléchargés ; le corps n'est lu que si l'expéditeur figure dans la
+  liste de confiance de l'organisation destinataire. Sinon le mail est effacé sans être ouvert.
+- **Adresse d'expéditeur imitée** : exigence d'un résultat DMARC, DKIM ou SPF valide et aligné sur le domaine de
+  l'expéditeur, lu dans le seul premier en-tête `Authentication-Results` et seulement s'il porte le nom de notre
+  serveur de réception (un en-tête fabriqué par l'expéditeur est plus bas ou porte un autre nom).
+- **Isolation entre clients** : l'alias de l'adresse désigne l'organisation ; la liste de confiance, les fournisseurs
+  et les factures sont filtrés par `org_id` ; un identifiant d'une autre organisation renvoie `404`.
+- **Fraude au changement de RIB** : l'IBAN n'est jamais repris de la facture ; il est comparé à celui enregistré
+  (clé de contrôle ISO 13616 vérifiée). Tous les IBAN du document sont relevés, y compris dans le texte invisible.
+- **Injection indirecte** (OWASP LLM01) : le contenu du mail est une donnée ; les motifs d'instructions cachées,
+  d'encodage et d'homoglyphes entraînent un refus ou un contrôle humain.
+- **Réponse automatique** : elle ne recopie rien du mail reçu (pas de relais de contenu d'attaquant), porte
+  `Auto-Submitted`, et aucun mail automatique reçu n'obtient de réponse (pas de boucle).
+- **Saturation** : 60 contrôles par heure et par organisation, 20 traces de mails écartés par heure, 10 Mo par mail.
+- **Zéro conservation** : ni mail ni facture en base ; test `test_no_invoice_text_reaches_the_database`.
+
+Bogue de disponibilité corrigé à cette occasion : une écriture SQL refusée laissait une transaction ouverte et le
+verrou d'écriture pris (toutes les requêtes suivantes en erreur 500). `db.execute` annule maintenant la transaction.
+
 ---
 
 ## 3. Faux positifs assumés (outils)
@@ -106,4 +128,5 @@ La version 3 transforme VaultGuard en plateforme multi-tenants sécurisée inté
 - **Owner compromis** = perte possible : en production, l'owner doit être un **multisig** (Safe sur Avalanche) ou un wallet matériel. Le transfert en deux étapes le permet sans redéployer.
 - **Fenêtre journalière calendaire** : un agent compromis peut dépenser 2 × le plafond autour de minuit UTC. Borné et documenté.
 - **Contournement des motifs NLP** : la détection d'injection par expressions régulières reste contournable par une formulation inconnue, c'est pourquoi la couche 2 (le smart contract Avalanche) impose les plafonds et listes blanches de manière totalement découplée.
+- **Boîte de dépôt** : la messagerie réellement piratée d'un employé autorisé permet de déposer des factures (borné par le contrôle de l'IBAN, le seuil et le délai d'activation) ; la connexion à une vraie boîte (Gmail) n'a pas encore été essayée ; la boîte de démonstration locale fait confiance à l'en-tête de contrôle porté par le fichier (elle n'est active qu'en écoute locale et sans boîte configurée).
 - **Audit tiers formel** : recommandé avant mise en production avec de forts volumes financiers.

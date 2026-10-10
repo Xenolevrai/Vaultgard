@@ -3,7 +3,8 @@ import os
 import unittest
 
 os.environ["AUDIT_PATH"] = os.devnull
-os.environ.pop("CHAIN", None)
+# Pas de pop() : `import agent` recharge agent/.env, et CHAIN=web3 y enverrait ces tests sur le vrai contrat.
+os.environ["CHAIN"] = "mock"
 
 from agent import run, run_custom  # noqa: E402
 from chain import ChainError, MockChain  # noqa: E402

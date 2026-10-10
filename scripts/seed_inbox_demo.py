@@ -1,0 +1,52 @@
+"""Prépare la boîte de dépôt des factures du client de démonstration « Transports Martin ».
+
+Usage (depuis agent/, site arrêté) : python3 ../scripts/seed_inbox_demo.py
+N'efface rien et ne change aucun identifiant : ajoute l'adresse de dépôt, deux personnes autorisées, trois
+fournisseurs avec leur IBAN de test et trois factures déjà réglées la veille (pour que « montant inhabituel »
+ait un point de comparaison). Peut être relancé sans risque.
+"""
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "agent"))
+sys.path.insert(0, str(ROOT / "examples"))
+
+import boite_demo as demo  # noqa: E402
+import db  # noqa: E402
+import inbox  # noqa: E402
+import mail_agent  # noqa: E402
+from orgs import OrgError  # noqa: E402
+
+
+def seed(org_id: str, user_id: str) -> str:
+    box = inbox.ensure_inbox(org_id, alias=demo.ALIAS)
+    for sender in demo.SENDERS:
+        try:
+            inbox.add_sender(org_id, user_id, sender)
+        except OrgError:
+            pass                                    # déjà présent
+    for name, iban in demo.PAYEES:
+        try:
+            inbox.add_payee(org_id, user_id, name, iban)
+        except OrgError:
+            pass
+    db.execute("UPDATE payees SET active_after = ? WHERE org_id = ?;", (int(time.time()) - 60, org_id))
+    if box["alias"] == demo.ALIAS and not inbox.list_checks(org_id, limit=1):
+        settings = mail_agent.Settings(authserv_id=demo.AUTHSERV)
+        for i, price in enumerate(("350,00", "400,00", "450,00")):
+            text = demo.invoice_text("Garage Dupont SARL", f"GD-2026-190{i}", [("Entretien mensuel de la flotte", 1, price)], demo.GARAGE)
+            mail_agent.process_message(demo.mail(f"hist{i}", demo.SENDERS[0], "TR: facture", text), settings)
+        db.execute("UPDATE invoice_checks SET created_at = created_at - 86400, updated_at = updated_at - 86400 WHERE org_id = ?;",
+                   (org_id,))
+    return inbox.address_for(box["alias"])
+
+
+if __name__ == "__main__":
+    db.init_db()
+    row = db.query_one("SELECT o.id AS org_id, m.user_id FROM orgs o JOIN members m ON m.org_id = o.id "
+                       "WHERE o.name = 'Transports Martin' AND m.role = 'owner' ORDER BY o.created_at LIMIT 1;")
+    if not row:
+        sys.exit("Client de démonstration introuvable : lance d'abord RECREER-DEMO.bat.")
+    print("Boîte de dépôt prête :", seed(row["org_id"], row["user_id"]))

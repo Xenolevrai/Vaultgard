@@ -31,7 +31,7 @@ ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿­᠎"), None)
 HOMOGLYPHS = str.maketrans("аеорсухіјѕԁɡοντΑΕΟΡСΤХΙКМНВ", "aeopcyxijsdgovtAEOPCTXIKMHB")
 
 INJECTION_PATTERNS = {
-    "override": r"ignor\w*\s+(all\s+|the\s+|les\s+|toutes\s+les\s+|any\s+)?(previous\s+|prior\s+|above\s+|précédentes\s+|earlier\s+)?(instructions|consignes|rules|règles)",
+    "override": r"ignor\w*\s+(all\s+|the\s+|les\s+|toutes\s+les\s+|any\s+|tes\s+|vos\s+|ces\s+|your\s+)?(previous\s+|prior\s+|above\s+|précédentes\s+|earlier\s+)?(instructions|consignes|rules|règles)",
     "fake_system": r"(^|\n|\[|<)\s*/?\s*(system|admin|developer|assistant)\s*[:\]>]",
     "role_hijack": r"(you are now|tu es maintenant|act as|agis comme|new instructions|nouvelles instructions)",
     "new_payee": r"(new|nouvel(?:le)?s?|nouveaux?|updated|changed?|chang[ée]es?)\s+(bank|wallet|address|adresse|coordonnées|rib|iban|payment)",

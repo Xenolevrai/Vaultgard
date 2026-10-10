@@ -1398,3 +1398,16 @@ table.data-table tr:hover td {
    Surtout PAS de !important : il l'emporterait sur el.style.display et l'élément ne s'afficherait jamais
    (ex. champ 2FA de /login). « html .is-hidden » bat les règles à une classe, mais pas le style posé par le JS. */
 html .is-hidden { display: none; }
+
+/* --- Factures reçues par mail --- */
+.inbox-card { margin-bottom: 24px; }
+.inbox-address-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 8px 0; min-width: 0; }
+.inbox-address { font-size: 18px; font-weight: 600; min-width: 0; }
+.inbox-form { padding: 12px 16px 0; }
+.inbox-pad { padding: 10px 16px 0; }
+.inbox-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.inbox-list-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
+.check-detail-cell { background: var(--bg); overflow-wrap: anywhere; }
+.check-proof { margin-top: 8px; font-size: 12px; color: var(--ink-muted); }
+#inbox-checks-tbody .badge, #inbox-payees-tbody .badge { white-space: nowrap; }

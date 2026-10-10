@@ -30,6 +30,17 @@ entreprise) et `docs/EXPLIQUER-SIMPLEMENT.md` (pitch simple, lien avec le sujet 
 sujet). 174 tests + audit 29/29 verts. Le dépôt GitHub contient aussi une
 copie du dossier parent dans `vaultguard/preparation/`. Ligne de l'équipe : rester centré Track 1 / Avalanche.
 
+**10 oct, fin de journée — nouvelle direction de l'équipe : la boîte de dépôt des factures.** Chaque entreprise
+reçoit une adresse mail fournie par nous, y transfère ses factures ; seuls les expéditeurs qu'elle a autorisés (et
+prouvés par SPF/DKIM/DMARC) sont lus ; VaultGuard répond « bonne à payer / à vérifier / refusée ». Aucun paiement et
+pas d'Avalanche dans ce parcours pour l'instant ; le fournisseur doit toucher des **euros** sur son IBAN (virement,
+ou EURC sur Avalanche reconverti par un prestataire agréé : étape suivante, non construite ; Avalanche = registre de
+preuves). Construit et testé : `vaultguard/agent/inbox.py`, `vaultguard/agent/mail_agent.py`, menu « 2. Factures
+reçues » de `/app`, `vaultguard/ENVOYER-FACTURES-DEMO.bat`. **Lire `vaultguard/docs/BOITE-FACTURES.md`** (essai en
+3 minutes, image du vigile devant la boîte aux lettres) et `vaultguard/docs/METRIQUES.md` (chiffres de détection).
+Le projet précédent (coffre Avalanche, API `/v1`) est conservé. Restent à faire par Ozgun : brancher une boîte Gmail
+de test, **dégeler le coffre Fuji** (gelé, voir AGENTS.md §6) s'il veut montrer le parcours Avalanche.
+
 **Gel des livrables : dimanche 11 oct 12h00.** Restent : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche
 de défense 1 page, playbook de réponse, accès du jury au dépôt, métriques chiffrées, et
 demander à un organisateur comment s'applique la règle « cœur du projet développé pendant l'événement » (VaultGuard

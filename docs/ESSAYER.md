@@ -1,5 +1,11 @@
 # Tout essayer, pas à pas
 
+> **Nouveau (10 oct, fin de journée) : la boîte de dépôt des factures**, en euros, sans paiement. C'est la direction
+> actuelle de l'équipe. Son essai en 3 minutes est dans [`BOITE-FACTURES.md`](BOITE-FACTURES.md)
+> (`ENVOYER-FACTURES-DEMO.bat`, menu « 2. Factures reçues »). La suite de cette page décrit le parcours précédent
+> (assistant du client + coffre Avalanche), toujours disponible. Les numéros du menu ont avancé d'un cran :
+> Paiements = 3, Assistants = 4, Fournisseurs = 5, Règles = 6, Historique = 7.
+
 Base de démo recréée le 10 oct au soir : entreprise « Transports Martin », trois fournisseurs (Garage Dupont, Loueur
 Camions Express, Épicerie Pro), un historique de 5 paiements daté de la veille.
 

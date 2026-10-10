@@ -285,6 +285,44 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   - Explications données à Ozgun, à réutiliser pour le pitch : Avalanche = le réseau, AVAX = sa monnaie (démo),
     EURC = des euros en jetons (règlement réel) ; le fournisseur reçoit des EURC sur un portefeuille, pas un virement :
     c'est la friction assumée. L'agent de démo est le nôtre ; chez un client c'est son agent, branché par le SDK.
+- [x] **Boîte de dépôt des factures (10 oct, nouvelle direction de l'équipe)** — mode d'emploi, image à utiliser,
+  limites et suite « paiement en euros » dans `docs/BOITE-FACTURES.md` ; chiffres dans `docs/METRIQUES.md`.
+  - Décision de l'équipe : se concentrer sur « une facture arrive par mail → bonne à payer / à vérifier / refusée ».
+    **Aucun paiement, pas d'Avalanche dans ce parcours pour l'instant.** Le fournisseur doit recevoir des **euros**
+    sur son compte : il est identifié par son **IBAN** (table `payees`, distincte de `suppliers` qui reste le
+    carnet d'adresses Avalanche). Suite envisagée, non construite : virement SEPA (initiation de paiement) ou
+    passage invisible par EURC + contrat Avalanche + reconversion par un prestataire agréé ; Avalanche = registre
+    de preuves. Ne pas présenter la blockchain comme « empêchant l'illégalité » : elle prouve après coup.
+  - `agent/inbox.py` (VaultGuard) : une adresse par organisation (`inboxes.alias`, part aléatoire), expéditeurs de
+    confiance (`inbox_senders`), fournisseurs + IBAN avec délai d'activation (`payees`), `judge()` → `invoice_checks`
+    (verdict `ok` / `review` / `refused`), décision humaine `review_check` (UPDATE conditionnel, une seule fois).
+    Routes `/api/app/inbox*` et `/api/app/payees*` (viewer lit, approver décide, admin règle).
+  - `agent/mail_agent.py` (l'assistant, un fil dans le serveur car le verrou du journal d'audit est propre au
+    processus) : télécharge **les en-têtes d'abord**, retrouve l'entreprise par l'alias de l'adresse de destination,
+    écarte sans lire tout expéditeur hors liste ou non prouvé (premier en-tête `Authentication-Results` seulement,
+    au nom de notre serveur, DMARC/DKIM/SPF aligné sur le domaine de l'expéditeur), puis lit, juge, répond
+    (SMTP, sans rien recopier du mail, `Auto-Submitted`) et efface. Sans `INBOUND_IMAP_HOST` et en écoute locale :
+    boîte de démonstration = dossier `agent/data/boite-entrante/*.eml` (`ENVOYER-FACTURES-DEMO.bat`).
+  - Règle zéro conservation tenue : `invoice_checks` ne contient que verdict, montant, numéro, 4 derniers caractères
+    + empreinte de l'IBAN, empreinte du fichier ; les raisons sont nos phrases (test
+    `test_no_invoice_text_reaches_the_database`). Le mail passe désormais par chez nous : promesse = « on ne garde
+    rien », plus « on ne voit rien » (à dire au client).
+  - Corrigé en chemin : (1) **`db.execute` laissait une transaction ouverte après une erreur SQL** (ex. doublon) :
+    la connexion du fil gardait le verrou d'écriture et tout le site répondait 500 « database is locked » — rollback
+    ajouté, trouvé en essayant l'écran dans Chrome. (2) **`test_vaultguard` faisait `os.environ.pop("CHAIN")`**,
+    puis `import agent` rechargeait `agent/.env` (`CHAIN=web3`) : ces tests partaient sur le vrai contrat Fuji
+    (4 échecs, 5 min). Ils forcent maintenant `CHAIN=mock`. **Le coffre Fuji est gelé** (constaté le 10 oct via
+    `doctor.sh`, sans doute par le scénario « appât » d'un de ces passages) : à dégeler par Ozgun avant toute
+    démonstration du parcours Avalanche. (3) `invoice_reader._mail` lisait les lignes deux fois (texte + HTML) →
+    champs lus dans la version affichée seulement ; un logo illisible ne rend plus tout le mail illisible.
+    (4) motif d'injection « ignore tes/vos instructions » ajouté.
+  - `/app` : menu « 2. Factures reçues » (adresse, À faire, factures contrôlées avec détail et preuve, personnes
+    autorisées, fournisseurs et IBAN, seuil), carte sur l'accueil, mise à jour seule toutes les 5 s. Vérifié dans
+    Chrome sur une instance jetable (9 mails, décisions, formulaires, doublon). Les numéros du menu ont changé
+    (Paiements = 3, …, Équipe = 8).
+  - 194 tests Python (`test_inbox.py` : 20), `test-all.sh --full` vert. Jeu d'essai de 42 mails : 30 fraudes/anomalies arrêtées sur 30,
+    12 factures honnêtes passées sur 12. Reste à faire par Ozgun : brancher une vraie boîte Gmail de test
+    (`docs/BOITE-FACTURES.md`), jamais essayé avec de vrais identifiants.
 - [x] Règles officielles lues (Notion, 10 oct) : résumé, livrables, grille et points ouverts dans `docs/HACKATHON.md`.
 - [ ] **Livrables avant dim. 11 oct 12h00** : vidéo 2-3 min, deck 8 slides (dont slide conformité), fiche de défense
   1 page, playbook de réponse, accès du jury au dépôt, métriques de détection chiffrées. (README « limites connues » : fait.)

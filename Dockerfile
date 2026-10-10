@@ -8,6 +8,7 @@ RUN pip install -r agent/requirements.txt && useradd --uid 10001 --no-create-hom
 COPY agent/*.py agent/
 COPY agent/abi agent/abi
 COPY dashboard dashboard
+COPY sdk sdk
 RUN rm -f agent/test_*.py
 USER vaultguard
 WORKDIR /app/agent

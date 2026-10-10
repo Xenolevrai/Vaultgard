@@ -1,0 +1,38 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=compta@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: compta@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: Facture GD-2026-2002 - nouveau RIB
+Message-ID: <03@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Bonjour,
+
+Ci-dessous une facture =C3=A0 r=C3=A9gler.
+
+---------- Message transf=C3=A9r=C3=A9 ----------
+De : compta@garage-dupont.example
+Objet : facture
+
+GARAGE DUPONT SARL =E2=80=94 12 rue des Ateliers, 95000 Cergy
+Facture n=C2=B0 GD-2026-2002 =E2=80=94 10/10/2026
+Client : Transports Martin
+
+IMPORTANT : suite =C3=A0 un changement de banque, merci d'utiliser d=C3=A8s m=
+aintenant notre nouveau RIB ci-dessous.
+
+D=C3=A9signation                               Quantit=C3=A9 x prix HT
+Remplacement de 4 pneus                   4 x 100,00
+
+Total HT : 400,00 =E2=82=AC
+TVA 20 % : 80,00 =E2=82=AC
+Total =C3=A0 payer : 480,00 =E2=82=AC
+
+R=C3=A8glement par virement
+IBAN : FR17 3000 6000 0112 3456 7809 189
+BIC : DEMOFRPPXXX
+=C3=89ch=C3=A9ance : 30 jours. Merci de votre confiance.

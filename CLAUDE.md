@@ -21,6 +21,14 @@
   non informaticiens : pas de jargon, une phrase claire, technique repliée). Ozgun a du mal à expliquer le projet :
   lui répondre avec des images simples (le stagiaire au chéquier, le contrôleur, le coffre à règles fixes).
   L'équipe veut rester centrée Track 1 / Avalanche ; les factures restent en euros (AVAX = jeton de démo, EURC en réel).
+- **10 oct, fin de journée — direction actuelle : la boîte de dépôt des factures** (`docs/BOITE-FACTURES.md`, à lire
+  en premier ; AGENTS.md §6). Une adresse mail par entreprise, expéditeurs de confiance, verdict « bonne à payer / à
+  vérifier / refusée », en euros avec IBAN, sans paiement ni Avalanche pour l'instant. Code : `agent/inbox.py`,
+  `agent/mail_agent.py`, `agent/test_inbox.py`, `examples/boite_demo.py`. Démo : `ENVOYER-FACTURES-DEMO.bat`.
+  Chiffres : `python3 ../scripts/detection-metrics.py --write` (depuis `agent/`).
+  Toujours lancer les tests avec `CHAIN=` ou `CHAIN=mock` : `agent/.env` contient `CHAIN=web3` et un test qui
+  l'oublie parle au vrai contrat Fuji. Dans le navigateur, neutraliser `window.alert` avant de tester un formulaire
+  (une alerte bloque l'onglet piloté).
 - Après une modification de `agent/*.py`, le site lancé par `LANCER-DASHBOARD.bat` doit être relancé pour la prendre
   en compte. Tester l'agent de factures sur une instance isolée (`DB_PATH` temporaire, autre `PORT`) : chaque refus
   compte pour le disjoncteur de la base de démo (clé en quarantaine à 5 refus en 1 h). Recréer la base de démo

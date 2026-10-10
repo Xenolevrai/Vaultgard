@@ -1,0 +1,36 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=direction@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: direction@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: TR: Facture Garage Dupont GD-2026-2001 (rappel)
+Message-ID: <08@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Bonjour,
+
+Ci-dessous une facture à régler.
+
+---------- Message transféré ----------
+De : compta@garage-dupont.example
+Objet : facture
+
+GARAGE DUPONT SARL — 12 rue des Ateliers, 95000 Cergy
+Facture n° GD-2026-2001 — 10/10/2026
+Client : Transports Martin
+
+Désignation                               Quantité x prix HT
+Vidange et filtres camion                 2 x 150,00
+Contrôle des freins                       1 x 100,00
+
+Total HT : 400,00 €
+TVA 20 % : 80,00 €
+Total à payer : 480,00 €
+
+Règlement par virement
+IBAN : FR76 3000 6000 0112 3456 7890 189
+BIC : DEMOFRPPXXX
+Échéance : 30 jours. Merci de votre confiance.

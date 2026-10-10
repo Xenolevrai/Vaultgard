@@ -81,6 +81,7 @@ class Invoice:
     pay_to: str = ""
     lines: list[dict[str, str]] = field(default_factory=list)
     file_sha256: str = ""
+    attachments: list[dict[str, str]] = field(default_factory=list)  # mail : [{sha256, total}] par pièce jointe
 
     def documents(self) -> list[dict[str, str]]:
         """Le texte complet, découpé pour l'API : [{source, content, file_sha256}]."""
@@ -323,7 +324,7 @@ def _mail(data: bytes, name: str) -> Invoice:
     """Corps du mail (texte et HTML bruts) et pièces jointes lisibles. Les champs structurés d'une pièce
     jointe (XML, Factur-X) priment sur ceux devinés dans le corps."""
     msg = email.message_from_bytes(data, policy=email.policy.default)
-    parts, attached = [], []
+    parts, attached, shown = [], [], {"text/plain": [], "text/html": []}
     for part in msg.walk():
         if part.is_multipart():
             continue
@@ -334,19 +335,28 @@ def _mail(data: bytes, name: str) -> Invoice:
                 parts.append(str(part.get_content()))
             except (LookupError, UnicodeDecodeError):
                 parts.append(payload.decode("utf-8", "replace"))
+            shown[part.get_content_type()].append(parts[-1])
         elif filename:
             try:
                 attached.append(read_bytes(payload, filename, _depth=1))
             except UnreadableInvoice as e:
+                # Logo ou image de signature : presque tous les mails en portent. Si la facture elle-même est
+                # une image illisible, aucun montant ne sera trouvé et un humain sera sollicité.
+                if part.get_content_maintype() == "image":
+                    continue
                 raise UnreadableInvoice(f"pièce jointe « {filename[:60]} » illisible : {e}") from e
     body = "\n".join(parts)
-    inv = Invoice(fmt="mail", name=name, text="\n".join([body, *(a.text for a in attached)]))
+    inv = Invoice(fmt="mail", name=name, text="\n".join([body, *(a.text for a in attached)]),
+                  attachments=[{"sha256": a.file_sha256, "total": a.total} for a in attached])
     best = next((a for a in attached if a.total), None)
     if best:
         for attr in ("number", "supplier", "currency", "total", "tax", "pay_to", "lines"):
             setattr(inv, attr, getattr(best, attr))
         inv.fmt = f"mail+{best.fmt}"
-    return _from_text(inv, readable(inv.text))
+    # Un mail porte souvent le même contenu deux fois (texte et HTML) : les champs sont lus dans une seule
+    # version, celle qu'affiche une messagerie, sinon chaque ligne compterait double. `inv.text` garde tout.
+    visible = shown["text/html"] or shown["text/plain"]
+    return _from_text(inv, readable("\n".join([*visible, *(a.text for a in attached)])))
 
 
 # ------------------------------------------------------------------ Entrées

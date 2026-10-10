@@ -1,0 +1,35 @@
+Authentication-Results: demo.vaultguard.local; dkim=pass
+ header.d=transports-martin.example; spf=pass
+ smtp.mailfrom=direction@transports-martin.example; dmarc=pass
+ header.from=transports-martin.example
+From: direction@transports-martin.example
+To: factures+transports-martin@demo.vaultguard.local
+Subject: Facture nettoyage
+Message-ID: <05@demo.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Bonjour,
+
+Ci-dessous une facture à régler.
+
+---------- Message transféré ----------
+De : contact@nettoyage-express.example
+Objet : facture
+
+NETTOYAGE EXPRESS 95 — 12 rue des Ateliers, 95000 Cergy
+Facture n° NE-0456 — 10/10/2026
+Client : Transports Martin
+
+Désignation                               Quantité x prix HT
+Nettoyage des locaux                      1 x 300,00
+
+Total HT : 300,00 €
+TVA 20 % : 60,00 €
+Total à payer : 360,00 €
+
+Règlement par virement
+IBAN : FR25 1756 9000 7045 9386 7824 K55
+BIC : DEMOFRPPXXX
+Échéance : 30 jours. Merci de votre confiance.

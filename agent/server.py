@@ -565,6 +565,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/app/settings":
                 user, org, _ = self._app_context("viewer")
                 return self._json(orgs.get_settings(org["id"]))
+            if path == "/api/app/inbox":
+                import inbox
+                user, org, _ = self._app_context("viewer")
+                return self._json(inbox.get_inbox(org["id"]))
             raise ApiError(404, "Introuvable")
         if path.startswith("/api/admin/"):
             user, csrf = self._admin_context()
@@ -965,6 +969,35 @@ class Handler(BaseHTTPRequestHandler):
                     canary_address=b.get("canary_address"),
                     ip=self._ip()
                 ))
+            if path.startswith(("/api/app/inbox/", "/api/app/payees")):
+                import inbox
+
+                def text(key: str) -> str:
+                    value = b.get(key)
+                    if not isinstance(value, str) or not value.strip() or len(value) > 200:
+                        raise ApiError(400, "Champ requis : " + key)
+                    return value
+
+                if path == "/api/app/inbox/senders":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(inbox.add_sender(org["id"], user["id"], text("email"), ip=self._ip()), code=201)
+                if path == "/api/app/inbox/senders/remove":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(inbox.remove_sender(org["id"], user["id"], text("id"), ip=self._ip()))
+                if path == "/api/app/payees":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(inbox.add_payee(org["id"], user["id"], text("name"), text("iban"), ip=self._ip()),
+                                      code=201)
+                if path == "/api/app/payees/remove":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(inbox.remove_payee(org["id"], user["id"], text("id"), ip=self._ip()))
+                if path == "/api/app/inbox/threshold":
+                    user, org, _ = self._app_context("admin")
+                    return self._json(inbox.set_threshold(org["id"], user["id"], b.get("cents"), ip=self._ip()))
+                if path in ("/api/app/inbox/checks/approve", "/api/app/inbox/checks/reject"):
+                    user, org, _ = self._app_context("approver")
+                    return self._json(inbox.review_check(org["id"], user["id"], text("id"),
+                                                         approve=path.endswith("approve"), ip=self._ip()))
             if path == "/api/app/vault/unpause":
                 user, org, _ = self._app_context("owner")
                 code = b.get("code") or b.get("totp_code")
@@ -1083,6 +1116,12 @@ def main():
     db.init_db()
     srv = ThreadingHTTPServer((CFG.host, CFG.port), Handler)
     srv.daemon_threads = True
+    try:
+        import mail_agent
+        if mail_agent.start(local=_is_loopback(CFG.host)):
+            print("Boîte de dépôt des factures : relève active")
+    except ImportError as e:  # le site reste utilisable sans le lecteur de factures
+        log.warning("Boîte de dépôt des factures désactivée (%s)", e)
     print(f"VaultGuard -> http://localhost:{CFG.port}  (backend={CFG.backend}, écoute {CFG.host}, "
           f"admin={'local' if CFG.local_admin else ('mot de passe' if CFG.password_hash else 'désactivé')})")
     srv.serve_forever()

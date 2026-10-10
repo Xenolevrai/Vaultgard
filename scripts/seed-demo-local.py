@@ -84,6 +84,11 @@ db.execute("UPDATE payments SET created_at = created_at - 86400, updated_at = up
 db.execute("UPDATE suppliers SET active_after = ? WHERE org_id = ? AND address = ?;",
            (int(time.time()) - 60, org_id, NEW_SUPPLIER.lower()))
 
+# 4. Boîte de dépôt des factures (adresse, personnes autorisées, fournisseurs avec IBAN de test)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import seed_inbox_demo  # noqa: E402
+print("  Boîte de dépôt des factures     ->", seed_inbox_demo.seed(org_id, uid))
+
 out = DB.parent / "COMPTES-DEMO.txt"
 out.write_text(f"""COMPTES DE DÉMONSTRATION LOCAUX (base {DB.name}) — ne pas réutiliser ailleurs
 
