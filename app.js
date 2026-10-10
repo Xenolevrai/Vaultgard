@@ -1228,7 +1228,6 @@
     });
 
     const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
-    const innerCollapseBtn = document.getElementById('btn-sidebar-collapse-inner');
     function handleToggleSidebar() {
       const sb = document.getElementById('app-sidebar');
       if (!sb) return;
@@ -1240,9 +1239,6 @@
     }
     if (toggleSidebarBtn) {
       toggleSidebarBtn.addEventListener('click', handleToggleSidebar);
-    }
-    if (innerCollapseBtn) {
-      innerCollapseBtn.addEventListener('click', handleToggleSidebar);
     }
 
     const focusSearchBtn = document.getElementById('btn-focus-search');
