@@ -210,10 +210,12 @@ Depuis PowerShell : `wsl -d kali-linux --cd /mnt/c/Users/ozgun/Bureau/SecureHori
   (le contrôle « aucun secret » de la CI refuse toute chaîne 0x + 64 hex, même la clé publique d'Anvil : utiliser `anvil_setBalance`)
 - [x] Répétition locale du déploiement `scripts/rehearse-deploy.sh` OK le 2026-10-06 (déploiement, doctor 20 OK,
   paiement réel, appât -> coffre gelé par le guardian).
-- [ ] **Faucet Fuji sur Owner** `0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5` (~0,5 AVAX) : core.app exige un code promo
-  (à obtenir auprès de Team1 Avalanche / organisateurs) ou un solde mainnet > 0 ; sinon Builder Hub (compte d'Ozgun créé,
-  Core Wallet installé mais wallet pas encore créé/connecté). Puis `bash scripts/deploy-fuji.sh`, `CHAIN=web3` dans
-  `agent/.env`, `bash scripts/doctor.sh`, vérification sur Snowtrace.
+- [ ] **Faucet Fuji sur Owner** `0xD8e58B7aa74cE5707B117515a0d6ee1e65F863E5` (~0,5 AVAX). Ozgun a reçu le 10 oct
+  (jour J) l'email des organisateurs avec les infos Fuji/faucet (probablement un code promo pour core.app/tools/testnet-faucet) :
+  **lui demander ces infos en premier**, les utiliser pour créditer Owner (CAPTCHA/wallet = lui), puis
+  `bash scripts/deploy-fuji.sh`, `CHAIN=web3` dans `agent/.env`, `bash scripts/doctor.sh`, vérification sur Snowtrace.
+  Pas de surveillant en tâche de fond : le process ne survit pas à la fin de session (vérifié le 2026-10-06) — déployer
+  dans le tour courant dès que les AVAX sont là.
 - [x] Démo locale : `scripts/seed-demo-local.py` (depuis `agent/`) recrée la base avec un super-admin 2FA et un client
   « Transports Martin » (5 paiements réels via `/v1` : 1 autorisé, 1 en attente, 3 bloqués). Identifiants dans
   `agent/data/COMPTES-DEMO.txt` (ignoré par git, ne jamais les afficher). Lancement : `LANCER-DASHBOARD.bat`.
@@ -231,12 +233,15 @@ owner multisig Safe · ICM/Teleporter Avalanche (politique multi-chaînes) · L1
 rapport d'audit PDF signé.
 
 ## 8. Mode hackathon (10-11 oct 2026, 36 h) — à lire en premier le jour J
-Quand Ozgun revient avec le sujet exact / le code promo du faucet :
+Jour J arrivé (10 oct). Ozgun a reçu l'email des organisateurs avec les infos Fuji/faucet le 10 oct au matin, mais
+n'a pas encore déployé (next session après celle du 6 oct). **Dès qu'Ozgun revient : lui demander cet email / le
+sujet exact de la track** avant toute chose — ne rien supposer sur leur contenu.
 1. **Lire le sujet** et le comparer à la Track 1 « Guardians of Value » : reformuler en 3 lignes ce que VaultGuard
    couvre déjà, ce qui manque, et proposer **le plus petit ajout visible** qui colle au sujet (pas de refonte).
-2. **Faucet** : code promo sur core.app/tools/testnet-faucet (réseau Fuji C-Chain, token AVAX) vers l'adresse Owner
-   ci-dessus, puis `bash scripts/deploy-fuji.sh` → `CHAIN=web3` dans `agent/.env` → `bash scripts/doctor.sh` → lien
-   Snowtrace du contrat. Le CAPTCHA et les connexions de wallet sont faits par Ozgun.
+2. **Faucet** : utiliser les infos reçues par email (code promo probable) sur core.app/tools/testnet-faucet (réseau
+   Fuji C-Chain, token AVAX) vers l'adresse Owner ci-dessus, puis `bash scripts/deploy-fuji.sh` → `CHAIN=web3` dans
+   `agent/.env` → `bash scripts/doctor.sh` → lien Snowtrace du contrat. Le CAPTCHA et les connexions de wallet sont
+   faits par Ozgun. Faire ceci **dans le tour courant** (pas de surveillant en tâche de fond entre deux sessions).
 3. **Avant toute démo** : `bash scripts/test-all.sh --full` et `bash scripts/security-audit.sh` au vert ;
    `python3 ../scripts/seed-demo-local.py` (depuis `agent/`) pour une base propre ; `LANCER-DASHBOARD.bat`.
 4. **Parcours de démo (3 min)** : accueil `/` → `/demo` (scénarios d'attaque : injection, appât, sosie, double

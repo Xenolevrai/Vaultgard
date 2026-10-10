@@ -11,8 +11,11 @@
 - Le dashboard tourne sur http://localhost:8000 et peut être vérifié avec Claude in Chrome.
 - Ozgun utilise aussi **Antigravity** sur ce projet : relire `git log` / l'état dans AGENTS.md §6 en début de session, et mettre §6 à jour en fin de tâche.
 - Économie de tokens : lire seulement les parties utiles, pas de sous-agents sauf demande.
-- **Prochaine session = hackathon** : commencer par AGENTS.md §8 (mode hackathon), puis §6. La v3 est terminée,
-  revue et poussée (CI verte) ; il reste le déploiement Fuji (faucet), les slides et la vidéo de secours.
+- **Jour J (10-11 oct) arrivé.** Ozgun a reçu le 10 oct l'email des organisateurs avec les infos Fuji/faucet, mais
+  n'a pas encore déployé. En début de session : lui demander cet email + le sujet exact de la track, puis AGENTS.md
+  §8 (mode hackathon), puis §6. La v3 est terminée, revue et poussée (CI verte) ; déployer sur Fuji dans le tour
+  courant (pas de surveillant en tâche de fond : ne survit pas à la fin de session, vérifié le 2026-10-06), puis
+  slides et vidéo de secours.
 - Démo locale : base de démo via `scripts/seed-demo-local.py`, serveur via `LANCER-DASHBOARD.bat` (port 8000).
   Ne jamais lire à voix haute / afficher `agent/data/COMPTES-DEMO.txt` ni `agent/.env` : renvoyer Ozgun au fichier.
 - Vérifications de sécurité : passer par `scripts/security-audit.sh` et `scripts/test-all.sh --full` (contrôles
